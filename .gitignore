@@ -1,9 +1,9 @@
-build/*
+/build/
+*.vpk
+*.self
+*.velf
+*.rco
+*.obj
+*.o
+*.a
 .DS_Store
-.cache/*
-compile_commands.json
-venv/*
-mdns_discovery.py
-.vscode/tasks.json
-psp2core_tmp.psp2dmp
-.vscode/settings.json
