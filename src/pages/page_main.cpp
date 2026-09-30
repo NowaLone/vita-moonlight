@@ -3,11 +3,23 @@
 #include "pages/page_add_host.h"
 #include "option_menu.h"
 #include "common.h"
-#include "moonlight/api.h"
+#include "app/moonlight_app.h"
 
 namespace page {
 
 static Main *s_main = NULL;
+
+static void onMoonlightEvent(const MoonlightEvent *event, void *)
+{
+    if (!event || event->type != MOONLIGHT_EVENT_SETTINGS_CLOSED) {
+        return;
+    }
+
+    Main *main = Main::Instance();
+    if (main) {
+        main->RestoreAfterSystemSettings();
+    }
+}
 
 static void onSearch(int32_t type, paf::ui::Handler *self, paf::ui::Event *e, void *userdata) {
     (void)type;
@@ -44,7 +56,7 @@ static void onOptionMenu(OptionMenu::EventType type, int button_index, void *use
         main->SuspendForSystemSettings();
     }
 
-    if (moonlight_api_open_settings() != 0 && main) {
+    if (MoonlightApp::Instance()->Settings().Open() != 0 && main) {
         main->RestoreAfterSystemSettings();
     }
 }
@@ -69,9 +81,14 @@ Main::Main()
     bind_decide(root, "btn_search_pcs", onSearch);
     bind_decide(root, "btn_add_manually", onAdd);
     bind_decide(root, "settings_button", onSettingsButton, this);
+    MoonlightApp::Instance()->SetEventCallback(onMoonlightEvent, NULL);
 }
 
 Main::~Main() {
+    if (MoonlightApp::Instance()->IsInitialized()) {
+        MoonlightApp::Instance()->SetEventCallback(NULL, NULL);
+    }
+
     if (s_main == this) {
         s_main = NULL;
     }

@@ -47,8 +47,16 @@ endif()
 
 add_executable(${PROJECT_NAME}
   ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/paf_sample.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/app/paf_runtime.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/common.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/app/moonlight_app.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/backend/legacy_moonlight_adapter.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/services/host_service.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/services/host_discovery_service.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/services/pairing_service.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/services/connection_service.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/services/application_service.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/services/settings_service.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/option_menu.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/moonlight/api.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/moonlight/settings.cpp
@@ -90,6 +98,8 @@ set(RCO_FILE "${CMAKE_CURRENT_BINARY_DIR}/vita_moonlight_ui.rco")
 if(NOT EXISTS "${RCO_FILE}")
   message(FATAL_ERROR "Missing vita_moonlight_ui.rco. Run build_cxml.sh before configuring the project.")
 endif()
+
+vita_create_self(${PROJECT_NAME}.self ${PROJECT_NAME} UNSAFE)
 
 vita_create_vpk(vita_moonlight_paf.vpk "VLMP00001" ${PROJECT_NAME}.self
   VERSION "01.00"
