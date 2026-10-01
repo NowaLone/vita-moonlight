@@ -11,6 +11,20 @@ endif()
 project(vita_moonlight_paf)
 include("${VITASDK}/share/vita.cmake" REQUIRED)
 
+# Embed the source revision into the About page at configure time.
+execute_process(
+  COMMAND git -C "${CMAKE_CURRENT_SOURCE_DIR}" rev-parse --short=12 HEAD
+  OUTPUT_VARIABLE VITA_MOONLIGHT_GIT_COMMIT
+  OUTPUT_STRIP_TRAILING_WHITESPACE
+  RESULT_VARIABLE VITA_MOONLIGHT_GIT_RESULT
+)
+
+if(NOT VITA_MOONLIGHT_GIT_RESULT EQUAL 0 OR NOT VITA_MOONLIGHT_GIT_COMMIT)
+  set(VITA_MOONLIGHT_GIT_COMMIT "unknown")
+endif()
+
+add_definitions(-DMOONLIGHT_GIT_COMMIT=\"${VITA_MOONLIGHT_GIT_COMMIT}\")
+
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g3 -Wl,-q -Wall -O0 -fno-inline -fno-builtin -fshort-wchar")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g3 -fno-rtti -fno-exceptions -Wl,-q -Wall -O0 -fno-builtin -fshort-wchar -Wno-unused-function -Wno-sign-compare")
 
@@ -51,6 +65,12 @@ add_executable(${PROJECT_NAME}
   ${CMAKE_CURRENT_SOURCE_DIR}/src/common.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/app/moonlight_app.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/backend/legacy_moonlight_adapter.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/backend/legacy_device_store.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/backend/legacy/device.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/backend/legacy/config_compat.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/backend/legacy/legacy_host_discovery.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/backend/legacy/mdns/udp_sniffer_vita.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/third_party/inih/ini.c
   ${CMAKE_CURRENT_SOURCE_DIR}/src/services/host_service.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/services/host_discovery_service.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/services/pairing_service.cpp
@@ -68,6 +88,8 @@ add_executable(${PROJECT_NAME}
 
 target_include_directories(${PROJECT_NAME} PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/include
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/backend/legacy
+  ${CMAKE_CURRENT_SOURCE_DIR}/third_party/inih
 )
 
 target_link_libraries(${PROJECT_NAME}
@@ -87,6 +109,7 @@ target_link_libraries(${PROJECT_NAME}
   SceAppSettings_stub
   SceAppUtil_stub
   SceCommonGuiDialog_stub
+  -lc
 )
 
 set_target_properties(${PROJECT_NAME}
