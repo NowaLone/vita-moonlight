@@ -21,6 +21,10 @@ typedef struct LegacyGameStreamServer {
     unsigned short http_port;
     unsigned short https_port;
     int server_major_version;
+    char server_info_app_version[64];
+    char server_info_gfe_version[64];
+    char rtsp_session_url[256];
+    int server_codec_mode_support;
     int current_game;
     bool paired;
     bool unsupported;
@@ -39,6 +43,12 @@ int legacy_gamestream_init(
 int legacy_gamestream_pair(
     LegacyGameStreamServer *server,
     const char *pin);
+
+int legacy_gamestream_launch(
+    LegacyGameStreamServer *server,
+    int app_id,
+    char *session_url,
+    size_t session_url_size);
 
 int legacy_gamestream_get_server_mac(
     LegacyGameStreamServer *server,

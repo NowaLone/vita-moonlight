@@ -23,6 +23,7 @@ Apps::Apps()
            paf::Plugin::TransitionType_SlideFromBottom,
            paf::Plugin::TransitionType_SlideFromBottom),
       m_app_count(0),
+      m_selected_index(-1),
       m_launching(false) {
     if (!IsValid()) return;
 
@@ -81,6 +82,7 @@ void Apps::SelectApp(int index) {
     if (m_launching || index < 0 || index >= m_app_count) return;
 
     m_launching = true;
+    m_selected_index = index;
     SetStatus("Requesting launch...");
 
     paf::ui::Widget *button = root->FindChild(AppButtonId(index));
@@ -91,17 +93,15 @@ void Apps::SelectApp(int index) {
     int result = MoonlightApp::Instance()->Connection().Start(m_apps[index].id);
     if (result != 0) {
         m_launching = false;
-        SetStatus("Launch start failed");
+        paf::string status = paf::common::FormatString("LAUNCH START %d", result);
+        SetStatus(status.c_str());
         if (button) {
-            button->SetString(paf::common::string_util::ToWString("LAUNCH FAILED"));
+            button->SetString(paf::common::string_util::ToWString(status));
         }
         return;
     }
 
-    if (button) {
-        button->SetString(paf::common::string_util::ToWString("NO STREAM YET"));
-    }
-    SetStatus("Launch accepted, stream not implemented");
+    SetStatus("Waiting for host...");
 }
 
 void Apps::SetStatus(const char *text) {
@@ -166,13 +166,31 @@ void Apps::OnMoonlightEvent(const MoonlightEvent *event, void *userdata) {
         }
         break;
     }
-    case MOONLIGHT_EVENT_STREAM_STARTED:
-        apps->SetStatus("Launch accepted, stream not implemented");
+    case MOONLIGHT_EVENT_STREAM_STARTED: {
+        const char *button_id = AppButtonId(apps->m_selected_index);
+        paf::ui::Widget *button = (apps->root && button_id)
+            ? apps->root->FindChild(button_id)
+            : NULL;
+        const char *label = (event->address && event->address[0]) ? event->address : "LAUNCHED";
+        if (button) {
+            button->SetString(paf::common::string_util::ToWString(label));
+        }
+        apps->SetStatus(label);
         break;
-    case MOONLIGHT_EVENT_STREAM_FAILED:
+    }
+    case MOONLIGHT_EVENT_STREAM_FAILED: {
+        const char *button_id = AppButtonId(apps->m_selected_index);
+        paf::ui::Widget *button = (apps->root && button_id)
+            ? apps->root->FindChild(button_id)
+            : NULL;
+        paf::string status = paf::common::FormatString("LAUNCH FAILED %d", event->result);
         apps->m_launching = false;
-        apps->SetStatus("Launch failed");
+        if (button) {
+            button->SetString(paf::common::string_util::ToWString(status));
+        }
+        apps->SetStatus(status.c_str());
         break;
+    }
     default:
         break;
     }
