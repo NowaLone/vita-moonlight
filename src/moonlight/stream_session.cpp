@@ -14,6 +14,7 @@
 
 #include "debug.h"
 #include "vita_video_renderer.h"
+#include "vita_audio_renderer.h"
 
 namespace {
 
@@ -38,6 +39,7 @@ struct StreamThreadArgs {
 static StreamContext s_stream_context = { NULL, NULL, 0 };
 static pthread_t s_stream_thread;
 static volatile int s_stream_thread_running = 0;
+static volatile int s_stream_stop_requested = 0;
 
 static size_t write_response(void *contents, size_t size, size_t count, void *userdata)
 {
@@ -423,7 +425,7 @@ static int run_stream_session(
         &stream_config,
         &callbacks,
         &decoder_callbacks_vita,
-        NULL,
+        &audio_callbacks_vita,
         NULL,
         0,
         NULL,
@@ -504,6 +506,7 @@ extern "C" int moonlight_stream_start(
     s_stream_context.callback = callback;
     s_stream_context.userdata = userdata;
     s_stream_context.started = 0;
+    s_stream_stop_requested = 0;
 
     s_stream_thread_running = 1;
     result = pthread_create(
@@ -531,8 +534,59 @@ extern "C" int moonlight_stream_start(
     return 0;
 }
 
+static void *stream_stop_thread_main(void *)
+{
+    int was_started;
+
+    vita_debug_log("[Stream] stop worker start");
+
+    LiStopConnection();
+
+    was_started = s_stream_context.started;
+    s_stream_context.started = 0;
+    s_stream_stop_requested = 0;
+
+    /*
+     * moonlight-common-c deliberately does not invoke
+     * connectionTerminated() after LiStopConnection(). Emit our own
+     * application-level stop event once Limelight has finished cleanup.
+     */
+    if (was_started) {
+        vita_debug_log("[Stream] emitting manual STREAM_STOPPED");
+        emit_event(MOONLIGHT_EVENT_STREAM_STOPPED, 0);
+    }
+
+    vita_debug_log("[Stream] stop worker finished");
+    return NULL;
+}
+
 extern "C" int moonlight_stream_stop(void)
 {
-    LiStopConnection();
+    pthread_t stop_thread;
+    int result;
+
+    if (s_stream_stop_requested) {
+        vita_debug_log("[Stream] stop already requested");
+        return 0;
+    }
+
+    s_stream_stop_requested = 1;
+
+    result = pthread_create(
+        &stop_thread,
+        NULL,
+        stream_stop_thread_main,
+        NULL);
+    if (result != 0) {
+        s_stream_stop_requested = 0;
+        vita_debug_log(
+            "[Stream] stop worker create failed result=%d",
+            result);
+        return result;
+    }
+
+    pthread_detach(stop_thread);
+
+    vita_debug_log("[Stream] stop worker launched");
     return 0;
 }
