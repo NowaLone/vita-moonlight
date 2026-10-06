@@ -1,6 +1,8 @@
 #ifndef VITA_MOONLIGHT_PAGE_MAIN_H
 #define VITA_MOONLIGHT_PAGE_MAIN_H
 
+#include <psp2/ime_dialog.h>
+
 #include "pages/page.h"
 #include "moonlight/types.h"
 
@@ -31,24 +33,38 @@ public:
     void SuspendForSystemSettings();
     void RestoreAfterSystemSettings();
     void OpenSearch();
-    void OpenAddHost();
+    void OpenAddPc();
     void RestoreEventCallback();
 
 private:
     static void OnHostButton(int32_t type, paf::ui::Handler *self, paf::ui::Event *event, void *userdata);
     static void InitialRefreshTask(void *userdata);
     static void OnMoonlightEvent(const MoonlightEvent *event, void *userdata);
+    static void ImePollTask(void *userdata);
 
     paf::ui::ListItem *CreateListItem(paf::ui::listview::ItemFactory::CreateParam &param);
     void RefreshHosts();
     void SelectHost(int index);
     void SetStatus(const char *text);
+    void StartAddPcIme();
+    void HandleAddPcImeResult();
+    void StartManualConnection(const char *address);
 
     MoonlightHost m_hosts[8];
     int m_host_count;
     int m_selected_index;
     bool m_connecting;
+    int m_initial_refresh_attempts;
     HostButtonContext m_button_contexts[8];
+
+    SceImeDialogParam m_ime_param;
+    SceWChar16 m_ime_input[256];
+    SceWChar16 m_ime_initial_text[256];
+    char m_add_pc_address[256];
+    bool m_ime_open;
+    bool m_ime_task_registered;
+    bool m_ime_retry_pending;
+    bool m_ime_module_loaded;
 };
 
 }

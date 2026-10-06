@@ -18,6 +18,7 @@ extern "C" {
 
 typedef struct LegacyGameStreamServer {
     char address[256];
+    char unique_id[64];
     unsigned short http_port;
     unsigned short https_port;
     int server_major_version;
@@ -36,7 +37,7 @@ int legacy_gamestream_init(
     LegacyGameStreamServer *server,
     const char *address,
     unsigned short http_port,
-    const char *key_directory,
+    const char *client_directory,
     int log_level,
     bool unsupported);
 
@@ -58,6 +59,7 @@ int legacy_gamestream_get_server_mac(
 void legacy_gamestream_shutdown(LegacyGameStreamServer *server);
 
 const char *legacy_gamestream_error(void);
+int legacy_gamestream_last_http_error(void);
 
 #ifdef __cplusplus
 }

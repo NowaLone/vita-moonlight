@@ -60,6 +60,7 @@ static char s_cert_hex[8192];
 static char s_unique_id[UNIQUEID_CHARS + 1];
 
 static bool s_curl_initialized = false;
+static CURLcode s_last_http_result = CURLE_OK;
 
 #define GAMESTREAM_WORKER_STACK (256 * 1024)
 
@@ -143,6 +144,11 @@ const char *legacy_gamestream_error(void)
     return s_error;
 }
 
+int legacy_gamestream_last_http_error(void)
+{
+    return (int)s_last_http_result;
+}
+
 static void bytes_to_hex(const unsigned char *input, char *output, size_t length)
 {
     size_t i;
@@ -220,13 +226,13 @@ static int make_directory_tree(const char *directory)
     return 0;
 }
 
-static int load_unique_id(const char *key_directory)
+static int load_unique_id(const char *client_directory)
 {
     char path[PATH_MAX_LOCAL];
     FILE *file;
     size_t read_count;
 
-    snprintf(path, sizeof(path), "%s/%s", key_directory, UNIQUE_FILE_NAME);
+    snprintf(path, sizeof(path), "%s/%s", client_directory, UNIQUE_FILE_NAME);
 
     file = fopen(path, "rb");
     if (file) {
@@ -417,7 +423,7 @@ cleanup:
     return result;
 }
 
-static int load_certificate(const char *key_directory)
+static int load_certificate(const char *client_directory)
 {
     char *certificate_path;
     char *key_path;
@@ -439,9 +445,9 @@ static int load_certificate(const char *key_directory)
         return LEGACY_GAMESTREAM_OUT_OF_MEMORY;
     }
 
-    snprintf(certificate_path, PATH_MAX_LOCAL, "%s/%s", key_directory, CERTIFICATE_FILE_NAME);
-    snprintf(key_path, PATH_MAX_LOCAL, "%s/%s", key_directory, KEY_FILE_NAME);
-    snprintf(p12_path, PATH_MAX_LOCAL, "%s/%s", key_directory, P12_FILE_NAME);
+    snprintf(certificate_path, PATH_MAX_LOCAL, "%s/%s", client_directory, CERTIFICATE_FILE_NAME);
+    snprintf(key_path, PATH_MAX_LOCAL, "%s/%s", client_directory, KEY_FILE_NAME);
+    snprintf(p12_path, PATH_MAX_LOCAL, "%s/%s", client_directory, P12_FILE_NAME);
 
     file = fopen(certificate_path, "rb");
     if (!file) {
@@ -603,6 +609,15 @@ static int http_request(
     curl_easy_setopt((CURL *)server->curl, CURLOPT_WRITEDATA, response);
     curl_easy_setopt((CURL *)server->curl, CURLOPT_URL, url);
 
+    /*
+     * GameStream pairing and current Moonlight Qt intentionally avoid
+     * persistent HTTP connections. Sunshine closes the pending getservercert
+     * response, and reusing that connection is unreliable on Vita libcurl.
+     */
+    curl_easy_setopt((CURL *)server->curl, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
+    curl_easy_setopt((CURL *)server->curl, CURLOPT_FRESH_CONNECT, 1L);
+    curl_easy_setopt((CURL *)server->curl, CURLOPT_FORBID_REUSE, 1L);
+
     http_buffer_free(response);
     http_buffer_init(response);
 
@@ -610,7 +625,9 @@ static int http_request(
         return LEGACY_GAMESTREAM_OUT_OF_MEMORY;
     }
 
+    s_last_http_result = CURLE_OK;
     curl_result = curl_easy_perform((CURL *)server->curl);
+    s_last_http_result = curl_result;
     if (curl_result != CURLE_OK) {
         set_error(curl_easy_strerror(curl_result));
         return LEGACY_GAMESTREAM_FAILED;
@@ -772,6 +789,7 @@ static int load_server_info(LegacyGameStreamServer *server, bool https)
     char state[256];
     char https_port[16];
     char mac[64];
+    char unique_id[64];
     HttpBuffer response;
     int result;
 
@@ -811,6 +829,13 @@ static int load_server_info(LegacyGameStreamServer *server, bool https)
         http_buffer_free(&response);
         set_error("Incomplete serverinfo response");
         return LEGACY_GAMESTREAM_INVALID;
+    }
+
+    if (xml_find_value(response.memory, response.size, "uniqueid",
+                       unique_id, sizeof(unique_id)) == LEGACY_GAMESTREAM_OK) {
+        strncpy(server->unique_id, unique_id, sizeof(server->unique_id) - 1);
+        server->unique_id[sizeof(server->unique_id) - 1] = '\0';
+        vita_debug_log("[GameStream] server uniqueid=%s", server->unique_id);
     }
 
     if (xml_find_value(response.memory, response.size, "HttpsPort", https_port, sizeof(https_port)) == LEGACY_GAMESTREAM_OK) {
@@ -1075,6 +1100,8 @@ static int decrypt_ecb(
 
 static int pair(LegacyGameStreamServer *server, const char *pin)
 {
+    s_last_http_result = CURLE_OK;
+
     unsigned char salt_data[16];
     char salt_hex[sizeof(salt_data) * 2 + 1];
     char uuid[UUID_STRLEN];
@@ -1145,11 +1172,32 @@ static int pair(LegacyGameStreamServer *server, const char *pin)
         return LEGACY_GAMESTREAM_OUT_OF_MEMORY;
     }
 
+    /*
+     * Sunshine keeps the initial /pair request open until the operator
+     * enters the PIN in its Web UI. Match Sunshine's five-minute pending
+     * pairing-session lifetime instead of the normal HTTP request timeout.
+     */
+    curl_easy_setopt((CURL *)server->curl, CURLOPT_TIMEOUT, 300L);
+
+    vita_debug_log("[GameStream] pairing phase=getservercert");
     step_result = http_request(server, url, &response);
+
+    /*
+     * Subsequent pairing phases should complete quickly. Restore the
+     * ordinary request timeout once Sunshine has released the first wait.
+     */
+    curl_easy_setopt((CURL *)server->curl, CURLOPT_TIMEOUT, 15L);
+
     if (step_result != LEGACY_GAMESTREAM_OK) {
+        vita_debug_log(
+            "[GameStream] pairing getservercert failed: %d (%s)",
+            step_result,
+            s_error);
         http_buffer_free(&response);
         return step_result;
     }
+
+    vita_debug_log("[GameStream] pairing phase=getservercert response received");
 
     if (xml_status_ok(response.memory, response.size) != LEGACY_GAMESTREAM_OK ||
         xml_find_value(response.memory, response.size, "paired", result, sizeof(result)) != LEGACY_GAMESTREAM_OK ||
@@ -1198,6 +1246,8 @@ static int pair(LegacyGameStreamServer *server, const char *pin)
 
     bytes_to_hex(challenge_enc, challenge_hex, sizeof(challenge_enc));
     generate_uuid(uuid);
+
+    vita_debug_log("[GameStream] pairing phase=clientchallenge");
 
     snprintf(
         url,
@@ -1303,6 +1353,8 @@ static int pair(LegacyGameStreamServer *server, const char *pin)
         sizeof(challenge_response_hash_enc));
 
     generate_uuid(uuid);
+
+    vita_debug_log("[GameStream] pairing phase=serverchallengeresp");
 
     snprintf(
         url,
@@ -1426,6 +1478,8 @@ static int pair(LegacyGameStreamServer *server, const char *pin)
 
     generate_uuid(uuid);
 
+    vita_debug_log("[GameStream] pairing phase=clientpairingsecret");
+
     snprintf(
         url,
         sizeof(url),
@@ -1451,6 +1505,8 @@ static int pair(LegacyGameStreamServer *server, const char *pin)
     }
 
     generate_uuid(uuid);
+
+    vita_debug_log("[GameStream] pairing phase=pairchallenge");
 
     snprintf(
         url,
@@ -1495,7 +1551,7 @@ typedef struct InitArgs {
     LegacyGameStreamServer *server;
     const char *address;
     unsigned short http_port;
-    const char *key_directory;
+    const char *client_directory;
     int log_level;
     bool unsupported;
 } InitArgs;
@@ -1506,7 +1562,7 @@ int legacy_gamestream_init(
     LegacyGameStreamServer *server,
     const char *address,
     unsigned short http_port,
-    const char *key_directory,
+    const char *client_directory,
     int log_level,
     bool unsupported)
 {
@@ -1515,7 +1571,7 @@ int legacy_gamestream_init(
     args.server = server;
     args.address = address;
     args.http_port = http_port;
-    args.key_directory = key_directory;
+    args.client_directory = client_directory;
     args.log_level = log_level;
     args.unsupported = unsupported;
     return run_on_worker(init_worker, &args);
@@ -1527,7 +1583,7 @@ static int init_worker(void *argument)
     LegacyGameStreamServer *server = args->server;
     const char *address = args->address;
     unsigned short http_port = args->http_port;
-    const char *key_directory = args->key_directory;
+    const char *client_directory = args->client_directory;
     int log_level = args->log_level;
     bool unsupported = args->unsupported;
     CURL *curl;
@@ -1536,7 +1592,7 @@ static int init_worker(void *argument)
     char *key_path;
     (void)log_level;
 
-    if (!server || !address || !address[0] || !key_directory || !key_directory[0]) {
+    if (!server || !address || !address[0] || !client_directory || !client_directory[0]) {
         set_error("Invalid GameStream initialization arguments");
         return LEGACY_GAMESTREAM_INVALID;
     }
@@ -1554,11 +1610,26 @@ static int init_worker(void *argument)
     OpenSSL_add_all_algorithms();
     ERR_load_crypto_strings();
 
-    if (make_directory_tree(key_directory) < 0 ||
-        load_unique_id(key_directory) != LEGACY_GAMESTREAM_OK ||
-        load_certificate(key_directory) != LEGACY_GAMESTREAM_OK) {
+    vita_debug_log("[GameStream] preparing client credentials dir=%s", client_directory);
+
+    if (make_directory_tree(client_directory) < 0) {
+        vita_debug_log("[GameStream] make_directory_tree failed");
         return LEGACY_GAMESTREAM_FAILED;
     }
+
+    vita_debug_log("[GameStream] loading unique client id");
+    if (load_unique_id(client_directory) != LEGACY_GAMESTREAM_OK) {
+        vita_debug_log("[GameStream] load_unique_id failed: %s", s_error);
+        return LEGACY_GAMESTREAM_FAILED;
+    }
+
+    vita_debug_log("[GameStream] loading client certificate");
+    if (load_certificate(client_directory) != LEGACY_GAMESTREAM_OK) {
+        vita_debug_log("[GameStream] load_certificate failed: %s", s_error);
+        return LEGACY_GAMESTREAM_FAILED;
+    }
+
+    vita_debug_log("[GameStream] client credentials ready");
 
     if (!s_curl_initialized) {
         if (curl_global_init(CURL_GLOBAL_ALL) != CURLE_OK) {
@@ -1574,7 +1645,7 @@ static int init_worker(void *argument)
         return LEGACY_GAMESTREAM_OUT_OF_MEMORY;
     }
 
-    vita_debug_log("[GameStream] init %s:%u dir=%s", address, http_port, key_directory);
+    vita_debug_log("[GameStream] init %s:%u dir=%s", address, http_port, client_directory);
 
     certificate_path = (char *)malloc(PATH_MAX_LOCAL);
     key_path = (char *)malloc(PATH_MAX_LOCAL);
@@ -1587,8 +1658,8 @@ static int init_worker(void *argument)
         return LEGACY_GAMESTREAM_OUT_OF_MEMORY;
     }
 
-    snprintf(certificate_path, PATH_MAX_LOCAL, "%s/%s", key_directory, CERTIFICATE_FILE_NAME);
-    snprintf(key_path, PATH_MAX_LOCAL, "%s/%s", key_directory, KEY_FILE_NAME);
+    snprintf(certificate_path, PATH_MAX_LOCAL, "%s/%s", client_directory, CERTIFICATE_FILE_NAME);
+    snprintf(key_path, PATH_MAX_LOCAL, "%s/%s", client_directory, KEY_FILE_NAME);
 
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
@@ -1597,6 +1668,8 @@ static int init_worker(void *argument)
     curl_easy_setopt(curl, CURLOPT_SSLKEYTYPE, "PEM");
     curl_easy_setopt(curl, CURLOPT_SSLKEY, key_path);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, http_write_callback);
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 5L);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 15L);
     curl_easy_setopt(curl, CURLOPT_FAILONERROR, 1L);
     curl_easy_setopt(curl, CURLOPT_SSL_SESSIONID_CACHE, 0L);
 

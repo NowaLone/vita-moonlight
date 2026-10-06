@@ -132,9 +132,9 @@ add_executable(${PROJECT_NAME}
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pages/page.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pages/page_main.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pages/page_search.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/pages/page_pairing.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pages/page_apps.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pages/page_stream.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/pages/page_add_host.cpp
   ${MOONLIGHT_COMMON_SOURCES}
   ${ENET_SOURCES}
 )
@@ -186,7 +186,9 @@ target_link_libraries(${PROJECT_NAME}
   ScePaf_stub_weak
   SceAppSettings_stub
   SceAppUtil_stub
+  SceCommonDialog_stub
   SceCommonGuiDialog_stub
+  SceIme_stub
   -Wl,--end-group
 )
 

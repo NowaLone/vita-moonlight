@@ -5,8 +5,11 @@
 
 #include "pages/page_search.h"
 #include "pages/page_apps.h"
+#include "pages/page_pairing.h"
 #include "pages/page_main.h"
 #include "app/moonlight_app.h"
+
+#include "debug.h"
 
 namespace page {
 
@@ -20,10 +23,8 @@ Search::Search()
            paf::Plugin::TransitionType_SlideFromBottom),
       m_host_count(0),
       m_host_selected(false),
-      m_pairing_pending(false),
       m_selected_index(-1),
       m_list(NULL) {
-    m_pairing_pin[0] = '\0';
 
     if (!IsValid()) return;
 
@@ -116,12 +117,6 @@ void Search::OnHostButton(int32_t type,
 
     Search *search = context->page;
 
-    if (search->m_pairing_pending &&
-        context->index == search->m_selected_index) {
-        search->ContinuePairing();
-        return;
-    }
-
     if (search->m_host_selected) {
         return;
     }
@@ -160,9 +155,56 @@ void Search::SelectHost(int index) {
         return;
     }
 
+    /*
+     * Add() resolves the discovered entry to the persistent host record and
+     * assigns the stable host_id/storage identity. Connect using that
+     * canonical record instead of the transient discovery object.
+     */
+    MoonlightHost canonical_host = host;
+    MoonlightHost saved_hosts[kMaxHosts];
+    int saved_count = app->Hosts().GetHosts(saved_hosts, kMaxHosts);
+
+    if (saved_count > 0) {
+        /*
+         * Address is the authoritative match for a freshly discovered host.
+         * Name is only a fallback because multiple PCs may share one name.
+         */
+        int canonical_index = -1;
+
+        if (host.internal[0]) {
+            for (int i = 0; i < saved_count && i < kMaxHosts; ++i) {
+                if (strcmp(saved_hosts[i].internal, host.internal) == 0) {
+                    canonical_index = i;
+                    break;
+                }
+            }
+        }
+
+        if (canonical_index < 0 && host.name[0]) {
+            for (int i = 0; i < saved_count && i < kMaxHosts; ++i) {
+                if (strcmp(saved_hosts[i].name, host.name) == 0) {
+                    canonical_index = i;
+                    break;
+                }
+            }
+        }
+
+        if (canonical_index >= 0) {
+            canonical_host = saved_hosts[canonical_index];
+        }
+    }
+
+    vita_debug_log(
+        "[Search] selected host name=%s ip=%s id=%s saved_count=%d canonical_id=%s",
+        host.name,
+        host.internal,
+        host.host_id,
+        saved_count,
+        canonical_host.host_id);
+
     SetStatus("Connecting to PC...");
 
-    int connect_result = app->Connection().Connect(host);
+    int connect_result = app->Connection().Connect(canonical_host);
     if (connect_result != 0) {
         paf::string status = paf::common::FormatString(
             "Unable to start connection: 0x%08X",
@@ -182,12 +224,14 @@ void Search::OnConnectionReady() {
     }
 
     if (app->Connection().State() == MOONLIGHT_CONNECTION_PAIRED) {
-        m_pairing_pending = false;
-        m_host_selected = true;
-        SetStatus("PC is already paired.");
+        SetStatus("PC is paired. Loading applications...");
         if (!Base::IsOpen("page_apps")) {
             Apps *apps = new Apps();
-            if (!apps->IsValid()) delete apps;
+            if (!apps->IsValid()) {
+                delete apps;
+                m_host_selected = false;
+                SetStatus("Unable to open applications.");
+            }
         }
         return;
     }
@@ -203,34 +247,12 @@ void Search::OnConnectionReady() {
         return;
     }
 
-    memcpy(m_pairing_pin, pin, sizeof(m_pairing_pin));
-    m_pairing_pending = true;
-
-    SetStatus("Enter this PIN on the PC, then press X.");
-}
-
-void Search::ContinuePairing() {
-    if (!m_pairing_pending || m_pairing_pin[0] == '\0') {
-        return;
+    Pairing *pairing = new Pairing(pin);
+    if (!pairing || !pairing->IsValid()) {
+        delete pairing;
+        m_host_selected = false;
+        SetStatus("Unable to open pairing screen.");
     }
-
-    MoonlightApp *app = MoonlightApp::Instance();
-    if (!app) {
-        SetStatus("Connection failed.");
-        return;
-    }
-
-    int result = app->Pairing().Pair(m_pairing_pin);
-    if (result != 0) {
-        paf::string status = paf::common::FormatString(
-            "Pairing start failed: 0x%08X",
-            (unsigned int)result);
-        SetStatus(status.c_str());
-        return;
-    }
-
-    m_pairing_pending = false;
-    SetStatus("Pairing with PC...");
 }
 
 void Search::SetStatus(const char *text) {
@@ -295,55 +317,14 @@ void Search::OnMoonlightEvent(
         }
         break;
 
-    case MOONLIGHT_EVENT_PAIRING_REQUIRED:
-        if (search->m_selected_index >= 0 && event->pairing_pin[0]) {
-            memcpy(
-                search->m_pairing_pin,
-                event->pairing_pin,
-                sizeof(search->m_pairing_pin));
-            search->m_pairing_pending = true;
-            search->SetStatus("Enter this PIN on the PC, then press X.");
-        }
-        break;
-
-    case MOONLIGHT_EVENT_PAIRING_FINISHED:
-        if (event->result == 0) {
-            search->SetStatus("PC paired.");
-            if (!Base::IsOpen("page_apps")) {
-                Apps *apps = new Apps();
-                if (!apps->IsValid()) delete apps;
-            }
-        } else {
-            paf::string status = paf::common::FormatString(
-                "Pairing failed: 0x%08X",
-                (unsigned int)event->result);
-            search->SetStatus(status.c_str());
-            search->m_pairing_pending = search->m_pairing_pin[0] != '\0';
-        }
-        break;
-
-    case MOONLIGHT_EVENT_PAIRING_FAILED: {
-        paf::string status = paf::common::FormatString(
-            "Pairing failed: 0x%08X",
-            (unsigned int)event->result);
-        search->SetStatus(status.c_str());
-        search->m_pairing_pending = search->m_pairing_pin[0] != ' ';
-        break;
-    }
-
     case MOONLIGHT_EVENT_CONNECTION_READY:
         search->OnConnectionReady();
         break;
 
     case MOONLIGHT_EVENT_CONNECTION_FAILED:
-        if (search->m_host_selected) {
-            paf::string status = paf::common::FormatString(
-                "Connection failed: 0x%08X",
-                (unsigned int)event->result);
-            search->SetStatus(status.c_str());
-            search->m_host_selected = false;
-            search->m_pairing_pending = false;
-        }
+        search->m_host_selected = false;
+        search->m_selected_index = -1;
+        search->SetStatus("Unable to connect to PC.");
         break;
 
     default:

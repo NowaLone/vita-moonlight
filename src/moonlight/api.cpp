@@ -97,27 +97,52 @@ static void on_discovery_event(
     }
 }
 
-static int make_key_directory(const MoonlightHost *host, char *out, size_t size)
+static bool is_pairing_network_error(int error_code)
 {
-    const char *name;
+    switch ((CURLcode)error_code) {
+    case CURLE_OPERATION_TIMEDOUT:
+    case CURLE_COULDNT_CONNECT:
+    case CURLE_COULDNT_RESOLVE_HOST:
+    case CURLE_RECV_ERROR:
+    case CURLE_SEND_ERROR:
+    case CURLE_GOT_NOTHING:
+    case CURLE_SSL_CONNECT_ERROR:
+    case CURLE_WRITE_ERROR:
+        return true;
+    default:
+        return false;
+    }
+}
 
-    if (!host || !out || size == 0) {
-        return -1;
+static int classify_pairing_error(int legacy_result)
+{
+    const char *error = legacy_gamestream_error();
+
+    if (legacy_result == LEGACY_GAMESTREAM_OK) {
+        return MOONLIGHT_PAIRING_SUCCESS;
     }
 
-    name = host->name[0] ? host->name : host->internal;
-
-    int length = snprintf(out, size, "%s%s", config.key_dir, name);
-    if (length < 0 || (size_t)length >= size) {
-        return -1;
+    if (error && strcmp(error, "Incorrect pairing PIN") == 0) {
+        return MOONLIGHT_PAIRING_ERROR_INCORRECT_PIN;
     }
 
-    int result = sceIoMkdir(out, 0777);
-    if (result < 0 && result != 0x80010011) {
-        return result;
+    if (error && strcmp(error, "MITM attack detected") == 0) {
+        return MOONLIGHT_PAIRING_ERROR_SECURITY;
     }
 
-    return 0;
+    if (is_pairing_network_error(legacy_gamestream_last_http_error())) {
+        return MOONLIGHT_PAIRING_ERROR_NETWORK;
+    }
+
+    if (legacy_result == LEGACY_GAMESTREAM_OUT_OF_MEMORY) {
+        return MOONLIGHT_PAIRING_ERROR_INTERNAL;
+    }
+
+    /*
+     * Reaching this point means the request got far enough to produce a
+     * protocol or pairing-validation error. It is not proof of a wrong PIN.
+     */
+    return MOONLIGHT_PAIRING_ERROR_PROTOCOL;
 }
 
 static void update_host_from_server()
@@ -262,13 +287,14 @@ int moonlight_api_add_host(const char *address, uint16_t port, const char *name)
 
 int moonlight_api_connect_host(const MoonlightHost *host)
 {
-    char key_directory[512];
+    char client_directory[512];
 
     if (!host || !host->internal[0]) {
         return -1;
     }
 
-    if (make_key_directory(host, key_directory, sizeof(key_directory)) != 0) {
+    if (legacy_device_store_get_client_directory(
+            client_directory, sizeof(client_directory)) != 0) {
         emit(
             MOONLIGHT_EVENT_CONNECTION_FAILED,
             -1,
@@ -287,9 +313,17 @@ int moonlight_api_connect_host(const MoonlightHost *host)
         &s_server,
         host->internal,
         host->port,
-        key_directory,
+        client_directory,
         0,
         true);
+
+    if (result == LEGACY_GAMESTREAM_OK && s_server.unique_id[0]) {
+        if (legacy_device_store_set_host_id(host, s_server.unique_id) != 0) {
+            vita_debug_log(
+                "[GameStream] failed to persist server uniqueid=%s",
+                s_server.unique_id);
+        }
+    }
 
     if (result != LEGACY_GAMESTREAM_OK) {
         vita_debug_log(
@@ -312,6 +346,13 @@ int moonlight_api_connect_host(const MoonlightHost *host)
 
     s_game_stream_initialized = true;
     s_current_host = *host;
+    if (s_server.unique_id[0]) {
+        strncpy(
+            s_current_host.host_id,
+            s_server.unique_id,
+            sizeof(s_current_host.host_id) - 1);
+        s_current_host.host_id[sizeof(s_current_host.host_id) - 1] = '\0';
+    }
     update_host_from_server();
     s_has_current_host = true;
 
@@ -366,19 +407,22 @@ int moonlight_api_pair_current_host(const char pin[5])
 
     result = legacy_gamestream_pair(&s_server, pin);
     if (result != LEGACY_GAMESTREAM_OK) {
+        int pairing_result = classify_pairing_error(result);
+
         vita_debug_log(
-            "[GameStream] pairing failed for %s: %d (%s)",
+            "[GameStream] pairing failed for %s: legacy=%d result=%d (%s)",
             s_current_host.internal,
             result,
+            pairing_result,
             legacy_gamestream_error());
 
         emit(
             MOONLIGHT_EVENT_PAIRING_FAILED,
-            result,
+            pairing_result,
             s_current_host.id,
             -1,
             s_current_host.internal);
-        return result;
+        return pairing_result;
     }
 
     update_host_from_server();
@@ -391,9 +435,14 @@ int moonlight_api_pair_current_host(const char pin[5])
             save_result);
     }
 
+    /*
+     * Pairing succeeded even when saving the host metadata fails. Persistence
+     * is separate from the protocol result and must not become a fake pairing
+     * failure in the UI.
+     */
     emit(
         MOONLIGHT_EVENT_PAIRING_FINISHED,
-        save_result,
+        MOONLIGHT_PAIRING_SUCCESS,
         s_current_host.id,
         -1,
         s_current_host.internal);
@@ -427,21 +476,21 @@ int moonlight_api_get_applications(MoonlightApplication *out, int capacity)
     unsigned char random_bytes[16];
     FILE *unique_file;
     char unique_path[512];
-    const char *name = s_current_host.name[0] ? s_current_host.name : s_current_host.internal;
-    int written;
 
     unique_id[0] = '\0';
-    written = snprintf(unique_path, sizeof(unique_path), "%s%s/uniqueid.dat", config.key_dir, name);
-    unique_file = (written > 0 && (size_t)written < sizeof(unique_path)) ? fopen(unique_path, "rb") : NULL;
+    if (legacy_device_store_get_client_unique_id_path(
+            unique_path,
+            sizeof(unique_path)) != 0) {
+        emit(MOONLIGHT_EVENT_APPLICATIONS_FAILED, -2, s_current_host.id, -1, s_current_host.internal);
+        return -2;
+    }
+
+    unique_file = fopen(unique_path, "rb");
     if (unique_file) {
         if (fread(unique_id, 1, 16, unique_file) == 16) {
             unique_id[16] = '\0';
         }
         fclose(unique_file);
-    }
-    if (!unique_id[0]) {
-        emit(MOONLIGHT_EVENT_APPLICATIONS_FAILED, -2, s_current_host.id, -1, s_current_host.internal);
-        return -2;
     }
 
     if (sceKernelGetRandomNumber(random_bytes, sizeof(random_bytes)) < 0) {
@@ -565,8 +614,6 @@ int moonlight_api_start_application(int application_id)
         s_game_stream_initialized ? 1 : 0);
 
     char unique_path[512];
-    const char *name;
-    int written;
     int result;
     MoonlightSettings settings;
 
@@ -591,14 +638,9 @@ int moonlight_api_start_application(int application_id)
         return -2;
     }
 
-    name = s_current_host.name[0] ? s_current_host.name : s_current_host.internal;
-    written = snprintf(
-        unique_path,
-        sizeof(unique_path),
-        "%s%s/uniqueid.dat",
-        config.key_dir,
-        name);
-    if (written < 0 || (size_t)written >= sizeof(unique_path)) {
+    if (legacy_device_store_get_client_unique_id_path(
+            unique_path,
+            sizeof(unique_path)) != 0) {
         return -1;
     }
 
