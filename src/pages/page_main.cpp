@@ -1,8 +1,10 @@
 #include <paf.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 
 #include <psp2/common_dialog.h>
+#include <psp2/message_dialog.h>
 #include <psp2/sysmodule.h>
 
 #include "pages/page_main.h"
@@ -27,7 +29,7 @@ static const SceWChar16 kImeTitle[] = {
     'P', 'C', ' ', 'a', 'd', 'd', 'r', 'e', 's', 's', 0
 };
 
-static void CopyImeText(
+static void ConvertAsciiToImeText(
     const char *input,
     SceWChar16 *output,
     size_t capacity)
@@ -49,7 +51,7 @@ static void CopyImeText(
     output[i] = 0;
 }
 
-static bool CopyImeAddress(
+static bool ConvertImeTextToAddress(
     const SceWChar16 *input,
     char *output,
     size_t output_size)
@@ -169,13 +171,25 @@ static void onAdd(int32_t type, paf::ui::Handler *self, paf::ui::Event *e, void 
 static void onOptionMenu(OptionMenu::EventType type, int button_index, void *userdata)
 {
     (void)userdata;
-    if (type != OptionMenu::Event_Button || button_index != 0) return;
+    if (type != OptionMenu::Event_Button) return;
 
     Main *main = Main::Instance();
-    if (main) main->SuspendForSystemSettings();
+    if (!main) return;
 
-    if (MoonlightApp::Instance()->Settings().Open() != 0 && main) {
-        main->RestoreAfterSystemSettings();
+    switch (button_index) {
+    case OptionMenu::Button_Settings:
+        main->SuspendForSystemSettings();
+        if (MoonlightApp::Instance()->Settings().Open() != 0) {
+            main->RestoreAfterSystemSettings();
+        }
+        break;
+
+    case OptionMenu::Button_Delete:
+        main->EnterSelectionMode();
+        break;
+
+    default:
+        break;
     }
 }
 
@@ -184,7 +198,12 @@ static void onSettingsButton(int32_t type, paf::ui::Handler *self, paf::ui::Even
     (void)type; (void)self; (void)e;
     Main *main = (Main *)userdata;
     if (OptionMenu::Instance() != NULL) return;
-    new OptionMenu(g_plugin, main ? main->root : NULL, onOptionMenu, NULL);
+    new OptionMenu(
+        g_plugin,
+        main ? main->root : NULL,
+        onOptionMenu,
+        NULL,
+        main != NULL && main->HasHosts());
 }
 
 Main *Main::Instance()
@@ -210,12 +229,19 @@ Main::Main()
       m_ime_open(false),
       m_ime_task_registered(false),
       m_ime_retry_pending(false),
-      m_ime_module_loaded(false)
+      m_ime_module_loaded(false),
+      m_selection_mode(false),
+      m_selected_count(0),
+      m_delete_dialog_open(false),
+      m_delete_dialog_task_registered(false)
 {
     memset(&m_ime_param, 0, sizeof(m_ime_param));
     memset(m_ime_input, 0, sizeof(m_ime_input));
     memset(m_ime_initial_text, 0, sizeof(m_ime_initial_text));
     memset(m_add_pc_address, 0, sizeof(m_add_pc_address));
+    memset(m_selected_hosts, 0, sizeof(m_selected_hosts));
+    memset(m_checkboxes, 0, sizeof(m_checkboxes));
+    memset(m_delete_message, 0, sizeof(m_delete_message));
 
     s_main = this;
 
@@ -228,7 +254,7 @@ Main::Main()
     }
 
     paf::ui::ListView *list = static_cast<paf::ui::ListView *>(
-        root->FindChild("list_view_generic"));
+        root->FindChild("list_view_main"));
     if (list) {
         list->SetItemFactory(new ListViewFactory(this));
         list->InsertSegment(0, 1);
@@ -239,6 +265,12 @@ Main::Main()
     bind_decide(root, "btn_search_pcs", onSearch, this);
     bind_decide(root, "btn_add_pc", onAdd, this);
     bind_decide(root, "settings_button", onSettingsButton, this);
+    bind_decide(root, "btn_selection_cancel", OnSelectionCancel, this);
+    bind_decide(root, "btn_selection_action", OnSelectionAction, this);
+    bind_decide(root, "btn_selection_select_all", OnSelectionSelectAll, this);
+
+    root->FindChild("plane_main_selection_actions")->Hide(
+        paf::common::transition::Type_Reset);
 
     MoonlightApp::Instance()->SetEventCallback(OnMoonlightEvent, this);
 
@@ -273,6 +305,19 @@ void Main::InitialRefreshTask(void *userdata)
 
 Main::~Main()
 {
+    if (m_delete_dialog_task_registered) {
+        paf::common::MainThreadCallList::Unregister(SelectionDialogPollTask, this);
+        m_delete_dialog_task_registered = false;
+    }
+
+    if (m_delete_dialog_open) {
+        sceMsgDialogAbort();
+        if (sceMsgDialogGetStatus() == SCE_COMMON_DIALOG_STATUS_FINISHED) {
+            sceMsgDialogTerm();
+        }
+        m_delete_dialog_open = false;
+    }
+
     if (m_ime_task_registered) {
         paf::common::MainThreadCallList::Unregister(ImePollTask, this);
         m_ime_task_registered = false;
@@ -307,13 +352,28 @@ paf::ui::ListItem *Main::CreateListItem(
         return new paf::ui::ListItem(param.parent, NULL);
     }
 
+    /*
+     * Checkboxes live in a dedicated template instead of being shown/hidden
+     * on the shared one: RefreshHosts() rebuilds every cell when the mode
+     * changes, so the right template is simply picked here.
+     */
+    m_checkboxes[param.cell_index] = NULL;
+
     paf::Plugin::TemplateOpenParam tmp;
-    g_plugin->TemplateOpen(param.parent, "template_list_item_generic", tmp);
+    g_plugin->TemplateOpen(
+        param.parent,
+        m_selection_mode
+            ? "template_host_list_item_select"
+            : "template_list_item_generic",
+        tmp);
 
     paf::ui::Widget *item = param.parent->GetChild(
         param.parent->GetChildrenNum() - 1);
 
-    paf::ui::Widget *button = item->FindChild("image_button_list_item");
+    paf::ui::Widget *button = item->FindChild(
+        m_selection_mode
+            ? "image_button_host_select"
+            : "image_button_list_item");
     if (!button) {
         return static_cast<paf::ui::ListItem *>(item);
     }
@@ -323,6 +383,33 @@ paf::ui::ListItem *Main::CreateListItem(
         paf::ui::ButtonBase::CB_BTN_DECIDE,
         OnHostButton,
         &m_button_contexts[param.cell_index]);
+
+    if (m_selection_mode) {
+        paf::ui::Widget *checkbox_widget = item->FindChild("checkbox_host_select");
+        if (checkbox_widget) {
+            paf::ui::CheckBox *checkbox = (paf::ui::CheckBox *)checkbox_widget;
+            checkbox->SetCheck(
+                m_selected_hosts[param.cell_index],
+                0.0f,
+                false);
+            checkbox->AddEventCallback(
+                paf::ui::CheckBox::CB_BTN_DECIDE,
+                OnHostSelection,
+                &m_button_contexts[param.cell_index]);
+
+            /* Focus stays on the row; the checkbox mirrors its state. */
+            set_widget_focusable(checkbox, false);
+            m_checkboxes[param.cell_index] = checkbox;
+        }
+    }
+
+    vita_debug_log(
+        "[Main] cell %d/%d selection=%d button=%p checkbox=%p",
+        param.cell_index,
+        m_host_count,
+        m_selection_mode ? 1 : 0,
+        button,
+        m_checkboxes[param.cell_index]);
 
     const MoonlightHost &host = m_hosts[param.cell_index];
 
@@ -350,7 +437,36 @@ void Main::OnHostButton(
     HostButtonContext *context = (HostButtonContext *)userdata;
     if (!context || !context->page) return;
 
+    if (context->page->m_selection_mode) {
+        context->page->ToggleHostSelection(context->index);
+        return;
+    }
+
     context->page->SelectHost(context->index);
+}
+
+void Main::OnHostSelection(
+    int32_t type,
+    paf::ui::Handler *self,
+    paf::ui::Event *event,
+    void *userdata)
+{
+    (void)type;
+    (void)event;
+
+    HostButtonContext *context = (HostButtonContext *)userdata;
+    if (!context || !context->page || !self ||
+        context->index < 0 || context->index >= context->page->m_host_count ||
+        !context->page->m_selection_mode) {
+        return;
+    }
+
+    paf::ui::CheckBox *checkbox = (paf::ui::CheckBox *)self;
+    bool checked = checkbox->IsChecked();
+    if (context->page->m_selected_hosts[context->index] != checked) {
+        context->page->m_selected_hosts[context->index] = checked;
+        context->page->UpdateSelectionCount();
+    }
 }
 
 void Main::RefreshHosts()
@@ -365,21 +481,43 @@ void Main::RefreshHosts()
     if (m_host_count > 8) m_host_count = 8;
 
     paf::ui::ListView *list = static_cast<paf::ui::ListView *>(
-        root->FindChild("list_view_generic"));
+        root->FindChild("list_view_main"));
 
     if (!list) return;
+
+    /* The cells are about to be destroyed; do not keep dangling widgets. */
+    memset(m_checkboxes, 0, sizeof(m_checkboxes));
 
     int existing = list->GetCellNum(0);
     if (existing > 0) {
         list->DeleteCell(0, 0, existing - 1);
     }
+    const int cells_after_delete = list->GetCellNum(0);
 
     if (m_host_count > 0) {
         list->InsertCell(0, 0, m_host_count);
-        SetStatus("Select a PC to connect.");
+
+        /*
+         * The status text is centred on the list, so the idle hint would be
+         * drawn over the second row. Rows are the hint; keep the text for the
+         * empty state and for transient messages (connecting, errors, ...).
+         */
+        HideStatus();
     } else {
         SetStatus("No PCs registered.");
     }
+
+    /*
+     * If after_insert is larger than hosts, DeleteCell() left cells behind and
+     * the extra rows were built from a stale template.
+     */
+    vita_debug_log(
+        "[Main] RefreshHosts hosts=%d cells before=%d after_delete=%d after_insert=%d selection=%d",
+        m_host_count,
+        existing,
+        cells_after_delete,
+        list->GetCellNum(0),
+        m_selection_mode ? 1 : 0);
 }
 
 void Main::SelectHost(int index)
@@ -390,7 +528,7 @@ void Main::SelectHost(int index)
     m_connecting = true;
 
     paf::ui::ListView *list = static_cast<paf::ui::ListView *>(
-        root->FindChild("list_view_generic"));
+        root->FindChild("list_view_main"));
     if (list) {
         list->SetActivate(false);
     }
@@ -408,6 +546,304 @@ void Main::SelectHost(int index)
     }
 }
 
+void Main::ToggleHostSelection(int index)
+{
+    if (!m_selection_mode || index < 0 || index >= m_host_count) {
+        return;
+    }
+
+    /*
+     * Update the flag first: if SetCheck() notifies OnHostSelection(), that
+     * handler sees the checkbox already matches and changes nothing.
+     */
+    m_selected_hosts[index] = !m_selected_hosts[index];
+
+    if (m_checkboxes[index]) {
+        m_checkboxes[index]->SetCheck(m_selected_hosts[index], 0.0f, false);
+    }
+
+    UpdateSelectionCount();
+}
+
+bool Main::AllHostsSelected() const
+{
+    return m_host_count > 0 && m_selected_count >= m_host_count;
+}
+
+void Main::ToggleSelectAll()
+{
+    if (!m_selection_mode || m_host_count <= 0) {
+        return;
+    }
+
+    /* Same condition as the button label: "Clear all" only when everything is selected. */
+    const bool select = !AllHostsSelected();
+    for (int i = 0; i < m_host_count; ++i) {
+        m_selected_hosts[i] = select;
+    }
+
+    UpdateSelectionCount();
+
+    /* Rebuild the cells so every checkbox picks up the new state. */
+    RefreshHosts();
+}
+
+void Main::UpdateSelectionCount()
+{
+    m_selected_count = 0;
+    for (int i = 0; i < m_host_count; ++i) {
+        if (m_selected_hosts[i]) {
+            ++m_selected_count;
+        }
+    }
+
+    UpdateSelectionActionBar();
+}
+
+void Main::UpdateSelectionActionBar()
+{
+    if (!root || !m_selection_mode) {
+        return;
+    }
+
+    paf::ui::Widget *action = root->FindChild("btn_selection_action");
+    if (action) {
+        set_button_enabled(action, m_selected_count > 0);
+    }
+
+    paf::ui::Widget *select_all = root->FindChild("btn_selection_select_all");
+    if (select_all) {
+        /*
+         * The button is auto-sized from its label (adjust "2, 0, 0" in the XML),
+         * so no width is set here.
+         */
+        select_all->SetString(paf::common::string_util::ToWString(
+            AllHostsSelected() ? "Clear All" : "Select All"));
+    }
+}
+
+void Main::EnterSelectionMode()
+{
+    if (m_connecting || m_ime_open || m_ime_retry_pending ||
+        m_host_count <= 0) {
+        return;
+    }
+
+    m_selection_mode = true;
+    m_selected_count = 0;
+    memset(m_selected_hosts, 0, sizeof(m_selected_hosts));
+
+    paf::ui::Widget *normal_actions = root->FindChild("plane_main_actions");
+    paf::ui::Widget *status = root->FindChild("text_main_status");
+    paf::ui::Widget *settings = root->FindChild("settings_button");
+    paf::ui::Widget *selection_actions = root->FindChild("plane_main_selection_actions");
+
+    if (normal_actions) normal_actions->Hide(paf::common::transition::Type_Reset);
+    if (status) status->Hide(paf::common::transition::Type_Reset);
+    if (settings) settings->Hide(paf::common::transition::Type_Reset);
+
+    /*
+     * Circle is PAD_ESCAPE (0x20). Bind it before the bar is shown so the
+     * direct key is live on the first back press, including while a list row
+     * has focus. Photos uses the same mapping for the selection-bar Cancel.
+     */
+    paf::ui::Widget *cancel = root->FindChild("btn_selection_cancel");
+    if (cancel) {
+        cancel->SetKeycode(paf::inputdevice::pad::Data::PAD_ESCAPE);
+    }
+
+    if (selection_actions) selection_actions->Show(paf::common::transition::Type_Reset);
+
+    RefreshHosts();
+    UpdateSelectionActionBar();
+}
+
+void Main::ExitSelectionMode()
+{
+    if (!m_selection_mode) {
+        return;
+    }
+
+    m_selection_mode = false;
+    m_selected_count = 0;
+    memset(m_selected_hosts, 0, sizeof(m_selected_hosts));
+
+    paf::ui::Widget *normal_actions = root->FindChild("plane_main_actions");
+    paf::ui::Widget *status = root->FindChild("text_main_status");
+    paf::ui::Widget *settings = root->FindChild("settings_button");
+    paf::ui::Widget *selection_actions = root->FindChild("plane_main_selection_actions");
+
+    paf::ui::Widget *cancel = root->FindChild("btn_selection_cancel");
+    if (cancel) {
+        cancel->SetKeycode(0);
+    }
+
+    if (selection_actions) selection_actions->Hide(paf::common::transition::Type_Reset);
+    if (normal_actions) normal_actions->Show(paf::common::transition::Type_Reset);
+    if (status) status->Show(paf::common::transition::Type_Reset);
+    if (settings) settings->Show(paf::common::transition::Type_Reset);
+
+    RefreshHosts();
+}
+
+void Main::StartDeleteConfirmation()
+{
+    if (!m_selection_mode || m_selected_count <= 0 || m_delete_dialog_open) {
+        return;
+    }
+
+    snprintf(
+        m_delete_message,
+        sizeof(m_delete_message),
+        "Delete selected PC%s?",
+        m_selected_count == 1 ? "" : "s");
+
+    SceMsgDialogParam param;
+    SceMsgDialogUserMessageParam user_message;
+    memset(&param, 0, sizeof(param));
+    memset(&user_message, 0, sizeof(user_message));
+
+    sceMsgDialogParamInit(&param);
+    user_message.buttonType = SCE_MSG_DIALOG_BUTTON_TYPE_YESNO;
+    user_message.msg = (const SceChar8 *)m_delete_message;
+    user_message.buttonParam = NULL;
+    param.mode = SCE_MSG_DIALOG_MODE_USER_MSG;
+    param.userMsgParam = &user_message;
+
+    int result = sceMsgDialogInit(&param);
+    if (result < 0) {
+        vita_debug_log(
+            "[Main] delete confirmation init failed: 0x%08X",
+            (unsigned int)result);
+        return;
+    }
+
+    m_delete_dialog_open = true;
+    if (!m_delete_dialog_task_registered) {
+        paf::common::MainThreadCallList::Register(SelectionDialogPollTask, this);
+        m_delete_dialog_task_registered = true;
+    }
+}
+
+void Main::DeleteSelectedHosts()
+{
+    if (m_selected_count <= 0) {
+        return;
+    }
+
+    int selected_count = m_selected_count;
+    int deleted_count = 0;
+    bool failed = false;
+
+    for (int i = 0; i < m_host_count; ++i) {
+        if (!m_selected_hosts[i]) {
+            continue;
+        }
+
+        if (MoonlightApp::Instance()->Hosts().Delete(m_hosts[i]) == 0) {
+            ++deleted_count;
+        } else {
+            failed = true;
+        }
+    }
+
+    ExitSelectionMode();
+
+    if (failed) {
+        SetStatus("Unable to delete one or more PCs.");
+    } else {
+        paf::string status = paf::common::FormatString(
+            "Deleted %d PC%s.",
+            deleted_count,
+            selected_count == 1 ? "" : "s");
+        SetStatus(status.c_str());
+    }
+}
+
+void Main::SelectionDialogPollTask(void *userdata)
+{
+    Main *main = (Main *)userdata;
+    if (!main) return;
+
+    if (!main->m_delete_dialog_open) {
+        if (main->m_delete_dialog_task_registered) {
+            paf::common::MainThreadCallList::Unregister(SelectionDialogPollTask, main);
+            main->m_delete_dialog_task_registered = false;
+        }
+        return;
+    }
+
+    if (sceMsgDialogGetStatus() != SCE_COMMON_DIALOG_STATUS_FINISHED) {
+        return;
+    }
+
+    SceMsgDialogResult result;
+    memset(&result, 0, sizeof(result));
+    sceMsgDialogGetResult(&result);
+    sceMsgDialogTerm();
+    main->m_delete_dialog_open = false;
+
+    if (main->m_delete_dialog_task_registered) {
+        paf::common::MainThreadCallList::Unregister(SelectionDialogPollTask, main);
+        main->m_delete_dialog_task_registered = false;
+    }
+
+    if (result.buttonId == SCE_MSG_DIALOG_BUTTON_ID_YES) {
+        main->DeleteSelectedHosts();
+    } else {
+        main->SetStatus("Select PCs to delete.");
+    }
+}
+
+void Main::OnSelectionCancel(
+    int32_t type,
+    paf::ui::Handler *self,
+    paf::ui::Event *event,
+    void *userdata)
+{
+    (void)type;
+    (void)self;
+    (void)event;
+
+    Main *main = (Main *)userdata;
+    if (!main || main->m_delete_dialog_open) return;
+
+    main->ExitSelectionMode();
+    main->SetStatus("Select a PC to connect.");
+}
+
+void Main::OnSelectionAction(
+    int32_t type,
+    paf::ui::Handler *self,
+    paf::ui::Event *event,
+    void *userdata)
+{
+    (void)type;
+    (void)self;
+    (void)event;
+
+    Main *main = (Main *)userdata;
+    if (!main || main->m_delete_dialog_open || main->m_selected_count <= 0) return;
+
+    main->StartDeleteConfirmation();
+}
+
+void Main::OnSelectionSelectAll(
+    int32_t type,
+    paf::ui::Handler *self,
+    paf::ui::Event *event,
+    void *userdata)
+{
+    (void)type;
+    (void)self;
+    (void)event;
+
+    Main *main = (Main *)userdata;
+    if (!main || main->m_delete_dialog_open) return;
+
+    main->ToggleSelectAll();
+}
+
 void Main::SetStatus(const char *text)
 {
     if (!root || !text) return;
@@ -417,6 +853,21 @@ void Main::SetStatus(const char *text)
 
     ((paf::ui::Text *)widget)->SetString(
         paf::common::string_util::ToWString(text));
+
+    /* Selection mode keeps the status hidden behind the action bar. */
+    if (!m_selection_mode) {
+        widget->Show(paf::common::transition::Type_Reset);
+    }
+}
+
+void Main::HideStatus()
+{
+    if (!root) return;
+
+    paf::ui::Widget *widget = root->FindChild("text_main_status");
+    if (widget) {
+        widget->Hide(paf::common::transition::Type_Reset);
+    }
 }
 
 void Main::OpenSearch()
@@ -456,7 +907,7 @@ void Main::StartAddPcIme()
     }
 
     memset(m_ime_input, 0, sizeof(m_ime_input));
-    CopyImeText(
+    ConvertAsciiToImeText(
         m_add_pc_address[0] ? m_add_pc_address : "",
         m_ime_initial_text,
         sizeof(m_ime_initial_text) / sizeof(m_ime_initial_text[0]));
@@ -536,7 +987,7 @@ void Main::HandleAddPcImeResult()
     }
 
     char address[kMaxHostAddressLength + 1];
-    if (!CopyImeAddress(m_ime_input, address, sizeof(address))) {
+    if (!ConvertImeTextToAddress(m_ime_input, address, sizeof(address))) {
         SetStatus("Enter a valid PC address or host:port.");
         StartAddPcIme();
         return;
@@ -573,7 +1024,7 @@ void Main::StartManualConnection(const char *address)
     m_connecting = true;
 
     paf::ui::ListView *list = static_cast<paf::ui::ListView *>(
-        root->FindChild("list_view_generic"));
+        root->FindChild("list_view_main"));
     if (list) {
         list->SetActivate(false);
     }
@@ -666,7 +1117,7 @@ void Main::OnMoonlightEvent(const MoonlightEvent *event, void *userdata)
 
         {
             paf::ui::ListView *list = static_cast<paf::ui::ListView *>(
-                main->root->FindChild("list_view_generic"));
+                main->root->FindChild("list_view_main"));
             if (list) list->SetActivate(true);
         }
         break;
@@ -676,7 +1127,7 @@ void Main::OnMoonlightEvent(const MoonlightEvent *event, void *userdata)
         main->SetStatus("Connection closed.");
         {
             paf::ui::ListView *list = static_cast<paf::ui::ListView *>(
-                main->root->FindChild("list_view_generic"));
+                main->root->FindChild("list_view_main"));
             if (list) list->SetActivate(true);
         }
         break;
@@ -695,7 +1146,7 @@ void Main::OnMoonlightEvent(const MoonlightEvent *event, void *userdata)
         main->SetStatus("This PC needs pairing. Use Search PCs.");
         {
             paf::ui::ListView *list = static_cast<paf::ui::ListView *>(
-                main->root->FindChild("list_view_generic"));
+                main->root->FindChild("list_view_main"));
             if (list) list->SetActivate(true);
         }
         break;

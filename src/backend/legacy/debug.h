@@ -2,4 +2,13 @@
 
 #include <psp2/kernel/clib.h>
 
-#define vita_debug_log(...) do { sceClibPrintf(__VA_ARGS__); sceClibPrintf("\n"); } while (0)
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+void vita_debug_set_file_logging(int enabled);
+void vita_debug_log(const char *fmt, ...);
+
+#ifdef __cplusplus
+}
+#endif

@@ -35,6 +35,7 @@ The long-term goal is to keep the frontend architecture native to PAF while cont
 The application currently provides:
 
 - Main PC screen with native PAF title bar, saved host list, inline Add PC address input, Search PCs, and system-settings entry.
+- Saved-host management is implemented in the PAF UI with Delete-only multi-selection: the corner button opens the current `OptionMenu`, Delete enters selection mode, saved-PC rows use `template_host_list_item_select` with native PAF `paf::ui::CheckBox` controls, and a bottom action bar provides Cancel, Select All/Deselect All, and Delete.
 - mDNS/LAN host discovery.
 - Persistent saved hosts.
 - Pairing with a PC using the Moonlight PIN flow.
@@ -47,6 +48,10 @@ The application currently provides:
 - Stable stream stop/cleanup, including deferred release of mapped video frame buffers.
 
 Streaming is kept outside the PAF plugin layer. Pages call service/backend APIs; protocol, networking, decode and device I/O live below that boundary.
+
+## Current PAF UI Implementation
+
+The current `master` implementation uses a real vertical PAF `<speech_balloon>` as the saved-host OptionMenu container. `_common_texture_option_menu_base_down` points its tail down toward the bottom-right corner button. The two actions are Delete at the top and Settings at the bottom; a vertical `box` handles content layout, and the popup Y position is derived from the active button count and a 50 px bottom margin. The popup is a project-owned PAF composition styled from observed system-app behavior, not a discovered Sony system action-menu API. The temporary test page/styles and host-copy/clipboard feature have been removed. Hardware-verified: popup placement, Delete/Settings focus behavior, and disabled Delete appearance (black button background with gray label).
 
 ## Build & Development
 
@@ -122,8 +127,22 @@ CXML changes require rebuilding the RCO before the application build.
 - Add PC uses the native `SceImeDialog` with URL input mode; do not replace this with a custom PAF keyboard. Manual connection input accepts `host`/IP with optional `:port`. The default GameStream port is 47989; IPv6 parsing is intentionally not added until the legacy GameStream URL builder supports IPv6 literals.
 - `SceImeDialog` is owned by the Main page: load `SCE_SYSMODULE_IME` when Add PC is invoked, terminate the dialog before unloading the module, and poll completion from the PAF main-thread call list. The IME input buffers must outlive the dialog.
 - Add PC is an inline Main-page control; there is no dedicated Add PC page.
-- Current UI uses PAF CXML resources and NetStream-style generic list/title templates.
+- Current UI uses PAF CXML resources and NetStream-style generic list/title templates. The saved-host action popup is currently implemented by the project-owned `OptionMenu` / `page_settings_bubble`; it is a PAF implementation styled and positioned from observed system-app behavior, not a claim that a Sony system action-menu API has been discovered.
+- Saved-host management follows the observed Vita system-app selection/action pattern: the standard bottom-right `corner_button` opens the `OptionMenu`; Delete enters multi-selection mode; selection-mode rows come from `template_host_list_item_select` and expose a native `paf::ui::CheckBox`; activating a row toggles its selection while the checkbox mirrors the state; the bottom action bar provides Cancel, Select All/Deselect All, and Delete. Do not replace this with long-press/context menus or custom per-item popups.
+- The app deliberately has no saved-host Copy/clipboard action and no `SceClipboard` dependency. Do not restore clipboard-based host-selection logic unless explicitly requested.
+- Selection mode rebuilds the list cells (`Main::RefreshHosts()`) and picks the row template by mode. Do not show/hide a checkbox on the shared `template_list_item_generic`: Search and Apps use it too.
+- The main page uses its own `template_list_view_main` (384 px tall, same top edge as the generic list) so rows never run under the 72 px bottom bar. Search and Apps keep `template_list_view_generic`.
+- Disabled buttons (the bottom Delete action with no hosts selected, or Delete in the popup when there are no saved PCs) go through `set_button_enabled()`. It uses the native PAF `ButtonBase::Enable()`/`Disable()` state and `SetDisableColor(0.55, 0.55, 0.55, 1)`; `SetActivate()` is kept in sync for interaction. This is preferred over fading the whole widget with `Widget::SetColor()`. Verified on Vita: the disabled button keeps its black background while its label becomes gray.
+- The selection action bar repeats the system Photos bar, measured from a screenshot of the Photos selection mode against the page behind it: a 64 px bar whose top edge is at y = 480 (exactly where the main host list ends), a body about 5% darker than the background, and a two-row edge on the top (a dark row at y = 480, a light row at y = 481). It is built from `style_plane_selection_bar` (5% black body) plus two 1 px planes, `style_plane_selection_bar_edge_dark` (5% black) and `style_plane_selection_bar_edge_light` (18% white). The system `_common_texture_ruled_line` is not used here: in this app it changes the background by only 1-2 levels, so the line would be invisible. No standard bar style is known among the project's `_common_*` resources.
+- In a `style_plane`, the style `color` and its `planeobj` `color` multiply, alpha included. Setting the same value in both squares it (the earlier 0.55-alpha tint was effectively 0.30 and the 6% tint 0.4%). Keep the style at `1, 1, 1, 1` and put the intended value in the `planeobj`.
+- Bar button placement matches the same screenshot: the buttons are 144 x 45 px visible, Cancel starts about 10.8 px from the left edge, Select All and Delete end about 10 px from the right edge with about 12.5 px between them; the visible edge sits roughly 1.7 px inside the layout box, hence `pos="9, 9"` for Cancel, `pos="-8, 9"` with `space="9"` for the right group. A screenshot of the built bar matched Photos to within 1 px horizontally, and on the line rows (y = 480 dark, y = 481 light) and tint; the buttons sat exactly 1 px high at `pos y = 10`, so the vertical offset is 9. These numbers come from screenshots, not from a hardware re-check.
+- The bar buttons are sized by their labels (`adjust="2, 0, 0"`, height 46 px), not by pre-fitted widths: Select All and Delete live in a horizontal `box` anchored to the right edge so they move together when the label changes. The Select All label switches to "Clear all" only when every saved PC is selected (`Main::AllHostsSelected()`, also used by the toggle itself).
+- The current `speech_balloon` is positioned with `SetPos()` in PAF centre-origin coordinates (+Y up). `option_menu.cpp` uses x = 258 (the 214 px popup spans approximately x = 631..845) and derives the vertical centre from the number of action buttons (60 px per button plus 12 px vertical padding), keeping the bottom edge 50 px above the bottom of the screen. Do not reintroduce the old trial position `SetPos(420, -140)`, which was measured before the menu layout was corrected.
+- The main page status text is centred on the list, so the idle hint is hidden while saved PCs are listed; it is shown for the empty state and for transient messages.
+- Saved-host Delete uses `SceMessageDialog` for confirmation and removes the selected persistent records through the HostService → backend → legacy device store path.
 - The PAF coordinate system is center-origin on a 960×544 screen: `(0,0)` is screen center and positive Y points upward.
+- **Historical hardware observation**: a separate earlier test of Sony `_common_template_speech_balloon_menu_3` (`0x4a34c804`) produced a centered horizontal menu with `SetAdjust(0, 0, 0)` and `SetPosCenter(paf::math::v4(0.0f, 0.0f, 0.0f))`; `(480,272)` moved it upper-right. This was a test of the horizontal common template, not the current vertical OptionMenu. Keep the center-origin observation, but do not apply that test's `SetPosCenter()` setup to the active popup, which uses `SetPos()`.
+- **Vertical speech-balloon reference**: the official `Princess-of-Sleeping/vitasdk-paf-component` sample shows `<speech_balloon texture="_common_texture_option_menu_base_side">` wrapping a vertical `box` with 7 px margins and top/middle/bottom system option-menu buttons, glow textures, and `_common_sound_button_enter`. The production popup instead uses `_common_texture_option_menu_base_down` so the tail points toward the `...` button. Its two buttons use `style_button_option_top` for Delete and `style_button_option_bottom` for Settings; the middle-button style is no longer needed.
 - Do not move streaming implementation into PAF pages.
 
 ### Application / Services / Backend
@@ -159,7 +178,7 @@ The long-term native-integration shortlist below was researched specifically for
 - **`SceNotificationUtil`** — system notifications and progress-style notifications. It is not used by the current connection flow; do not reintroduce it for connection progress unless a concrete non-modal notification use case appears.
 - **`SceNetCtl`** — system network state information and callbacks. Useful for Wi-Fi/network status, reconnect handling, diagnostics, and exposing network information in UI.
 - **`ScePower`** — power/idle management. Relevant to preventing unwanted suspend during streaming and integrating the existing `disable_power_save` setting. Manual clock/frequency manipulation is not planned unless profiling demonstrates a need.
-- **`SceClipboard`** — system clipboard. Useful for copying/pasting PC addresses, hostnames, or other connection data.
+- **`SceClipboard`** — researched but intentionally unused; the current app has no clipboard UX. Revisit only for a concrete, requested user-facing feature.
 
 #### Secondary system integration worth testing
 
@@ -223,6 +242,8 @@ The project does not provide storage compatibility or migration for the original
 
 GameStream receives the global client-identity directory from the host store and does not construct credential paths from the selected PC.
 
+Saved-host deletion resolves the selected `MoonlightHost` back to the exact stored device identity (`host_id`, MAC, address, or the existing name-only fallback) before removing its `device.ini` and host directory. Do not delete saved hosts by display name alone because duplicate display names are possible. The backend entry point is `DeleteHost`; the legacy store uses the matched device object to remove the exact record.
+
 ### Streaming
 
 Keep the streaming stack below the PAF boundary.
@@ -250,6 +271,8 @@ Do not replace working protocol logic with hand-written protocol shortcuts witho
 
 ## Agent Guardrails
 
+For repository-specific task workflow and implementation guidance, load [`.agents/skills/vita-moonlight-paf/SKILL.md`](.agents/skills/vita-moonlight-paf/SKILL.md) when working on this project. This skill supplements these instructions; the current source files, this document, and `ROADMAP.md` remain the source of truth.
+
 - Do not commit generated `build/` output or generated `*.vpk`, `*.self`, `*.velf`, `*.rco`, object files, or static libraries.
 - Do not bypass the PAF architecture by making UI pages depend directly on legacy globals.
 - Do not bypass `MoonlightApp` main-thread event dispatch.
@@ -270,9 +293,12 @@ Do not replace working protocol logic with hand-written protocol shortcuts witho
 
 ## TODO / Missing Information
 
+The agreed, prioritized development plan lives in [`ROADMAP.md`](ROADMAP.md). Keep that file as the canonical plan; update its checkboxes only when work has actually been verified.
+
 - Document exact supported VITASDK revision.
 - Document exact vitasdk-paf-component and psp2cxml-tool revisions.
 - Add a reproducible dependency/setup procedure.
+- Check the `[Main] RefreshHosts ... after_insert=` log line: it must equal `hosts=`. If it is larger, `ListView::DeleteCell()` is leaving cells behind, which would explain a second saved-PC row without a checkbox.
 - Add automated tests when the project architecture is stable enough to support them.
 - Document preferred formatter/static-analysis tooling if one is adopted.
 - Define a release procedure, including adding/maintaining the appropriate LICENSE before a release.

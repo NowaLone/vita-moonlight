@@ -13,4 +13,10 @@ paf::Plugin::PageCloseParam make_close_param(paf::Plugin::TransitionType transit
 void bind_decide(paf::ui::Widget *root, const char *child_id, DecideCb cb, void *userdata = NULL);
 void set_widget_focusable(paf::ui::Widget *widget, bool on);
 
+/*
+ * Enables/disables a button while preserving its background opacity. Disabled
+ * labels are tinted gray; the button texture remains unchanged.
+ */
+void set_button_enabled(paf::ui::Widget *button, bool enabled);
+
 #endif

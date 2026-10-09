@@ -5,6 +5,9 @@
   <string src="Search PCs" id="msg_search_pcs" />
   <string src="Enter PC hostname or IP address" id="msg_add_pc_placeholder" />
   <string src="Settings" id="msg_settings" />
+  <string src="Delete" id="msg_delete" />
+  <string src="Cancel" id="msg_cancel" />
+  <string src="Select All" id="msg_select_all" />
   <string src="Search for available PCs on your network." id="msg_search_pcs_description" />
   <string src="Searching for PCs..." id="msg_searching_pcs" />
   <string src="Apps" id="msg_apps" />
@@ -86,4 +89,4 @@
   <string src="Selects how the Vita front touchscreen is presented to the host: off, DS4-style touchpad, absolute mouse, or Sunshine tablet mode." id="msg_touchscreen_mode_hint" />
   <string src="Enables the custom controller mapping configuration used by Moonlight." id="msg_mapping_enabled_hint" />
   <string src="Sets how much of this back-touchscreen edge is reserved as a deadzone. Higher values move the active area farther inward." id="msg_back_deadzone_hint" />
-</stringset>
+    </stringset>

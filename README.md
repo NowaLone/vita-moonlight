@@ -33,7 +33,8 @@ The current application supports:
 - Native system connection loading and error dialogs.
 - System-style title bars and list views based on the patterns used by Vita system applications and `GrapheneCt/NetStream`.
 - LAN/mDNS PC discovery.
-- Saved PC list.
+- Saved PC list with native-style Delete multi-selection and native checkboxes.
+- Native delete confirmation and persistent host removal.
 - Moonlight PIN pairing.
 - Retrieving the application list from a paired PC.
 - H.264 video streaming and Vita AVC presentation.
@@ -72,12 +73,16 @@ The current list/title resources intentionally follow the real patterns used by 
 
 - `template_top_title_bar`
 - `template_list_view_generic`
+- `template_list_view_main` (main-page host list, shorter so it clears the bottom bar)
 - `template_list_item_generic`
+- `template_host_list_item_select` (saved-PC row with a checkbox, used only in selection mode)
 - `style_text_top_title_bar`
 - `style_list_view_generic`
 - `style_image_button_list_button`
 
 The main page contains a saved-PC list, an inline PC address input using the native Vita IME, Search PCs, and access to the system AppSettings UI.
+
+Saved hosts use the Vita system-app selection/action pattern. The standard bottom-right corner button opens a project-owned PAF `speech_balloon` action menu (not a discovered Sony system action-menu API) with **Delete** at the top and **Settings** at the bottom. Choosing Delete turns the saved-PC list into multi-selection mode with PAF checkboxes (tapping or activating a row toggles it) and a bottom action bar with Cancel, Select All/Deselect All, and Delete. Delete asks for confirmation through the native `SceMessageDialog`; no host-copy/clipboard action is provided. The selection UI has been verified on Vita, including popup placement, Delete/Settings focus, row/checkbox positioning, action-bar layout, Select All/Deselect All focus, disabled Delete behavior, confirmation, and post-delete list refresh/focus. Delete is disabled when there are no saved PCs or nothing is selected; its disabled appearance uses PAF `ButtonBase` state and keeps the button background black while rendering the label gray.
 
 PAF uses a **center-origin 960×544 coordinate system**:
 
@@ -210,7 +215,13 @@ For streaming-related changes, verify at least connection setup, video/audio, in
 - Route application behavior through `MoonlightApp`, services, backend interfaces, and the legacy adapter.
 - Deliver asynchronous backend events to PAF on the main thread.
 - Prefer small, verifiable commits.
+- Prefer real Vita system interaction patterns over invented PAF-only UX when a system-app equivalent is known.
+- Do not replace the saved-host selection/action mode with long-press/context menus.
 - Do not casually change persistent storage formats or paths without considering compatibility and migration.
+
+## Development Roadmap
+
+The next priorities are to validate the full streaming lifecycle and motion input on real Vita hardware, make the toolchain/build reproducible, close known technical risks and add focused tests, then prepare a release. The prioritized tasks and completion criteria are maintained in [`ROADMAP.md`](ROADMAP.md).
 
 ## Status
 

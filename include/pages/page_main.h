@@ -36,19 +36,36 @@ public:
     void OpenAddPc();
     void RestoreEventCallback();
 
+    void EnterSelectionMode();
+    bool HasHosts() const { return m_host_count > 0; }
+
 private:
     static void OnHostButton(int32_t type, paf::ui::Handler *self, paf::ui::Event *event, void *userdata);
     static void InitialRefreshTask(void *userdata);
     static void OnMoonlightEvent(const MoonlightEvent *event, void *userdata);
     static void ImePollTask(void *userdata);
+    static void OnHostSelection(int32_t type, paf::ui::Handler *self, paf::ui::Event *event, void *userdata);
+    static void OnSelectionCancel(int32_t type, paf::ui::Handler *self, paf::ui::Event *event, void *userdata);
+    static void OnSelectionAction(int32_t type, paf::ui::Handler *self, paf::ui::Event *event, void *userdata);
+    static void OnSelectionSelectAll(int32_t type, paf::ui::Handler *self, paf::ui::Event *event, void *userdata);
+    static void SelectionDialogPollTask(void *userdata);
 
     paf::ui::ListItem *CreateListItem(paf::ui::listview::ItemFactory::CreateParam &param);
     void RefreshHosts();
     void SelectHost(int index);
     void SetStatus(const char *text);
+    void HideStatus();
     void StartAddPcIme();
     void HandleAddPcImeResult();
     void StartManualConnection(const char *address);
+    void ExitSelectionMode();
+    void ToggleHostSelection(int index);
+    void ToggleSelectAll();
+    bool AllHostsSelected() const;
+    void UpdateSelectionActionBar();
+    void UpdateSelectionCount();
+    void StartDeleteConfirmation();
+    void DeleteSelectedHosts();
 
     MoonlightHost m_hosts[8];
     int m_host_count;
@@ -65,6 +82,14 @@ private:
     bool m_ime_task_registered;
     bool m_ime_retry_pending;
     bool m_ime_module_loaded;
+
+    bool m_selection_mode;
+    bool m_selected_hosts[8];
+    paf::ui::CheckBox *m_checkboxes[8];
+    int m_selected_count;
+    bool m_delete_dialog_open;
+    bool m_delete_dialog_task_registered;
+    char m_delete_message[512];
 };
 
 }
