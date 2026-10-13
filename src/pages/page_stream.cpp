@@ -6,6 +6,7 @@
 #include <psp2/common_dialog.h>
 #include <psp2/ime_dialog.h>
 #include <psp2/sysmodule.h>
+#include <psp2/kernel/processmgr.h>
 
 #include <Limelight.h>
 
@@ -29,6 +30,23 @@ Stream *Stream::s_instance = NULL;
 Stream::Frame Stream::s_pending_frame = { NULL, 0, 0, 0, false };
 bool Stream::s_task_registered = false;
 unsigned int Stream::s_release_delay = 0;
+
+static void stream_power_tick_task(void *)
+{
+    /*
+     * Match NetStream's PowerTick_All behavior while the stream page is active:
+     * reset standby, display-off and dimming idle timers during video playback.
+     */
+    sceKernelPowerTick(SCE_KERNEL_POWER_TICK_DEFAULT);
+}
+
+static void set_stream_power_tick(bool enabled)
+{
+    common::MainThreadCallList::Unregister(stream_power_tick_task, NULL);
+    if (enabled) {
+        common::MainThreadCallList::Register(stream_power_tick_task, NULL);
+    }
+}
 
 static void send_keyboard_text(const SceWChar16 *text)
 {
@@ -107,7 +125,9 @@ Stream::Stream()
     : Base("page_stream", NULL,
            Plugin::TransitionType_None,
            Plugin::TransitionType_None),
-      m_video_plane(NULL)
+      m_video_plane(NULL),
+      m_video_plane_width(0),
+      m_video_plane_height(0)
 {
     unsigned int i;
 
@@ -142,11 +162,15 @@ Stream::Stream()
         vita_debug_log(
             "[StreamPage] video plane obj=%p",
             plane_obj);
+
+        /* Keep the Vita awake only while the streaming page is active. */
+        set_stream_power_tick(true);
     }
 }
 
 Stream::~Stream()
 {
+    set_stream_power_tick(false);
     if (s_instance == this) {
         s_instance = NULL;
     }
@@ -326,18 +350,45 @@ void Stream::PresentFrame(const Frame &frame)
     if (slot->surface.get()) {
         m_video_plane->SetTexture(slot->surface);
 
-        paf::graph::PlaneObj *plane_obj =
-            static_cast<paf::graph::PlaneObj *>(
-                m_video_plane->GetDrawObj(paf::ui::Plane::OBJ_PLANE));
-        if (plane_obj) {
-            if (moonlight_video_center_region()) {
-                plane_obj->SetScaleMode(
-                    paf::graph::PlaneObj::SCALE_SIZE,
-                    paf::graph::PlaneObj::SCALE_SIZE);
-            } else {
-                plane_obj->SetScaleMode(
-                    paf::graph::PlaneObj::SCALE_ASPECT_SIZE,
-                    paf::graph::PlaneObj::SCALE_ASPECT_SIZE);
+        const bool center_region = moonlight_video_center_region() != 0;
+        const unsigned int plane_width = center_region ? frame.width : 960;
+        const unsigned int plane_height = center_region ? frame.height : 544;
+
+        if (m_video_plane_width != plane_width ||
+            m_video_plane_height != plane_height) {
+            /*
+             * Fit mode keeps a full-screen plane so its background fills the
+             * letterbox area. Center-region mode scales a larger aspect-correct
+             * surface beyond the screen and relies on the page viewport to
+             * clip the outer edges.
+             */
+            m_video_plane->SetSize(paf::math::v4(
+                (float)plane_width,
+                (float)plane_height,
+                0.0f,
+                0.0f));
+            /*
+             * PAF uses a center-origin coordinate system: (0, 0) centers
+             * the plane on the screen. Keep oversized crop surfaces at the
+             * origin so the viewport clips equally on both sides.
+             */
+            m_video_plane->SetPos(paf::math::v4(0.0f, 0.0f, 0.0f));
+            m_video_plane_width = plane_width;
+            m_video_plane_height = plane_height;
+
+            paf::graph::PlaneObj *plane_obj =
+                static_cast<paf::graph::PlaneObj *>(
+                    m_video_plane->GetDrawObj(paf::ui::Plane::OBJ_PLANE));
+            if (plane_obj) {
+                if (center_region) {
+                    plane_obj->SetScaleMode(
+                        paf::graph::PlaneObj::SCALE_SIZE,
+                        paf::graph::PlaneObj::SCALE_SIZE);
+                } else {
+                    plane_obj->SetScaleMode(
+                        paf::graph::PlaneObj::SCALE_ASPECT_SIZE,
+                        paf::graph::PlaneObj::SCALE_ASPECT_SIZE);
+                }
             }
         }
     }

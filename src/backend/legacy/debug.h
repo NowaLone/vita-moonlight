@@ -6,8 +6,8 @@
 extern "C" {
 #endif
 
-void vita_debug_set_file_logging(int enabled);
 void vita_debug_log(const char *fmt, ...);
+void vita_debug_log_set_enabled(int enabled);
 
 #ifdef __cplusplus
 }

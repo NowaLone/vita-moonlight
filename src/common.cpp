@@ -2,8 +2,6 @@
 #include <kernel.h>
 #else
 #include <psp2/kernel/clib.h>
-#include <psp2/io/fcntl.h>
-#include <psp2/io/stat.h>
 #endif
 
 #include <stdarg.h>
@@ -14,15 +12,11 @@
 #include <paf/widget/w_button_base.h>
 
 paf::Plugin *g_plugin = NULL;
+static int s_debug_log_enabled = 0;
 
-static int s_file_logging = 0;
-
-extern "C" void vita_debug_set_file_logging(int enabled)
+extern "C" void vita_debug_log_set_enabled(int enabled)
 {
-    s_file_logging = enabled ? 1 : 0;
-    if (s_file_logging) {
-        sceIoMkdir("ux0:data/moonlight", 0777);
-    }
+    s_debug_log_enabled = enabled ? 1 : 0;
 }
 
 extern "C" void vita_debug_log(const char *fmt, ...)
@@ -31,7 +25,7 @@ extern "C" void vita_debug_log(const char *fmt, ...)
     va_list args;
     int length;
 
-    if (!fmt) {
+    if (!s_debug_log_enabled || !fmt) {
         return;
     }
 
@@ -47,20 +41,6 @@ extern "C" void vita_debug_log(const char *fmt, ...)
 
     sceClibPrintf("%s\n", line);
 
-    if (!s_file_logging) {
-        return;
-    }
-
-    SceUID fd = sceIoOpen(
-        "ux0:data/moonlight/moonlight.log",
-        SCE_O_WRONLY | SCE_O_CREAT | SCE_O_APPEND,
-        0666);
-    if (fd < 0) {
-        return;
-    }
-    sceIoWrite(fd, line, (SceSize)length);
-    sceIoWrite(fd, "\n", 1);
-    sceIoClose(fd);
 }
 
 paf::Plugin::PageOpenParam make_open_param(paf::Plugin::TransitionType transition) {
