@@ -26,6 +26,7 @@ The source-level changes for the following items are present in `master`; this i
 Run the full user journey on a real Vita and record reproducible failures with runtime logs before changing implementation.
 
 - [ ] Discover a PC on the LAN and save/select it.
+- [ ] Check the PS4 Link style Search PCs and Pairing pages on hardware against the PS4 Link screens: header position and the fading line, the pairing page's flow bar and Back button position, the saved-PC row title and description positions, and that touching the row text still activates the row.
 - [ ] Add a PC manually, including a custom port; verify unsuccessful attempts do not create an incorrect saved-host record.
 - [ ] Pair successfully and verify incorrect-PIN errors are distinguished from transport/protocol failures.
 - [ ] Retrieve the app list, start a stream, and check video, audio, controller input, and touchscreen input.
@@ -33,13 +34,17 @@ Run the full user journey on a real Vita and record reproducible failures with r
 - [ ] Exercise connection failure, host/network loss, recovery, and relevant PS Button/application lifecycle behavior.
 - [ ] Verify gyroscope and accelerometer reporting on hardware; the input path exists but is not yet fully hardware-verified.
 
+Capture the Vita runtime log (`vita_debug_log`) for every step and attach the relevant prefixes to the result: `[Search]` and `[Main]` for the host lists, `[Pairing]`, `[GameStream]`, `[ConnectionService]` and `[LegacyAdapter]` for connect/pair/launch, and `[Stream]`, `[StreamPage]`, `[Video]`, `[Audio]`, `[Input]`, `[Touch]` and `[Motion]` for the stream itself.
+
 **Done when:** the main journey and important failure/recovery paths have been exercised on Vita, observed problems are either fixed or documented with reproduction steps, and stream shutdown/reconnect does not leave the app in a broken state.
+
+Not part of the PS4 Link parity pass because the needed pieces do not exist in this app: the animated sync icon on the search page, the "Searching via Internet" illustration page and its Skip button (discovery is LAN only), the monitor illustration and Register button on the pairing page (the Vita shows the PIN and pairs immediately), and the PS4 Link number field style. The Search PCs page keeps its corner back button instead of PS4 Link's Cancel button in a bar, since it has no second button to justify a bar. The Apps page still uses the generic row and the corner back button.
 
 ## 2. Make development builds reproducible
 
 **Priority: next, and can be worked on alongside device validation**
 
-- [ ] Record the exact supported VITASDK revision.
+- [ ] Record the exact supported VITASDK revision (it cannot be derived from the repository; it has to come from the maintainer's working environment).
 - [ ] Record the exact revisions of `vitasdk-paf-component` and `psp2cxml-tool`.
 - [ ] Document dependency setup and environment variables in a clean, repeatable setup procedure.
 - [ ] Validate a clean build with `bash build.sh`, including CXML-to-RCO compilation and VPK/SELF generation.
@@ -49,8 +54,8 @@ Run the full user journey on a real Vita and record reproducible failures with r
 
 ## 3. Close technical risks and improve testability
 
-- [ ] Investigate the `[Main] RefreshHosts ... after_insert=` log when reproducing host-list duplication; `after_insert` should equal `hosts`. Determine whether any mismatch comes from persistent records or stale PAF ListView cells before changing code.
-- [ ] Identify small, hardware-independent logic suitable for tests, starting with host identity resolution, pairing-result classification, and host persistence decisions.
+- [x] Verify the `RefreshHosts` cell-count fix on Vita: user confirmed the host list behaves correctly. Reported logs show `after_delete=0` and `after_insert=hosts` across repeated refreshes, selection-mode toggles, and removing one of two hosts. The user reports the remaining list behavior is OK. A clean build was not separately verified. Source review found that `DeleteCell` was passed `existing - 1` even though BetterHomebrewBrowser passes the full `GetCellNum(0)` count.
+- [ ] Identify small, hardware-independent logic suitable for tests, starting with host identity resolution, pairing-result classification, and host persistence decisions. Separate each decision from the `sceIo*`/PAF calls around it first, so it can be built and run with a desktop compiler.
 - [ ] Add focused automated tests for that logic where it can be isolated without mocking the whole PAF runtime.
 - [ ] Select and document formatter/static-analysis tooling only if it fits the existing codebase and toolchain.
 
@@ -100,3 +105,27 @@ Still unresolved / required:
 - Confirm stream resolution selection for host-supported and host-unsupported modes; compare `[GameStream] selected stream mode=...` with the host's actual negotiated/display mode. If the diagnostic values are correct but the host ignores a supported mode, investigate Sunshine's launch/resolution policy rather than changing the Vita decoder size.
 - Research a supported shell/app event or status signal for Quick Actions. Do not claim the overlay is detectable until an API is verified. Avoid a timer-only input suppression workaround that could resume forwarding while the overlay remains open.
 - Rebuild CXML and the app, then retest on real hardware; these latest source changes have not been built or device-verified by the current agent.
+
+
+## Host ListView diagnosis (2026-10-13)
+
+Source review identified a likely off-by-one bug in `Main::RefreshHosts()`:
+
+- The old code called `DeleteCell(0, 0, existing - 1)`. PAF's third argument is used as a deletion count in the project's reference implementation, so this can leave one old cell behind. Re-inserting `m_host_count` cells can then produce `after_insert = hosts + 1`, matching the duplicate-row symptom.
+- BetterHomebrewBrowser's `AppBrowser::ClearList()` uses `DeleteCell(0, 0, listView->GetCellNum(0))`, passing the full cell count. The fix branch now follows that pattern and adds a comment documenting the count semantics.
+- NetStream's server browser creates its ListView segment and item factory once, then inserts cells for the loaded entries. It does not provide evidence for deleting a range with an inclusive final index.
+- The diagnostic `cells_after_delete` and `after_insert` log remains in place to validate the behavior on-device.
+
+**Verification status:** source comparison only. No Vita toolchain build or hardware test has been run for this change. Before marking the item complete, verify empty → one host → multiple hosts, repeated refresh, and entry/exit from selection mode; require `after_delete=0` and `after_insert=hosts` in each refresh.
+
+
+## Host ListView hardware test results (2026-10-13)
+
+User-reported `psp2shell` logs from Vita after applying the `DeleteCell(0, 0, existing)` fix:
+
+- Repeated refreshes with two hosts consistently report `cells before=2 after_delete=0 after_insert=2`.
+- Selection mode toggles correctly rebuild the two rows: `selection=1` shows non-null checkbox pointers for both cells; `selection=0` shows `checkbox=0x0`.
+- After removing `fedora43-1-common.local`, refresh reports `hosts=1 cells before=2 after_delete=0 after_insert=1`; a subsequent refresh remains at one cell.
+- These observations support the fix for stale/duplicate ListView cells and the selection-template rebuild path.
+
+**Follow-up:** user confirmed that the list behavior is OK. The clean build remains unverified separately; the runtime logs came from a running Vita build.
