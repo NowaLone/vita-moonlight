@@ -162,6 +162,16 @@ void Apps::SetStatus(const char *text) {
 
     ((paf::ui::Text *)widget)->SetString(
         paf::common::string_util::ToWString(text));
+    widget->Show(paf::common::transition::Type_Reset);
+}
+
+void Apps::HideStatus() {
+    if (!root) return;
+
+    paf::ui::Widget *widget = root->FindChild("text_apps_status");
+    if (widget) {
+        widget->Hide(paf::common::transition::Type_Reset);
+    }
 }
 
 void Apps::ShowApps() {
@@ -176,12 +186,19 @@ void Apps::ShowApps() {
 
     const int existing = m_list->GetCellNum(0);
     if (existing > 0) {
-        m_list->DeleteCell(0, 0, existing - 1);
+        /* DeleteCell's third argument is a cell count, not the last index. */
+        m_list->DeleteCell(0, 0, existing);
     }
 
     if (m_app_count > 0) {
         m_list->InsertCell(0, 0, m_app_count);
-        SetStatus("Select an application.");
+
+        /*
+         * The status text is centred on the list and was drawn over the second
+         * row. The rows are the hint; keep the text for the empty state and for
+         * transient messages (launching, errors, ...).
+         */
+        HideStatus();
     } else {
         SetStatus("No applications available.");
     }
