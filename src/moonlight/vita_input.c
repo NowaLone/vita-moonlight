@@ -147,17 +147,32 @@ static void vita_shell_event_handler(
 {
     (void)userData;
 
+    /*
+     * ShellUtil's callback can arrive around teardown/restart. Never queue a
+     * PS edge while the streaming input state machine is inactive; otherwise
+     * an old edge can be replayed into the next session as a fresh tap.
+     */
+    vita_debug_log(
+        "[Input] ShellUtil callback result=0x%08x mode=%d type=0x%08x active=%d",
+        (unsigned int)result,
+        (int)mode,
+        (unsigned int)type,
+        s_input_active ? 1 : 0);
+
+    if (!s_input_active) {
+        return;
+    }
+
+    /*
+     * A physical short PS press is reported on this Vita as
+     * result=0, mode=21, type=0. Keep this compatibility path: filtering
+     * only documented PS lock-type bits drops these short presses.
+     * The mode=1/type=0x801 callback during stream startup is harmless and
+     * remains accepted through the explicit PS-button flags below.
+     */
     if ((type & (SCE_SHELL_UTIL_LOCK_TYPE_PS_BTN |
-                 SCE_SHELL_UTIL_LOCK_TYPE_PS_BTN_2)) != 0) {
-        s_shell_ps_edge = 1;
-    } else if (result == 0 && (int)mode == 21 && (unsigned int)type == 0) {
-        /*
-         * On the tested Vita, repeated callbacks correlated with user PS taps
-         * arrive as result=0, mode=21, type=0, even though this signature is
-         * not described by VitaSDK's public enum. Treat it as a provisional
-         * PS pulse so the next device build can validate the correlation.
-         * Keep this isolated from the documented lock-type path.
-         */
+                 SCE_SHELL_UTIL_LOCK_TYPE_PS_BTN_2)) != 0 ||
+        (result == 0 && (int)mode == 21 && (unsigned int)type == 0)) {
         s_shell_ps_edge = 1;
     }
 }
@@ -661,6 +676,8 @@ void vita_input_start(void)
     s_ps_single_pending = false;
     s_ps_physical_old = false;
     s_ps_host_pulse_state = 0;
+    s_shell_ps_edge = 0;
+    s_ignore_ps_until_release = false;
 
     /*
      * Match the controller declaration used by the original Vita Moonlight.
@@ -769,9 +786,12 @@ void vita_input_stop(void)
     memset(&s_pad, 0, sizeof(s_pad));
     memset(&s_pad_old, 0, sizeof(s_pad_old));
     s_ps_button_release_time = 0;
+    s_ps_press_time = 0;
     s_ps_single_pending = false;
     s_ps_physical_old = false;
     s_ps_host_pulse_state = 0;
+    s_shell_ps_edge = 0;
+    s_ignore_ps_until_release = false;
 
     if (s_ps_button_locked) {
         int result = sceShellUtilUnlock(

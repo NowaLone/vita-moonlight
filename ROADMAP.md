@@ -619,3 +619,130 @@ This is user-reported device verification for the tested build/device/firmware o
 Removed the temporary ShellUtil callback counter/timestamps, per-callback argument dump, per-sample Ext edge logs, and one-second PS polling heartbeat from `src/moonlight/vita_input.c`. These were added to identify the short-tap event source and are no longer needed after the tested device confirmed the ShellUtil path and Quick Actions lifecycle. Kept event-driven PS state-transition messages and AppMgr overlay/error messages because they remain useful for diagnosing real input/lifecycle regressions. The undocumented `result=0, mode=21, type=0` heuristic and post-overlay quarantine are unchanged; this is log cleanup, not a behavior change.
 
 No build or hardware test was run for this cleanup.
+
+
+## GameStream client API coverage and follow-up (2026-10-15)
+
+Scope decision: this project implements the **Moonlight/GameStream client** required to discover hosts, pair, list apps, launch/resume, and stream. Sunshine's administrative Web API (server configuration, user/admin management, and similar control-plane features) is out of scope and is not a missing feature for the streaming client.
+
+Source audit of `src/moonlight/api.cpp`, `src/backend/legacy/legacy_gamestream.c`, and `src/moonlight/stream_session.cpp`:
+
+- Implemented client flow includes server status/info, GameStream pairing, app-list retrieval, launch/resume request, and Limelight RTSP streaming setup/teardown.
+- No separate HTTP `/cancel`, `/quit`, or `/unpair` request is currently issued. Do not add these endpoints by name alone: first verify the current Sunshine/Moonlight protocol semantics and whether the existing Limelight teardown and pairing lifecycle already cover the intended user action.
+- The app-list parser previously stopped after eight entries. The client cache/parser limit has now been raised to 64 to avoid truncating ordinary larger app lists. This remains an explicit bound; a future change can make storage dynamic if hosts with more than 64 apps are a real requirement.
+- Streaming capability negotiation remains intentionally conservative: H.264 only, stereo audio, one remote controller, and fixed Rec.601/limited-range color settings. HEVC/AV1, multichannel audio, HDR, and multi-controller support require checking Vita decoder/renderer/input capabilities before advertising or enabling them.
+- Server metadata has fallback values when some fields are absent. Keep fallback behavior compatible with older GameStream hosts, but avoid treating fallback values as negotiated capability data.
+
+Next work, in order:
+
+1. Verify stop/disconnect behavior against current upstream client implementations and host-side session cleanup; make client teardown idempotent where needed before adding protocol calls.
+2. Add focused tests for app-list parsing (more than eight apps, malformed/incomplete entries, and truncated responses) and decide whether the 64-entry bound is sufficient.
+3. Implement codec/audio/color negotiation only after confirming Vita hardware and renderer support. Do not advertise a codec that the decoder cannot actually consume.
+4. Keep Sunshine administrative Web API support out of the client roadmap unless the product scope explicitly changes.
+
+**Verification status:** source changes and this audit have not been built or exercised by the current agent. A clean Vita toolchain build and real-device streaming/lifecycle test are still required.
+
+
+### Stream lifecycle follow-up: reject duplicate start while pending (2026-10-15)
+
+Source change: [54ba678](https://github.com/NowaLone/vita-moonlight-paf/commit/54ba67847c49b883e9f6f03dce8f8f20e732f0b3) adds explicit `s_stream_pending` and `s_stream_active` checks to `moonlight_api_start_application()`. The connection state can remain `PAIRED` during the asynchronous launch handshake, so state-only validation was not sufficient to express the stream lifecycle invariant. The API now rejects a second start request while a stream start is pending or a stream is active, rather than relying only on the lower-level worker to reject it.
+
+**Resolution:** the teardown race and pending-launch path are addressed in the later section **Deferred stream teardown on host disconnect** below. That implementation is source-reviewed but still requires a build and Vita device regression test.
+
+
+### Deferred stream teardown on host disconnect (2026-10-15)
+
+Implemented on `master` to address the detached-worker lifetime race:
+
+- `moonlight_api_disconnect_host()` now requests stream cancellation and schedules deferred cleanup instead of immediately freeing `LegacyGameStreamServer`.
+- The cleanup worker waits until the detached stream worker has fully returned, then shuts down GameStream resources and emits `MOONLIGHT_EVENT_CONNECTION_CLOSED`. Repeated disconnect calls while cleanup is pending are idempotent.
+- `moonlight_stream_stop()` now records cancellation during the launch handshake without prematurely calling `LiStopConnection()`; the stream worker checks cancellation after the launch HTTP request and again before entering `LiStartConnection()`.
+- Stop is accepted while a launch is pending, not only after `STREAM_STARTED`.
+- API shutdown requests cancellation and waits for the stream worker before releasing server resources. A new host connection is rejected while stream/disconnect cleanup is still in progress.
+
+No Sunshine-specific cancel/quit HTTP endpoint was added. A launch request already accepted by the host may still start the remote application; this client-side cancellation only prevents the local worker from continuing into RTSP when cancellation is observed.
+
+**Verification status:** source review only; no build or Vita hardware test was run for this change. Please build and test disconnect both during active streaming and immediately after launch, before treating the lifecycle as device-verified.
+
+
+### Build follow-up: stream stop worker symbol scope (2026-10-15)
+
+- Fixed the C++ compile error in `stream_session.cpp`: `stream_stop_thread_main()` is now defined inside the same anonymous namespace as its callers, avoiding two distinct functions with the same name and the ambiguous `pthread_create` callback.
+- Fixed the Vita SDK OpenSSL warning in `legacy_gamestream.c` by matching `X509_get0_signature()`'s declared `ASN1_BIT_STRING **` parameter type. The pointer is only read by this code.
+- Verification: source changes committed; no local build was run by the agent. Rebuild with VitaSDK to confirm.
+
+
+### Fix double-PS stream stop after launch worker exits (2026-10-16)
+
+User supplied a device log where the input state machine correctly logged `[Input] PS Button double press, stopping stream`, but video decoding continued and no stop-worker diagnostics appeared.
+
+Source review identified a lifecycle mismatch in `src/moonlight/stream_session.cpp`: `moonlight_stream_stop()` returned immediately when `s_stream_thread_running` was false, even if `s_stream_context.started` still represented an established Limelight connection. The detached launch/setup worker is not a reliable proxy for the active stream lifetime.
+
+**Fix committed to master:** [4e85124](https://github.com/NowaLone/vita-moonlight-paf/commit/4e851246e2a60ac369eccd23a5a221d0d8a6e212)
+
+- `moonlight_stream_stop()` now proceeds when either setup is pending/running or the connection is established; it only returns early when neither state is active.
+- `moonlight_stream_is_running()` now includes the established connection and stop-request state, so deferred disconnect cleanup does not mistake an active Limelight session for an idle one just because the launch worker returned.
+- The existing pending-launch cancellation path remains in place; the fix does not add a Sunshine-specific HTTP endpoint.
+
+**Device regression test required:** rebuild/install this commit, start a stream, double-press PS, and check for `[Stream] stop worker launched`, `[Stream] stop worker start`, `[Stream] emitting manual STREAM_STOPPED`, and `[Stream] stop worker finished`. Video frame logs should stop, the UI should leave the streaming state, and starting the same host/app again should work. Also test disconnect during an active stream to ensure deferred cleanup waits correctly.
+
+No build or hardware test was run by the agent; only the source change was committed.
+
+
+### Prevent stale PS callbacks from stopping a newly restarted stream (2026-10-16)
+
+User verified that double-PS now stops the active stream, but the immediate attempt to start the stream again appeared to stop almost immediately. The supplied trace shows the second launch reaching `[Stream] connection started`, followed by a fresh PS edge, a pending tap, another edge, and `PS Button double press, stopping stream`. This points to a stale/late ShellUtil callback being replayed into the next session, rather than a failure to launch the host application.
+
+**Fix committed to master:** [ef4b777](https://github.com/NowaLone/vita-moonlight-paf/commit/ef4b777a92022e850ba887cbd9ae8e368d303a9d)
+
+- `vita_shell_event_handler()` now ignores ShellUtil PS callbacks while `s_input_active` is false, so callbacks during teardown cannot queue a new edge.
+- `vita_input_start()` and `vita_input_stop()` explicitly clear `s_shell_ps_edge` and reset PS tap/hold state so an edge cannot carry over between stream sessions.
+- Reset the post-system-UI PS suppression flag on stream start/stop to avoid carrying unrelated overlay state across a full stream lifecycle.
+
+**Device regression test required:** rebuild/install this commit; start a stream, double-press PS to stop it, then restart the same app. Verify the new stream stays active for at least 30 seconds and does not log a PS edge/double-press stop unless PS is deliberately pressed again. Also verify a deliberate short PS tap still reaches the host and a deliberate double press still stops the stream.
+
+No build or device test was performed by the agent; this is a source-level fix based on the supplied trace.
+
+
+### Reject undocumented ShellUtil callbacks as synthetic PS presses (2026-10-16)
+
+User confirmed that no physical PS button was pressed when the restarted stream logged:
+
+`[Input] PS edge from ShellUtil event`
+`[Input] PS Button press pending tap/hold detection`
+`[Input] PS Button release detected duration_us=3121 pending=1`
+`[Input] PS Button single press, forwarding after timeout`
+
+The video stream continued in this capture, but the input trace proves that an unsolicited ShellUtil callback was interpreted as a real PS tap. The current handler accepted either documented PS lock-type bits or the undocumented signature `result=0, mode=21, type=0`. VitaSDK documents lock modes as `LOCK=1` and `UNLOCK=2`, and PS lock types as `SCE_SHELL_UTIL_LOCK_TYPE_PS_BTN` / `SCE_SHELL_UTIL_LOCK_TYPE_PS_BTN_2`; the observed signature does not identify a PS lock type.
+
+**Fix committed to master:** [f4ebee1](https://github.com/NowaLone/vita-moonlight-paf/commit/f4ebee1320e87b5eedee6e92c1067152c0a2dd6c)
+
+- Removed the undocumented `result=0, mode=21, type=0` fallback from `vita_shell_event_handler()`.
+- ShellUtil can now enqueue a PS edge only when the callback's type explicitly contains one of the PS-button lock flags.
+- This favors preventing false PS actions on stream restart over trusting an undocumented callback signature. A short physical tap that is too brief for controller polling may no longer be detected if the firmware does not provide the documented PS type; verify this on hardware before calling PS tap handling complete.
+
+**Device regression test required:** rebuild/install this commit, stop a stream with double-PS, restart the same app without touching PS, and wait at least 30 seconds. There must be no PS edge/tap/single-press logs unless PS was physically pressed. Then test a deliberate short PS tap and a deliberate double press. If the short tap is missed, capture callback arguments for an actual tap and an idle/restart period so the event source can be distinguished without treating arbitrary callback signatures as PS input.
+
+No build or hardware test was performed by the agent. Reference: [VitaSDK ShellUtil documentation](https://docs.vitasdk.org/shellutil_8h.html).
+
+
+### Diagnose PS taps after removing undocumented ShellUtil fallback (2026-10-16)
+
+After [f4ebee1](https://github.com/NowaLone/vita-moonlight-paf/commit/f4ebee1320e87b5eedee6e92c1067152c0a2dd6c), the user reports that deliberate PS taps no longer react. The supplied trace contains one `PS edge from ShellUtil event` and one single-press forwarding message immediately after stream startup, before the first video packet, but no evidence that later physical taps reached the input state machine. This suggests the remaining accepted callback may be related to the ShellUtil lock/startup transition rather than a physical tap; the existing log does not include callback arguments, so that is not yet proven.
+
+**Diagnostic commit:** [a4aba5e](https://github.com/NowaLone/vita-moonlight-paf/commit/a4aba5e7728a007289cfaa4ddf419fd568fd5c6b)
+
+- Added a temporary log of every ShellUtil callback's `result`, `mode`, `type`, and whether streaming input is active.
+- The PS state machine still accepts only callback types containing documented PS lock-type flags; the undocumented `result=0, mode=21, type=0` fallback remains disabled.
+- This is diagnostic only; it does not restore the unsafe fallback or change input behavior.
+
+**Next device capture:** install a build containing this commit. Capture the callback line(s) emitted immediately after stream startup, then press PS once, release, and press it again. Compare `result/mode/type` for startup versus each deliberate tap. If no callback appears on taps, inspect current controller polling samples next; do not infer that lock/unlock callbacks are physical button events.
+
+No build or hardware test was performed by the agent.
+
+## PS Button ShellUtil callback compatibility (2026-10-16)
+
+- Restored compatibility with the observed Vita callback signature `result=0, mode=21, type=0`, which the user confirmed occurs on short physical PS Button presses. Filtering exclusively by documented PS lock-type flags caused these short presses to stop being handled.
+- Kept acceptance of callbacks whose type contains `SCE_SHELL_UTIL_LOCK_TYPE_PS_BTN` or `SCE_SHELL_UTIL_LOCK_TYPE_PS_BTN_2`.
+- The separate startup callback `mode=1, type=0x00000801` was reported to have no observable effect; it is not treated as the cause of a stream problem.
+- Hardware verification is still required after this source change: check short and held PS presses, double-PS stop, and stream restart. No build or device test is claimed by this change.

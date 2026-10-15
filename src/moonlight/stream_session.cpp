@@ -41,6 +41,7 @@ static StreamContext s_stream_context = { NULL, NULL, 0 };
 static pthread_t s_stream_thread;
 static volatile int s_stream_thread_running = 0;
 static volatile int s_stream_stop_requested = 0;
+static volatile int s_stream_cancel_requested = 0;
 
 static size_t write_response(void *contents, size_t size, size_t count, void *userdata)
 {
@@ -98,12 +99,62 @@ static void on_stage_failed(int stage, int result)
         result);
 }
 
+static void *stream_stop_thread_main(void *)
+{
+    int was_started;
+
+    vita_debug_log("[Stream] stop worker start");
+
+    if (s_stream_context.started) {
+        vita_input_stop();
+    }
+
+    LiStopConnection();
+
+    was_started = s_stream_context.started;
+    s_stream_context.started = 0;
+    s_stream_stop_requested = 0;
+
+    /*
+     * moonlight-common-c deliberately does not invoke
+     * connectionTerminated() after LiStopConnection(). Emit our own
+     * application-level stop event once Limelight has finished cleanup.
+     */
+    if (was_started) {
+        vita_debug_log("[Stream] emitting manual STREAM_STOPPED");
+        emit_event(MOONLIGHT_EVENT_STREAM_STOPPED, 0);
+    }
+
+    vita_debug_log("[Stream] stop worker finished");
+    return NULL;
+}
+
 static void on_connection_started(void)
 {
+    pthread_t stop_thread;
+    int stop_result;
+
     s_stream_context.started = 1;
     vita_input_start();
     vita_debug_log("[Stream] connection started");
     emit_event(MOONLIGHT_EVENT_STREAM_STARTED, 0);
+
+    /* Handle cancellation racing with Limelight's connectionStarted callback. */
+    if (s_stream_cancel_requested && !s_stream_stop_requested) {
+        s_stream_stop_requested = 1;
+        stop_result = pthread_create(
+            &stop_thread,
+            NULL,
+            stream_stop_thread_main,
+            NULL);
+        if (stop_result == 0) {
+            pthread_detach(stop_thread);
+            vita_debug_log("[Stream] cancellation applied after connection start");
+        } else {
+            s_stream_stop_requested = 0;
+            vita_debug_log("[Stream] cancelled connection stop worker failed=%d", stop_result);
+        }
+    }
 }
 
 static void on_connection_terminated(int result)
@@ -389,6 +440,11 @@ static int run_stream_session(
         return -1;
     }
 
+    if (s_stream_cancel_requested) {
+        vita_debug_log("[Stream] launch cancelled before RTSP setup");
+        return -7;
+    }
+
     LiInitializeStreamConfiguration(&stream_config);
     stream_config.width = settings->width;
     stream_config.height = settings->height;
@@ -424,6 +480,11 @@ static int run_stream_session(
             ? server->server_codec_mode_support
             : SCM_H264;
 
+    if (s_stream_cancel_requested) {
+        vita_debug_log("[Stream] launch cancelled before LiStartConnection");
+        return -7;
+    }
+
     initialize_connection_callbacks(&callbacks);
 
     vita_debug_log(
@@ -434,6 +495,11 @@ static int run_stream_session(
         stream_config.bitrate,
         server_info.serverInfoAppVersion,
         server_info.serverCodecModeSupport);
+
+    if (s_stream_cancel_requested) {
+        vita_debug_log("[Stream] launch cancelled before LiStartConnection");
+        return -7;
+    }
 
     result = LiStartConnection(
         &server_info,
@@ -548,6 +614,7 @@ extern "C" int moonlight_stream_start(
     s_stream_context.userdata = userdata;
     s_stream_context.started = 0;
     s_stream_stop_requested = 0;
+    s_stream_cancel_requested = 0;
 
     s_stream_thread_running = 1;
     result = pthread_create(
@@ -575,40 +642,30 @@ extern "C" int moonlight_stream_start(
     return 0;
 }
 
-static void *stream_stop_thread_main(void *)
-{
-    int was_started;
-
-    vita_debug_log("[Stream] stop worker start");
-
-    if (s_stream_context.started) {
-        vita_input_stop();
-    }
-
-    LiStopConnection();
-
-    was_started = s_stream_context.started;
-    s_stream_context.started = 0;
-    s_stream_stop_requested = 0;
-
-    /*
-     * moonlight-common-c deliberately does not invoke
-     * connectionTerminated() after LiStopConnection(). Emit our own
-     * application-level stop event once Limelight has finished cleanup.
-     */
-    if (was_started) {
-        vita_debug_log("[Stream] emitting manual STREAM_STOPPED");
-        emit_event(MOONLIGHT_EVENT_STREAM_STOPPED, 0);
-    }
-
-    vita_debug_log("[Stream] stop worker finished");
-    return NULL;
-}
 
 extern "C" int moonlight_stream_stop(void)
 {
     pthread_t stop_thread;
     int result;
+
+    /*
+     * The launch/setup worker may already have returned after
+     * LiStartConnection() while Limelight continues streaming on its own
+     * threads. Do not use s_stream_thread_running as the sole indicator
+     * that an active connection can be stopped.
+     */
+    if (!s_stream_thread_running && !s_stream_context.started) {
+        vita_debug_log("[Stream] stop ignored: no active or pending session");
+        return 0;
+    }
+
+    s_stream_cancel_requested = 1;
+
+    /* Limelight must not be stopped before its connection setup has begun. */
+    if (!s_stream_context.started) {
+        vita_debug_log("[Stream] cancellation requested before connection start");
+        return 0;
+    }
 
     if (s_stream_stop_requested) {
         vita_debug_log("[Stream] stop already requested");
@@ -616,22 +673,26 @@ extern "C" int moonlight_stream_stop(void)
     }
 
     s_stream_stop_requested = 1;
-
-    result = pthread_create(
-        &stop_thread,
-        NULL,
-        stream_stop_thread_main,
-        NULL);
+    result = pthread_create(&stop_thread, NULL, stream_stop_thread_main, NULL);
     if (result != 0) {
         s_stream_stop_requested = 0;
-        vita_debug_log(
-            "[Stream] stop worker create failed result=%d",
-            result);
+        vita_debug_log("[Stream] stop worker create failed result=%d", result);
         return result;
     }
 
     pthread_detach(stop_thread);
-
     vita_debug_log("[Stream] stop worker launched");
     return 0;
+}
+
+extern "C" int moonlight_stream_is_running(void)
+{
+    /*
+     * Include the established Limelight connection, not only the detached
+     * launch/setup worker. Disconnect cleanup must wait until stop/termination
+     * has cleared the active connection state.
+     */
+    return (s_stream_thread_running ||
+            s_stream_context.started ||
+            s_stream_stop_requested) ? 1 : 0;
 }
