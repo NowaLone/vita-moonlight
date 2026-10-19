@@ -29,13 +29,13 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g3 -Wl,-q -Wall -O0 -fno-inline -fno-builti
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g3 -fno-rtti -fno-exceptions -Wl,-q -Wall -O0 -fno-builtin -fshort-wchar -Wno-unused-function -Wno-sign-compare")
 
 set(VITA_MKSFOEX_FLAGS
-    "${VITA_MKSFOEX_FLAGS} -d ATTRIBUTE=33472 -d ATTRIBUTE_MINOR=16"
+    "${VITA_MKSFOEX_FLAGS} -d ATTRIBUTE=33472 -d ATTRIBUTE_MINOR=16 -s CATEGORY=gd"
 )
 
-# Keep the PAF build's known-working authority ID. Device testing reported that
-# AppSettings persistence works with this ID; upstream's 0x280... ID regressed it.
-# PS Button ShellUtil lock success has also been observed with this ID on-device.
-set(VITA_MAKE_FSELF_FLAGS "${VITA_MAKE_FSELF_FLAGS} -a 0x2F00000000000101")
+# Match BHBB's native PAF authority. A controlled 3.60 test changing only this
+# ID removed the ux0/vs0 invalid:/ overlays seen with 0x2F00000000000101.
+# Actual AppSettings persistence and PS/Quick Actions still need regression tests.
+set(VITA_MAKE_FSELF_FLAGS "${VITA_MAKE_FSELF_FLAGS} -a 0x2200000000000001")
 
 enable_language(CXX ASM)
 
@@ -201,6 +201,17 @@ set_target_properties(${PROJECT_NAME}
   COMPILE_FLAGS "'-D__declspec(__v__)=/**/'"
 )
 
+# VitaSDK's SELF/stub helpers expect the extensionless target path. Keep it and
+# expose the same unstripped ELF with an extension for crash-dump tools.
+set(DEBUG_ELF_FILE "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}.elf")
+add_custom_command(OUTPUT "${DEBUG_ELF_FILE}"
+  COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:${PROJECT_NAME}>" "${DEBUG_ELF_FILE}"
+  DEPENDS ${PROJECT_NAME}
+  COMMENT "Copying debug ELF ${PROJECT_NAME}.elf"
+  VERBATIM
+)
+add_custom_target(${PROJECT_NAME}_debug_elf ALL DEPENDS "${DEBUG_ELF_FILE}")
+
 set(RCO_FILE "${CMAKE_CURRENT_BINARY_DIR}/vita_moonlight_ui.rco")
 if(NOT EXISTS "${RCO_FILE}")
   message(FATAL_ERROR "Missing vita_moonlight_ui.rco. Run build_cxml.sh before configuring the project.")
@@ -209,9 +220,15 @@ endif()
 # UNSAFE omits the safe (-s) flag; ATTRIBUTE matches upstream PS capture packaging.
 vita_create_self(${PROJECT_NAME}.self ${PROJECT_NAME} UNSAFE ATTRIBUTE 0x0E)
 
+# sce_sys PNGs must stay 8-bit indexed. 24-bit assets fail VPK install with 0x8010113D.
 vita_create_vpk(vita_moonlight_paf.vpk "VLMP00001" ${PROJECT_NAME}.self
   VERSION "01.00"
   NAME "Vita Moonlight PAF UI"
   FILE ${RCO_FILE} vita_moonlight_ui.rco
+  FILE ${CMAKE_CURRENT_SOURCE_DIR}/sce_sys/icon0.png sce_sys/icon0.png
+  FILE ${CMAKE_CURRENT_SOURCE_DIR}/sce_sys/pic0.png sce_sys/pic0.png
+  FILE ${CMAKE_CURRENT_SOURCE_DIR}/sce_sys/livearea/contents/bg0.png sce_sys/livearea/contents/bg0.png
+  FILE ${CMAKE_CURRENT_SOURCE_DIR}/sce_sys/livearea/contents/startup.png sce_sys/livearea/contents/startup.png
+  FILE ${CMAKE_CURRENT_SOURCE_DIR}/sce_sys/livearea/contents/template.xml sce_sys/livearea/contents/template.xml
 )
 vita_create_stubs(stubs_${PROJECT_NAME} ${PROJECT_NAME} exports.yml)

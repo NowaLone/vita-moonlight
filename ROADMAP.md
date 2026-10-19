@@ -2,6 +2,187 @@
 
 This roadmap captures the agreed next steps for Vita Moonlight PAF. It is ordered by risk reduction and release readiness, not by a promise that every item must be completed before development continues. Keep individual changes small and verify device-specific behavior on real PS Vita hardware.
 
+## Main cold start: one saved PC verified by user (2026-10-19)
+
+User supplied the Vita log:
+
+```text
+[Main] RefreshHosts hosts=1 cells before=1 after_delete=0 after_insert=1 selection=0
+```
+
+In response to the explicit cold-start question, the user confirmed that the PC appears
+immediately without connecting or opening Settings first. This verifies the visible one-host
+cold-start scenario on the tested device/build. The log shows one backend host, complete cell
+deletion and one inserted cell; no duplicate is indicated by these counts.
+
+The installed package revision was not supplied with this result, and the
+`[Main] initial refresh finished ...` line is still absent, so warm-up completion/stability
+cannot be inferred. Empty-storage and multiple-host cold starts remain unverified. Keep the
+full Main acceptance item open; no further InitialRefreshTask change is justified by this result.
+No build or hardware test was run by the agent for this documentation update.
+
+User explicitly reports that the initial-refresh completion line is absent. Source follow-up:
+the line remains in `Main::InitialRefreshTask`, but `src/common.cpp` initializes
+`s_debug_log_enabled` to zero on every process start. The persisted Debug log setting is applied
+by `moonlight_settings_apply_runtime` after lazy AppSettings initialization; the normal Main
+startup path does not initialize it. Initial-refresh diagnostics can therefore be suppressed
+even when Debug log was enabled in the previous process. A later RefreshHosts log can come from
+another refresh after settings become active; it does not establish when startup refresh finished.
+This explains a diagnostic visibility gap in current source, not a reproduced refresh failure.
+The earlier enable-Debug-log-and-restart instruction is insufficient to guarantee startup capture.
+Do not require the user to repeat this successful one-host test just to obtain that line, and do
+not change InitialRefreshTask or force logging on the basis of its absence. No runtime change was made.
+
+## Settings-open regression: verified resolved on tested Vita (2026-10-19)
+
+**Status:** user verified native Settings open/close and persistence across a complete
+application restart on 3.60 HENkaku without ioPlus with authority `0x2200000000000001`.
+PS double-press stream stop/cleanup, short PS forwarding, hold/Quick Actions and
+reconnect are also user-confirmed on that build. No cross-firmware claim is made.
+
+**Diagnostic cleanup:** temporary Settings/FIOS probes, screen-report logic,
+CMake diagnostic options and forced logging were removed after verification.
+Raw PS callback/edge/timing traces were removed; functional input handling,
+state/error logs, the authority fix and required Main refresh logs remain.
+Investigation steps and artifact names below are historical.
+
+**Original priority: diagnose before the API audit's F1 implementation follow-up.** The user reports that
+saved PCs now appear on Main at application startup, but attempting to open Settings freezes the
+application and eventually crashes with `C2-12828-1`. The user subsequently confirmed the crash
+occurs **after selecting Settings**, and supplied a textual crash report followed by the complete
+`.psp2dmp`. The exact installed package revision and useful loader logs remain unconfirmed.
+
+- The startup-list observation is user-reported device evidence for that run. It does not complete
+  the empty/one/multiple-host cold-start matrix or prove the host/cell diagnostics match.
+- Source review traced OptionMenu → Main suspension → SettingsService → LegacyMoonlightAdapter →
+  lazy AppSettings initialization → Interface::Show. No specific cause has been established from
+  the error code and symptom alone. No runtime behavior has been changed for this report.
+- Local NetStream and BetterHomebrewBrowser references also pass an InterfaceCallbacks table
+  allocated on the stack to Show; stack allocation alone is not evidence of this crash's cause.
+- Crash evidence: prefetch abort, PC/IFAR `0x0`, LR `ScePaf RX + 0x58919`, another reported PAF
+  frame at `+0x15fe31`. Reported peak stack use is 2168 of 10192 bytes; this excerpt does not show
+  a stack overflow. R2/R12 are annotated as application RX `+0x21c010`.
+- `arm-vita-eabi-nm` on the local baseline ELF maps exactly RX `+0x21c010` to the import stub for
+  `sce::AppSettings::PluginSetParamCB` (library NID `0x9522D063`, function NID `0xB3935DD3`).
+  This is consistent with a failure during PAF plugin initialization, but a register containing
+  that stub address does not prove which instruction branched to zero or why. The installed
+  package must match the ELF for definitive symbolization; no matching firmware PAF code was
+  available to disassemble the LR site. Do not claim an unresolved import or callback-lifetime
+  defect as established from this register match alone.
+- The agent ran `bash build.sh` successfully with the existing build directory: CXML, application,
+  SELF and VPK targets completed. This was not a clean build, deployment or Vita runtime verification.
+- Full-dump analysis (2026-10-19): captured PAF export/unwind tables recover
+  `Plugin::Plugin → internal PAF frame → Plugin::LoadSync → application`.
+  The application return maps to the existing `moonlight_settings_init` LoadSync call in the
+  comparison ELF. This localizes the failing stage before XML initialization / Interface::Show.
+  The 18 registered-module records include BXCE, INI processor and Common GUI Dialog, but no
+  AppSettings module. Loader failure is a supported investigation direction, not a proven cause.
+  The PAF call-site and runtime import-stub instructions are not captured. Details and evidence
+  limits are in [docs/SETTINGS_CRASH_ANALYSIS.md](docs/SETTINGS_CRASH_ANALYSIS.md).
+- Device follow-up (2026-10-19): user confirms **3.60 HENkaku** and that restoring **ioPlus**
+  resolves the problem; NetStream/BHBB reportedly open Settings without it. This supports an I/O
+  environment dependency, not a proven category/authority-ID cause. The ux0/uma0 path selection
+  still requires separate verification and actual filesystem error codes if it remains wrong.
+- [x] Run the isolated `CATEGORY=gd → gdc` packaging experiment without ioPlus. **Negative device
+  result (2026-10-19): user reinstalled, disabled ioPlus and reproduced the problem.** Category
+  alone is not a demonstrated fix. NetStream and
+  BHBB use gdc; our default was gd. Only `VITA_MKSFOEX_FLAGS` changes; authority ID, SELF flags,
+  runtime and storage remain unchanged. `bash build.sh` passed; VPK comparison confirmed that
+  only the SFO CATEGORY value differs and eboot/ELF/resources are byte-identical to the gd control.
+  Artifacts are under `build/category-test/{gd,gdc}/`, with a hash manifest. Full procedure and
+  results are in [docs/SETTINGS_CRASH_ANALYSIS.md](docs/SETTINGS_CRASH_ANALYSIS.md).
+- Category has been restored explicitly to `gd` so inherited CMake cache flags cannot keep gdc.
+  Added default-off `MOONLIGHT_SETTINGS_DIAGNOSTICS`: startup mkdir results, read-only access
+  probes for the native AppSettings module/resource, dependency load returns and SetParam import
+  words all go through `vita_debug_log` with prefix `[SettingsDiag]`. Only that prefix bypasses
+  the normal log toggle in this explicitly enabled diagnostic build; ordinary logging stays off
+  by default. No streaming/file logger or alternate module loader was added.
+- [x] Capture filesystem `[SettingsDiag]` with ioPlus disabled and enabled (user logs below).
+  Original procedure: capture from `build/settings-diagnostics/` with ioPlus
+  disabled, then enabled, on otherwise unchanged 3.60 HENkaku. Interpret filesystem return codes
+  before changing authority IDs or loader behavior. Accessible files do not prove module start
+  succeeded. The raw loader result is still not intercepted inside PAF.
+  Both normal and opt-in diagnostic builds passed locally; device behavior remains pending.
+  No deployment or plugin change was performed by the agent.
+  Do not change InitialRefreshTask, SELF authorization, storage formats or callback lifetime
+  speculatively. SAFE/AppSettings module research remains closed.
+- Console follow-up (2026-10-19): user sees CommonDialog Init/Term messages but no SettingsDiag
+  output. Connectivity exists; user-process stdout capture or the exact installed variant is
+  still unconfirmed. The local diagnostic VPK contains the expected marker. Do not interpret
+  the absence of console lines as a successful file probe or proof of a new root cause.
+- [ ] Use opt-in `MOONLIGHT_SETTINGS_DIAGNOSTICS_SCREEN` to show access/dependency results in a
+  native message dialog when Settings is selected, before any AppSettings load. Separate artifact:
+  `build/vita_moonlight_paf-settings-screen.vpk`. Screen, console-only and default builds pass
+  locally; SFO/SELF values and mutually exclusive diagnostic markers were checked. This report
+  build deliberately disables actual AppSettings initialization and is not a production fix.
+  Next: obtain a photo/transcription of the report without ioPlus, then with it, on the same VPK.
+- ioPlus-enabled diagnostic run (2026-10-19): user now receives the probe lines. Both native
+  files have stat=0, successful open and read=4 (SCE/RCOF headers); all three dependency loads
+  return zero. This confirms execution of diagnostic code and access in the enabled case only.
+  The report dialog accepts Init with zero, then prints `SceMsgDialog Parameter Error : 9` and
+  terminates. This is a separate diagnostic-UI failure before AppSettings is attempted.
+  Its exact internal validation rule remains unknown. The 291-byte, nine-line report has been
+  reduced to a three-line summary; dialog GetResult is now logged on completion. Screen build
+  and package validation pass, but the text-limit hypothesis and actual display need device
+  verification. The subsequent ioPlus-disabled capture below completes the file-access comparison.
+
+
+- ioPlus-disabled capture (2026-10-19): both ux0 mkdir attempts return `0x80010013`
+  (ENODEV, **not** EACCES); uma0 returns `0x80010011` (existing directory) and is
+  selected. Both native Settings files return ENODEV from stat/open; no read occurs.
+  BXCE/INI/Common GUI still load successfully. Thus filesystem access explains the
+  fallback to uma0 and supplies a concrete prerequisite failure for AppSettings.
+  It does not yet identify the firmware policy or prove which PAF instruction calls zero.
+- [x] Capture the new read-only FIOS `overlays`, `overlay` and `resolve` lines with ioPlus
+  disabled. Diagnostics enumerate only this process and resolve the four probed paths;
+  they never add/remove/modify overlays or disable thread filtering. The installed SDK's
+  missing 02 declarations are supplied as a local ABI subset from current vita-headers.
+  Production builds do not import these diagnostic calls. Test package:
+  repository-root `vita_moonlight_paf-settings-screen.vpk`; it still bypasses AppSettings.
+  If a failed path resolves to `invalid:`, use the matching rule/order to investigate its
+  creation and authorization policy before proposing a minimal fix.
+
+- Hardware FIOS result: user capture on fb4fd6a confirms 10 order-0x80 rules
+  redirect physical device roots including ux0/vs0 to `invalid:/`; ResolveSync02
+  returns those invalid paths. The uma0 path remains unchanged. This establishes
+  the access-failure mechanism; the rule-creation policy is still unverified.
+- [x] Run isolated authority-ID comparison with
+  `vita_moonlight_paf-settings-auth220.vpk` (same diagnostic runtime, BHBB's
+  `0x2200000000000001` authority). Local comparison proves only two authority
+  bytes in SELF changed; only eboot differs in VPK. Normal build is unchanged.
+  Compare rules/resolve/file logs without ioPlus. Real AppSettings/persistence,
+  streaming, PS/Quick Actions checks remain required before adopting any ID.
+  See SETTINGS_CRASH_ANALYSIS for hashes and evidence limits.
+
+- Authority comparison device result: with only SELF authority changed to
+  `0x2200000000000001`, user logs show four 0x81 mappings, no 0x80 blocking rules,
+  successful ux0 selection and readable SCE/RCOF headers for both Settings files.
+  This confirms authority as a causal variable for filesystem access on this 3.60
+  device. It does not yet verify actual AppSettings initialization or persistence.
+- Build now uses the BHBB authority ID above, retaining gd/UNSAFE/SELF attributes
+  and all runtime/storage code. The previous ID's persistence/PS observations were
+  insufficient to establish ioPlus-free access. Normal and console-only diagnostic
+  builds must be tested through real Settings; SCREEN mode is not used for this step.
+- [x] Verify `vita_moonlight_paf-settings-auth220-live.vpk` without ioPlus: user confirms
+  Settings opens/closes and changed values persist after complete application restart.
+  Two supplied launches reach `native plugin LoadSync returned found=1`.
+- [x] Verify double-PS stream stop on the new authority without ioPlus: user confirms
+  the supplied stop/cleanup log is from this variant. Worker completion, successful
+  audio drain/release and deferred video-buffer release are recorded.
+- [x] Regress reconnect and deliberate PS tap/hold/Quick Actions under the new authority:
+  user confirms all work on the same new VPK without ioPlus.
+- [ ] Verify new saved-host writes under ux0 persist. Existing uma0 data is not migrated.
+
+- Real-loader follow-up: supplied log shows two separate processes of the expected
+  live build (`72819b499d4a`) reaching `native plugin LoadSync returned found=1`;
+  SetParam import is patched after loading. Both select ux0, have no blocking
+  overlays and refresh one host with after_delete=0 / after_insert=1. The failed
+  plugin-load stage is passed on hardware. User subsequently confirmed visible
+  Settings operation and persistence, closing the reported regression.
+- The accompanying stream-stop excerpt reaches worker completion and deferred
+  video-buffer release; user confirmed its provenance as the new authority VPK
+  without ioPlus. Subsequent confirmation also covers Quick Actions/PS/reconnect.
+
 
 ## Recent streaming implementation review
 
@@ -27,7 +208,7 @@ Run the full user journey on a real Vita and record reproducible failures with r
 
 - [ ] Discover a PC on the LAN and save/select it.
 - [ ] Reproduce and fix the Main screen's saved/paired-PC list not loading on entry: the list is empty until the user connects to a PC, opens System Settings, and returns to Main. Trace initial host-store loading, page lifecycle/refresh dispatch, and paired-host filtering; verify cold start and returning to Main without first connecting.
-  - Source review found that `InitialRefreshTask` previously stopped as soon as the backend reported any hosts, without checking whether the PAF `ListView` had created the matching cells. The warm-up now waits for a minimum delay and three consecutive host/cell-count matches (with a bounded timeout). This is a source-level lifecycle fix hypothesis; build and Vita cold-start verification are still required.
+  - Source review found that `InitialRefreshTask` previously stopped as soon as the backend reported any hosts, without checking whether the PAF `ListView` had created the matching cells. The warm-up now waits for a minimum delay and three consecutive host/cell-count matches (with a bounded timeout). User verified immediate visibility with one saved PC on 2026-10-19; the supplied refresh log has `hosts=1 after_delete=0 after_insert=1`. Empty/multiple-host cold starts and the initial-refresh completion log remain outstanding; the full acceptance item is not complete.
 - [ ] Check the PS4 Link style Search PCs and Pairing pages on hardware against the PS4 Link screens: header position and the fading line, the pairing page's flow bar and Back button position, the saved-PC row title and description positions, and that touching the row text still activates the row.
 - [ ] Add a PC manually, including a custom port; verify unsuccessful attempts do not create an incorrect saved-host record.
 - [ ] Pair successfully and verify incorrect-PIN errors are distinguished from transport/protocol failures.
@@ -51,15 +232,26 @@ Not part of the PS4 Link parity pass because the needed pieces do not exist in t
 - [ ] Document dependency setup and environment variables in a clean, repeatable setup procedure.
 - [ ] Validate a clean build with `bash build.sh`, including CXML-to-RCO compilation and VPK/SELF generation.
 - [ ] Document the expected toolchain and known build warnings; do not treat a build as verified unless it was actually run.
+- [x] Generate `build/vita_moonlight_paf.elf` automatically for crash-dump symbolization (2026-10-18). CMake copies the unstripped linked executable and preserves the extensionless input expected by VitaSDK's packaging helpers. Verified with `bash build.sh` (existing build directory), successful SELF/VPK generation, byte equality and `.debug_info`/`.debug_line`/`.symtab` inspection. The direct CMake debug-ELF target also regenerated a missing `.elf` with identical SHA-256. This does not verify the Settings crash fix or GUI symbolization on a matching dump; preserve the ELF from each installed VPK.
 
 **Done when:** a fresh environment can follow the instructions to build the project without undocumented manual fixes.
 
 ## Sunshine / GameStream client API coverage
 
-- [ ] Inventory the client-facing Sunshine-compatible GameStream APIs/endpoints used by Moonlight and compare them with this project's implementation. For each endpoint, record its purpose, request/response shape, authentication/pairing requirements, implementation location, and coverage status (implemented, partial, missing, or not applicable).
-- [ ] Use the upstream Moonlight client and Sunshine documentation/source as references; distinguish streaming-client/GameStream APIs from Sunshine's separate administrative web API. Do not add Sunshine admin API integration unless a concrete client-side requirement is identified.
+- [x] Complete the source-level inventory of client-facing Sunshine-compatible GameStream APIs/protocols, including purpose, request/response semantics, authentication/pairing, local implementation, upstream references and coverage status. See [docs/SUNSHINE_API_AUDIT.md](docs/SUNSHINE_API_AUDIT.md), audited on 2026-10-18 against local `761d730` and pinned upstream revisions. This checkbox covers source review only, not runtime compatibility.
+- [x] Compare actual Moonlight/Vita Moonlight/common-c and Sunshine implementations; distinguish client GameStream APIs from administrative Web API. The audit confirms that `/cancel` is remote Quit, not ordinary disconnect or cancellation of an in-flight launch; the reviewed Sunshine has no GameStream `/quit` or `/unpair` route. Admin integration remains out of scope.
 - [ ] Implement missing client-side API support that is required for compatibility, in small changes following the existing backend/legacy-adapter boundaries; preserve protocol behavior from upstream implementations rather than inventing shortcuts.
 - [ ] Exercise the relevant endpoints against a real Sunshine host, including success, error, and version/feature-compatibility cases; document any intentionally unsupported endpoints and why.
+
+Source findings and isolated follow-ups (not yet fixed or runtime-verified):
+
+- [ ] **First: unexpected-termination cleanup ownership (audit F1).** `on_connection_terminated()` clears active state without calling `LiStopConnection()`; subsequent stop/disconnect can skip transport cleanup. Preserve cleanup ownership until common-c teardown finishes, then permit reconnect. Compare with both Vita Moonlight and Moonlight Qt; test explicit stop, remote termination, network loss, pending setup and immediate restart.
+- [ ] Refresh host active-app state before launch/resume and reject a different running app instead of silently resuming it (F2). Do not automatically quit another app.
+- [ ] Validate GameStream XML status/session results with Expat, fix app-list parsing and invalidate cache on host transitions (F3); keep scalable UI storage as a separate change. The backend limit is 64, but Apps still displays only eight.
+- [ ] Correct signature-verification return handling/error attribution, then separately design paired-server TLS pinning and certificate renewal behavior (F4). The existing client certificate authenticates the client to Sunshine; it does not authenticate the server to this client.
+- [ ] Run audit tests T1–T10 with recorded Vita/package and Sunshine version/configuration. API methods with no UI caller require a backend-level test trigger; page close alone does not prove DisconnectHost ran (F5).
+
+Current independent work order: the source audit is complete; proceed with F1 as a separate runtime change. Main cold start now has user verification for immediate visibility with one saved PC (2026-10-19); empty/multiple-host cases and the initial-refresh completion log remain open. The installed revision is not identified by that report, so it does not prove `10c62e1` alone caused the observed improvement. Do not modify `Main::InitialRefreshTask()` speculatively. Older chronological notes below retain their original verification status and are superseded by the new audit where protocol conclusions differ.
 
 **Done when:** the API inventory is checked against source and runtime behavior, required missing client functionality is implemented, and remaining unsupported cases are explicitly documented.
 
