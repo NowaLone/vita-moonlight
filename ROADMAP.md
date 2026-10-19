@@ -2,6 +2,25 @@
 
 This roadmap captures the agreed next steps for Vita Moonlight PAF. It is ordered by risk reduction and release readiness, not by a promise that every item must be completed before development continues. Keep individual changes small and verify device-specific behavior on real PS Vita hardware.
 
+## Stream system infobar (2026-10-19)
+
+Source investigation on `codex/research-stream-infobar` identified NetStream's explicit
+`sceAppMgrSetInfobarState()` calls for playback entry/exit and controls visibility. See
+[docs/STREAM_INFOBAR_RESEARCH.md](docs/STREAM_INFOBAR_RESEARCH.md) for pinned reference code,
+Moonlight lifecycle integration points, orderly-shutdown restoration and the device checks.
+Source implementation now uses a small AppMgr adapter in `MoonlightApp`: a valid Stream page
+requests hidden and its destructor requests visible. Orderly shutdown also restores visibility
+before disabling event delivery. Failed restores remain pending; transition results are logged
+through `vita_debug_log()`. No per-frame visibility enforcement or input changes were added.
+User confirmed that everything works on 2026-10-19 after implementation commit `85899c5`.
+This records user-reported Vita verification of the requested infobar behavior, not an agent-run
+build/test or a detailed result for every lifecycle/failure case below.
+
+- [x] User verified the implemented infobar hiding/restoration during streaming on the tested Vita
+  (2026-10-19).
+- [ ] Verify start/stop/reconnect, launch failure, host loss, Quick Actions/return, native keyboard,
+  application exit and the restored browsing-bar appearance on Vita.
+
 ## Requested: remote self-unpair when deleting a PC (2026-10-19)
 
 User requests that deleting a saved PC also revokes this Vita's pairing in Sunshine, and explicitly

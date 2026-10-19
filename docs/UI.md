@@ -7,6 +7,16 @@ measured numbers behind every layout decision. Read this before changing anythin
 Companion documents: `AGENTS.md` (hard rules for agents), `ROADMAP.md` (plan and hardware checks), `README.md`
 (overview and build).
 
+System infobar during streaming: [research and implementation notes](STREAM_INFOBAR_RESEARCH.md)
+compare NetStream's AppMgr calls with the Stream lifecycle **[code]**. A valid Stream page requests
+hidden through `MoonlightApp::HideStreamInfobar()`; its destructor requests visible before returning
+to Apps. `MoonlightApp::Shutdown()` also restores the bar independently of stop-event delivery.
+Failed restores remain pending for the next cleanup request; requests/results use console-only
+`[Infobar]` diagnostics. No per-frame requests or local controls/touch bindings are added. User
+confirmed the feature works on Vita on 2026-10-19 after commit `85899c5` **[hw, user-reported]**.
+Individual lifecycle/failure-case results were not supplied; the full matrix remains in `ROADMAP.md`
+**[open]**. No build or hardware test was run by the agent.
+
 Evidence tags used below:
 
 - **[hw]** verified on a real Vita.
