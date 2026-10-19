@@ -13,6 +13,7 @@
 #include "debug.h"
 #include "sps.h"
 #include "vita_video_renderer.h"
+#include "stream_stats_internal.h"
 
 static SceAvcdecCtrl *s_decoder;
 static SceUID s_decoder_memblock = -1;
@@ -41,15 +42,25 @@ static int s_target_fps = 60;
 static int s_frame_pacer = 1;
 static int s_vblank_wait = 0;
 static int s_center_region = 0;
-static int s_show_fps = 0;
 static int s_ref_frame_invalidation = 0;
 static unsigned int s_requested_width = 960;
 static unsigned int s_requested_height = 544;
-static unsigned int s_presented_frames;
-static unsigned int s_presented_fps;
-static uint64_t s_fps_window_start;
 static uint64_t s_last_present_time;
-static unsigned int s_fps_window_count;
+static uint32_t s_stats_generation;
+
+void moonlight_video_note_queued(uint32_t generation, int replaced)
+{
+    if (generation) {
+        moonlight_stats_queued(generation, replaced);
+    }
+}
+
+void moonlight_video_note_submitted(uint32_t generation, uint64_t queue_us, uint64_t cpu_us)
+{
+    if (generation) {
+        moonlight_stats_presented(generation, queue_us, cpu_us);
+    }
+}
 
 static unsigned int align_decoder_resolution(uint64_t value)
 {
@@ -134,7 +145,6 @@ void moonlight_video_set_stream_options(
     int frame_pacer,
     int vblank_wait,
     int center_region,
-    int show_fps,
     int ref_frame_invalidation)
 {
     if (fps < 1) {
@@ -144,13 +154,7 @@ void moonlight_video_set_stream_options(
     s_frame_pacer = frame_pacer ? 1 : 0;
     s_vblank_wait = vblank_wait ? 1 : 0;
     s_center_region = center_region ? 1 : 0;
-    s_show_fps = show_fps ? 1 : 0;
     s_ref_frame_invalidation = ref_frame_invalidation ? 1 : 0;
-}
-
-int moonlight_video_show_fps(void)
-{
-    return s_show_fps;
 }
 
 int moonlight_video_center_region(void)
@@ -161,16 +165,6 @@ int moonlight_video_center_region(void)
 int moonlight_video_ref_frame_invalidation(void)
 {
     return s_ref_frame_invalidation;
-}
-
-unsigned int moonlight_video_presented_fps(void)
-{
-    return s_presented_fps;
-}
-
-unsigned int moonlight_video_target_fps(void)
-{
-    return (unsigned int)s_target_fps;
 }
 
 void moonlight_video_get_requested_size(
@@ -203,23 +197,6 @@ static int vita_video_pacer_should_drop(void)
     return 0;
 }
 
-static void vita_video_note_presented(void)
-{
-    uint64_t now = sceKernelGetSystemTimeWide();
-
-    if (s_fps_window_start == 0) {
-        s_fps_window_start = now;
-    }
-    ++s_presented_frames;
-    ++s_fps_window_count;
-    s_last_present_time = now;
-    if (now - s_fps_window_start >= 1000000ull) {
-        s_presented_fps = s_fps_window_count;
-        s_fps_window_count = 0;
-        s_fps_window_start = now;
-    }
-}
-
 static int vita_video_setup(
     int video_format,
     int width,
@@ -233,8 +210,6 @@ static int vita_video_setup(
     size_t frame_size;
     int result;
 
-    (void)video_format;
-    (void)redraw_rate;
     (void)context;
     (void)dr_flags;
 
@@ -427,6 +402,9 @@ static int vita_video_setup(
 
     s_active = 1;
     s_decoded_frames = 0;
+    s_last_present_time = 0;
+    s_stats_generation = moonlight_stats_configure_video(
+        video_format, width, height, redraw_rate);
 #ifdef CAPABILITY_REFERENCE_FRAME_INVALIDATION_AVC
     decoder_callbacks_vita.capabilities =
         CAPABILITY_DIRECT_SUBMIT |
@@ -566,6 +544,14 @@ unsigned int moonlight_video_get_frame_pool_generation(void)
     return s_frame_pool_generation;
 }
 
+static int vita_video_need_idr(uint32_t generation)
+{
+    if (generation) {
+        moonlight_stats_idr_return(generation);
+    }
+    return DR_NEED_IDR;
+}
+
 static int vita_video_submit(PDECODE_UNIT decode_unit)
 {
     SceAvcdecAu au;
@@ -576,10 +562,22 @@ static int vita_video_submit(PDECODE_UNIT decode_unit)
     size_t required;
     size_t length = 0;
     int result;
+    uint32_t generation = s_stats_generation;
+    uint64_t decode_start_us = 0;
+    uint64_t decode_end_us = 0;
+    uint64_t vblank_us = 0;
+    int pacer_drop = 0;
+
+    if (generation && decode_unit) {
+        moonlight_stats_received(generation, (uint32_t)decode_unit->frameNumber,
+            (unsigned int)decode_unit->fullLength, decode_unit->frameType == FRAME_TYPE_IDR,
+            decode_unit->frameHostProcessingLatency,
+            decode_unit->receiveTimeUs, decode_unit->enqueueTimeUs);
+    }
 
     if (!decode_unit || !s_decoder ||
         !s_frame_buffers[s_frame_index]) {
-        return DR_NEED_IDR;
+        return vita_video_need_idr(generation);
     }
 
     required = (size_t)decode_unit->fullLength + 64;
@@ -588,7 +586,7 @@ static int vita_video_submit(PDECODE_UNIT decode_unit)
             s_decoder_buffer,
             required);
         if (!new_buffer) {
-            return DR_NEED_IDR;
+            return vita_video_need_idr(generation);
         }
         s_decoder_buffer = new_buffer;
         s_decoder_buffer_size = required;
@@ -619,7 +617,7 @@ static int vita_video_submit(PDECODE_UNIT decode_unit)
             "[Video] invalid assembled decode unit length=%u full=%u",
             (unsigned int)length,
             decode_unit->fullLength);
-        return DR_NEED_IDR;
+        return vita_video_need_idr(generation);
     }
 
     memset(&au, 0, sizeof(au));
@@ -644,25 +642,42 @@ static int vita_video_submit(PDECODE_UNIT decode_unit)
     au.pts.lower = 0xFFFFFFFF;
     au.pts.upper = 0xFFFFFFFF;
 
+    if (generation) {
+        decode_start_us = LiGetMicroseconds();
+    }
     result = sceAvcdecDecode(s_decoder, &au, &array_picture);
+    if (generation) {
+        decode_end_us = LiGetMicroseconds();
+    }
+    if (result >= 0 && array_picture.numOfOutput > 0 && s_active) {
+        pacer_drop = vita_video_pacer_should_drop();
+    }
+    if (generation) {
+        moonlight_stats_decode(generation, decode_end_us - decode_start_us,
+            result < 0 ? 0 : array_picture.numOfOutput, result < 0, pacer_drop);
+    }
     if (result < 0) {
         vita_debug_log(
             "[Video] sceAvcdecDecode failed frame=%d len=%u err=0x%08x",
             decode_unit->frameNumber,
             (unsigned int)length,
             result);
-        return DR_NEED_IDR;
+        return vita_video_need_idr(generation);
     }
 
     if (array_picture.numOfOutput > 0 && s_active) {
-        if (vita_video_pacer_should_drop()) {
+        if (pacer_drop) {
             ++s_decoded_frames;
             return DR_OK;
         }
         if (s_vblank_wait) {
+            uint64_t wait_start_us = generation ? LiGetMicroseconds() : 0;
             sceDisplayWaitVblankStart();
+            if (generation) {
+                vblank_us = LiGetMicroseconds() - wait_start_us;
+            }
         }
-        vita_video_note_presented();
+        s_last_present_time = sceKernelGetSystemTimeWide();
         if (s_center_region) {
             unsigned int crop_x =
                 (s_frame_width - VITA_SCREEN_WIDTH) / 2u;
@@ -692,17 +707,27 @@ static int vita_video_submit(PDECODE_UNIT decode_unit)
                     (size_t)VITA_SCREEN_WIDTH * 4u);
             }
 
+            if (generation) {
+                moonlight_stats_prepared(generation, LiGetMicroseconds() - decode_end_us,
+                    vblank_us, VITA_SCREEN_WIDTH, VITA_SCREEN_HEIGHT, VITA_SCREEN_WIDTH);
+            }
             moonlight_video_present(
                 s_frame_buffers[s_frame_index],
                 VITA_SCREEN_WIDTH,
                 VITA_SCREEN_HEIGHT,
-                VITA_SCREEN_WIDTH);
+                VITA_SCREEN_WIDTH,
+                generation);
         } else {
+            if (generation) {
+                moonlight_stats_prepared(generation, LiGetMicroseconds() - decode_end_us,
+                    vblank_us, s_frame_width, s_frame_height, s_frame_width);
+            }
             moonlight_video_present(
                 s_frame_buffers[s_frame_index],
                 s_frame_width,
                 s_frame_height,
-                s_frame_width);
+                s_frame_width,
+                generation);
         }
 
         s_frame_index =

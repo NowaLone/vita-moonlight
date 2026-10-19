@@ -2,6 +2,7 @@
 #define VITA_MOONLIGHT_PAGE_STREAM_H
 
 #include "pages/page.h"
+#include <stdint.h>
 
 namespace page {
 
@@ -16,7 +17,8 @@ public:
         void *buffer,
         unsigned int width,
         unsigned int height,
-        unsigned int pitch);
+        unsigned int pitch,
+        uint32_t stats_generation);
     static void InvalidateFrame();
     static void PresentTask(void *userdata);
     static void ReleaseFrameBuffersTask(void *userdata);
@@ -31,6 +33,8 @@ private:
         unsigned int height;
         unsigned int pitch;
         bool valid;
+        uint32_t stats_generation;
+        uint64_t queued_us;
     };
 
     struct SurfaceSlot {
@@ -42,17 +46,22 @@ private:
     };
 
     void PresentFrame(const Frame &frame);
+    static void StatisticsTask(void *userdata);
+    void UpdateStatistics();
     void OpenKeyboardIfRequested();
     SurfaceSlot *FindSurfaceSlot(void *buffer);
 
     paf::ui::Plane *m_video_plane;
+    paf::ui::Text *m_statistics_text;
+    paf::ui::Widget *m_statistics_background;
+    uint32_t m_statistics_generation;
+    uint64_t m_statistics_next_update_us;
     unsigned int m_video_plane_width;
     unsigned int m_video_plane_height;
     SurfaceSlot m_surface_slots[kSurfaceSlotCount];
 
     static Stream *s_instance;
     static Frame s_pending_frame;
-    static bool s_task_registered;
     static unsigned int s_release_delay;
 };
 

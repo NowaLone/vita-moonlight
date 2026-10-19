@@ -104,8 +104,6 @@ Rows are 80 px tall and 960 px wide. The first row's top edge is at y = 96 and d
   `image_button_host_select`); code picks the id by mode.
 - No XML comments inside elements: none exist in the project and they have not been tested with `psp2cxml-tool`.
   Put explanations in docs and commit messages.
-- `cxml/vita_moonlight_ui.xml` contains a stray line `ge>` between `</page>` and `</pagetable>` from an earlier edit.
-  It is parsed as harmless text; remove it when the file is next touched.
 - `cxml/locale/en.xml` contains raw `&` and `<->` in some attributes. The project's tool accepts them; a strict XML
   parser does not.
 
@@ -117,7 +115,7 @@ Rows are 80 px tall and 960 px wide. The first row's top edge is at y = 96 and d
 | `Search` (`Type_Search`) | `page_search_pcs` | LAN discovery list; the header text is the status | corner button `btn_close_search` |
 | `Pairing` (`Type_Pairing`) | `page_pairing` | shows the PIN, pairs as soon as it opens | bar button `btn_close_pairing` |
 | `Apps` (`Type_Apps`) | `page_apps` | application list of the connected PC | corner button `btn_close_apps` |
-| `Stream` (`Type_Stream`) | `page_stream` | full-screen video plane, black background, FPS text; no chrome | none (closed by stream events) |
+| `Stream` (`Type_Stream`) | `page_stream` | full-screen video plane, black background, optional statistics overlay; no chrome | none (closed by stream events) |
 | `OptionMenu` (`Type_OptionMenu`) | `page_settings_bubble` | speech-balloon overlay: Delete, Settings | dismiss button over the whole screen |
 
 Navigation **[code]**: Main -> `OptionMenu` -> (Settings = the system AppSettings plugin | Delete = selection mode on
@@ -166,8 +164,34 @@ Planes: `style_plane_selection_bar` (+ `_edge_dark`, `_edge_light`) for the Phot
 
 Text: `style_text_header` (26 regular, left), `style_text_paragraph` (26 regular, line pitch 40, wrapped),
 `style_text_row_title` (28 regular), `style_text_row_desc` (22, 85% white), `style_text_pin` (48 bold),
-`style_text_flow_note` (22, 85% white, wrapped), `style_text_main_status` (22, centred; used for page status text and the
-stream FPS overlay).
+`style_text_flow_note` (22, 85% white, wrapped), `style_text_main_status` (22, centred; page status text),
+`style_text_stream_statistics` (18, yellow, left/top, unwrapped, 20 px line pitch; streaming diagnostics).
+
+The stream statistics overlay uses `plane_stream_statistics` (660 x 136, top-left offset 16/-12)
+and `text_stream_statistics` (644 x 120, offset 24/-20, at most 6 explicit lines). The background is
+black at alpha 0.65 with a white style multiplier. These are implementation values **[code]**,
+not screenshot measurements; readability, line clipping and actual appearance need Vita verification
+**[open]**. The old stray `ge>` text was removed when editing the resource.
+
+The existing AppSettings key `show_fps` and `msg_show_fps` identifier remain; the visible label is now
+`Display stream statistics`. `Stream::StatisticsTask` updates cached text/background widgets at most
+once per second independently of arriving video, and is unregistered in the page destructor. With
+the setting off neither the task nor the per-frame timing hooks collect statistics. The overlay
+shows only video mode/payload bitrate, incoming/decode/PAF FPS, available RTT/variation, drop
+percentages, average decode-call/PAF-queue timing and optional host min/max/average. Unsupported
+or expired measurements are omitted. During a stall only current rates, available RTT and the
+stalled-video state remain. Audio/CPU/stride/window/cumulative-counter details and permanent
+`N/A` rows have been removed after the user's device screenshot showed excessive screen coverage.
+The old 928 x 380 panel is superseded; the compact panel is not yet hardware-verified. PAF FPS
+still measures texture submission, not physical presentation.
+The setting's native AppSettings hint (`msg_show_fps_hint`) explains Video/Mbps, the three FPS
+rates, RTT/variation, missing/pacer/PAF drops, average decode-call/queue timing, optional host
+min/max/average and the stalled-video state. Its text and binding are source-checked; native hint
+layout still needs a Vita check.
+RTT is sampled outside PAF by the existing session owner, which also performs transport cleanup;
+UI snapshots only copy cached statistics. There is no separate RTT thread. Queue timing includes
+waiting to acquire the frame mutex.
+See [STREAM_DIAGNOSTICS_PLAN.md](STREAM_DIAGNOSTICS_PLAN.md) for metric definitions and remaining work.
 
 Buttons and lists: `style_image_button_list_button` (list row button with the empty 102 x 70 icon slot),
 `style_button_option_top` / `style_button_option_bottom` (popup buttons), `style_list_view_generic`,
@@ -225,6 +249,20 @@ Only these `_common_*` names appear in the XML and are known to resolve: `_commo
 - `SetStatus()` shows the widget; selection mode keeps the Main status hidden.
 
 ### 4.9 Events and threads **[code]**
+
+Stream presentation metadata carries a statistics-session token and queue timestamp with each
+pending frame. The video bridge records queue replacement and successful PAF texture submission;
+the statistics module rejects tokens from older sessions. These hooks measure CPU submission and
+queue wait, not GPU completion or physical display. Source implementation only; build/hardware
+validation is pending. Pages read snapshots through `MoonlightApp::Connection().GetStreamStats()`.
+
+`PresentTask` is a persistent call-list entry registered once with the Stream instance and removed
+in its destructor, like NetStream's surface update task. `QueueFrame()` only replaces the pending
+frame; neither it nor the callback registers another entry. The deferred framebuffer release task
+also stays registered while counting down and unregisters on completion or invalidation. PAF call
+lists are persistent, so treating them as one-shot queues accumulated callbacks in the previous
+source. The fix bounds registration count but its effect on the reported resource failure still
+needs a long stream/reconnect check on Vita.
 
 Backend callbacks may arrive on worker threads. `MoonlightApp` queues them and delivers them through
 `MainThreadCallList`, so page callbacks run on the PAF main thread. Only the topmost page owns the event callback; when

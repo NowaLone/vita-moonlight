@@ -1,6 +1,7 @@
 #include <paf.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdarg.h>
 #include <string.h>
 
 #include <psp2/common_dialog.h>
@@ -28,8 +29,7 @@ using namespace paf;
 namespace page {
 
 Stream *Stream::s_instance = NULL;
-Stream::Frame Stream::s_pending_frame = { NULL, 0, 0, 0, false };
-bool Stream::s_task_registered = false;
+Stream::Frame Stream::s_pending_frame = { NULL, 0, 0, 0, false, 0, 0 };
 unsigned int Stream::s_release_delay = 0;
 
 static void stream_power_tick_task(void *)
@@ -46,6 +46,67 @@ static void set_stream_power_tick(bool enabled)
     common::MainThreadCallList::Unregister(stream_power_tick_task, NULL);
     if (enabled) {
         common::MainThreadCallList::Register(stream_power_tick_task, NULL);
+    }
+}
+
+static void append_statistics_line(char *text, size_t size, size_t *used,
+    const char *format, ...)
+{
+    if (*used >= size) {
+        return;
+    }
+    va_list args;
+    va_start(args, format);
+    int written = vsnprintf(text + *used, size - *used, format, args);
+    va_end(args);
+    if (written > 0) {
+        *used += (size_t)written < size - *used ? (size_t)written : size - *used;
+    }
+}
+
+static void format_stream_statistics(const MoonlightStreamStats &stats,
+    char *text, size_t size)
+{
+    size_t used = 0;
+    const bool fresh = stats.active && stats.has_video && stats.video_age_us < 2000000ull;
+    append_statistics_line(text, size, &used,
+        "Video: %dx%d | H.264 | %d FPS | %.2f Mbps\n"
+        "FPS: incoming %.1f | decode %.1f | PAF %.1f",
+        stats.width, stats.height, stats.target_fps, stats.payload_mbps,
+        stats.incoming_fps, stats.decoded_fps, stats.paf_submit_fps);
+    if (stats.rtt_valid) {
+        append_statistics_line(text, size, &used, "\nRTT: %u ms | variation: %u ms",
+            stats.rtt_ms, stats.rtt_variation_ms);
+    }
+    if (fresh) {
+        if (stats.incoming_fps > 0 && stats.decoded_fps > 0) {
+            append_statistics_line(text, size, &used,
+                "\nDrops: missing %.2f%% | pacer %.2f%% | PAF %.2f%%",
+                stats.missing_percent, stats.pacer_drop_percent, stats.replaced_percent);
+        }
+        if (stats.decoder_call.samples || stats.paf_queue.samples) {
+            append_statistics_line(text, size, &used, "\n");
+            if (stats.decoder_call.samples) {
+                append_statistics_line(text, size, &used, "Decode call: %.2f ms",
+                    stats.decoder_call.average_ms);
+            }
+            if (stats.paf_queue.samples) {
+                append_statistics_line(text, size, &used, "%sPAF queue: %.2f ms",
+                    stats.decoder_call.samples ? " | " : "", stats.paf_queue.average_ms);
+            }
+        }
+        if (stats.host_latency_samples) {
+            append_statistics_line(text, size, &used, "\nHost min/max/avg: %.1f / %.1f / %.1f ms",
+                stats.host_latency_min_ms, stats.host_latency_max_ms, stats.host_latency_average_ms);
+        }
+    } else {
+        const char *status = !stats.active ? "Stream stopped" : !stats.has_video
+            ? "Waiting for video" : "Video stalled";
+        append_statistics_line(text, size, &used, "\n%s", status);
+        if (stats.has_video && stats.active) {
+            append_statistics_line(text, size, &used, " (%.0f s without frames)",
+                (double)stats.video_age_us / 1000000.0);
+        }
     }
 }
 
@@ -127,12 +188,14 @@ Stream::Stream()
            Plugin::TransitionType_None,
            Plugin::TransitionType_None),
       m_video_plane(NULL),
+      m_statistics_text(NULL),
+      m_statistics_background(NULL),
+      m_statistics_generation(0),
+      m_statistics_next_update_us(0),
       m_video_plane_width(0),
       m_video_plane_height(0)
 {
     unsigned int i;
-
-    s_instance = this;
 
     for (i = 0; i < kSurfaceSlotCount; ++i) {
         m_surface_slots[i].buffer = NULL;
@@ -143,13 +206,18 @@ Stream::Stream()
     }
 
     if (!root) {
-        if (s_instance == this) {
-            s_instance = NULL;
-        }
         return;
     }
     m_video_plane = static_cast<ui::Plane *>(
         root->FindChild("plane_stream_video"));
+    m_statistics_text = static_cast<ui::Text *>(root->FindChild("text_stream_statistics"));
+    m_statistics_background = root->FindChild("plane_stream_statistics");
+    if (m_statistics_text) {
+        m_statistics_text->Hide(common::transition::Type_Reset);
+    }
+    if (m_statistics_background) {
+        m_statistics_background->Hide(common::transition::Type_Reset);
+    }
 
     vita_debug_log(
         "[StreamPage] root=%p video_plane=%p",
@@ -157,6 +225,10 @@ Stream::Stream()
         m_video_plane);
 
     if (m_video_plane) {
+        thread::RMutex::main_thread_mutex.Lock();
+        s_instance = this;
+        s_pending_frame.valid = false;
+        thread::RMutex::main_thread_mutex.Unlock();
         paf::graph::PlaneObj *plane_obj =
             static_cast<paf::graph::PlaneObj *>(
                 m_video_plane->GetDrawObj(paf::ui::Plane::OBJ_PLANE));
@@ -167,15 +239,28 @@ Stream::Stream()
         /* Keep the Vita awake only while the streaming page is active. */
         set_stream_power_tick(true);
         MoonlightApp::Instance()->HideStreamInfobar();
+        common::MainThreadCallList::Register(PresentTask, this);
+        MoonlightStreamStats stats;
+        if (m_statistics_text && m_statistics_background &&
+            MoonlightApp::Instance()->Connection().GetStreamStats(&stats) == 0 && stats.enabled) {
+            m_statistics_generation = stats.generation;
+            UpdateStatistics();
+            common::MainThreadCallList::Register(StatisticsTask, this);
+        }
     }
 }
 
 Stream::~Stream()
 {
+    common::MainThreadCallList::Unregister(PresentTask, this);
+    common::MainThreadCallList::Unregister(StatisticsTask, this);
     set_stream_power_tick(false);
+    thread::RMutex::main_thread_mutex.Lock();
     if (s_instance == this) {
         s_instance = NULL;
+        s_pending_frame.valid = false;
     }
+    thread::RMutex::main_thread_mutex.Unlock();
     /*
      * Stop PAF from sampling the external framebuffer before dropping the
      * Surface references. The decoder releases the framebuffer pool only
@@ -213,48 +298,26 @@ Stream *Stream::Instance()
     return s_instance;
 }
 
-void Stream::PresentTask(void *)
+void Stream::PresentTask(void *userdata)
 {
-    Frame frame = { NULL, 0, 0, 0, false };
-
-    thread::RMutex::main_thread_mutex.Lock();
-
-    if (!s_pending_frame.valid) {
-        s_task_registered = false;
-        thread::RMutex::main_thread_mutex.Unlock();
+    Stream *stream = static_cast<Stream *>(userdata);
+    if (!stream || stream != s_instance) {
         return;
     }
+    Frame frame = { NULL, 0, 0, 0, false, 0, 0 };
 
-    frame = s_pending_frame;
-    s_pending_frame.valid = false;
-
-    thread::RMutex::main_thread_mutex.Unlock();
-
-    Stream *stream = s_instance;
-    if (stream) {
-        stream->OpenKeyboardIfRequested();
-        if (frame.valid) {
-            stream->PresentFrame(frame);
-        }
-    }
-
-    /*
-     * MainThreadCallList callbacks must return promptly. Keep at most one
-     * callback queued while the decoder continuously produces frames.
-     */
-    bool register_task = false;
     thread::RMutex::main_thread_mutex.Lock();
 
-    if (s_pending_frame.valid && s_instance != NULL) {
-        register_task = true;
-    } else {
-        s_task_registered = false;
+    if (s_pending_frame.valid) {
+        frame = s_pending_frame;
+        s_pending_frame.valid = false;
     }
 
     thread::RMutex::main_thread_mutex.Unlock();
 
-    if (register_task) {
-        common::MainThreadCallList::Register(PresentTask, NULL);
+    stream->OpenKeyboardIfRequested();
+    if (frame.valid) {
+        stream->PresentFrame(frame);
     }
 }
 
@@ -269,17 +332,16 @@ void Stream::ReleaseFrameBuffersTask(void *userdata)
      */
     if (generation != moonlight_video_get_frame_pool_generation() ||
         s_instance != NULL) {
+        common::MainThreadCallList::Unregister(ReleaseFrameBuffersTask, userdata);
         return;
     }
 
     if (s_release_delay != 0) {
         --s_release_delay;
-        common::MainThreadCallList::Register(
-            ReleaseFrameBuffersTask,
-            userdata);
         return;
     }
 
+    common::MainThreadCallList::Unregister(ReleaseFrameBuffersTask, userdata);
     moonlight_video_release_frame_buffers();
 }
 
@@ -289,6 +351,8 @@ void Stream::ScheduleFrameBufferRelease()
         moonlight_video_get_frame_pool_generation();
 
     s_release_delay = 3;
+    common::MainThreadCallList::Unregister(
+        ReleaseFrameBuffersTask, (void *)(uintptr_t)generation);
     common::MainThreadCallList::Register(
         ReleaseFrameBuffersTask,
         (void *)(uintptr_t)generation);
@@ -317,6 +381,7 @@ Stream::SurfaceSlot *Stream::FindSurfaceSlot(void *buffer)
 
 void Stream::PresentFrame(const Frame &frame)
 {
+    const uint64_t start_us = frame.stats_generation ? LiGetMicroseconds() : 0;
     if (!m_video_plane || !frame.buffer ||
         frame.width == 0 || frame.height == 0 || frame.pitch == 0) {
         return;
@@ -397,56 +462,64 @@ void Stream::PresentFrame(const Frame &frame)
         }
     }
 
-    paf::ui::Widget *fps = root ? root->FindChild("text_stream_fps") : NULL;
-    if (fps) {
-        if (moonlight_video_show_fps()) {
-            char label[32];
-            snprintf(
-                label,
-                sizeof(label),
-                "fps: %u / %u",
-                moonlight_video_presented_fps(),
-                moonlight_video_target_fps());
-            ((paf::ui::Text *)fps)->SetString(
-                paf::common::string_util::ToWString(label));
-            fps->Show(paf::common::transition::Type_Reset);
-        } else {
-            fps->Hide(paf::common::transition::Type_Reset);
-        }
+    if (slot->surface.get() && frame.stats_generation) {
+        moonlight_video_note_submitted(frame.stats_generation,
+            start_us - frame.queued_us, LiGetMicroseconds() - start_us);
     }
+
     OpenKeyboardIfRequested();
+}
+
+void Stream::StatisticsTask(void *userdata)
+{
+    Stream *stream = static_cast<Stream *>(userdata);
+    if (stream == s_instance && LiGetMicroseconds() >= stream->m_statistics_next_update_us) {
+        stream->UpdateStatistics();
+    }
+}
+
+void Stream::UpdateStatistics()
+{
+    MoonlightStreamStats stats;
+    m_statistics_next_update_us = LiGetMicroseconds() + 1000000ull;
+    if (MoonlightApp::Instance()->Connection().GetStreamStats(&stats) != 0 ||
+        !stats.enabled || stats.generation != m_statistics_generation) {
+        m_statistics_text->Hide(common::transition::Type_Reset);
+        m_statistics_background->Hide(common::transition::Type_Reset);
+        return;
+    }
+    char text[768];
+    format_stream_statistics(stats, text, sizeof(text));
+    m_statistics_text->SetString(common::string_util::ToWString(text));
+    m_statistics_background->Show(common::transition::Type_Reset);
+    m_statistics_text->Show(common::transition::Type_Reset);
 }
 
 void Stream::QueueFrame(
     void *buffer,
     unsigned int width,
     unsigned int height,
-    unsigned int pitch)
+    unsigned int pitch,
+    uint32_t stats_generation)
 {
-    bool register_task = false;
+    const uint64_t queued_us = stats_generation ? LiGetMicroseconds() : 0;
 
     thread::RMutex::main_thread_mutex.Lock();
 
     if (s_instance != NULL && buffer != NULL) {
+        const bool replaced = s_pending_frame.valid &&
+            s_pending_frame.stats_generation == stats_generation;
         s_pending_frame.buffer = buffer;
         s_pending_frame.width = width;
         s_pending_frame.height = height;
         s_pending_frame.pitch = pitch;
+        s_pending_frame.stats_generation = stats_generation;
+        s_pending_frame.queued_us = queued_us;
         s_pending_frame.valid = true;
-
-        if (!s_task_registered) {
-            s_task_registered = true;
-            register_task = true;
-        }
+        moonlight_video_note_queued(stats_generation, replaced);
     }
 
     thread::RMutex::main_thread_mutex.Unlock();
-
-    if (register_task) {
-        common::MainThreadCallList::Register(
-            PresentTask,
-            NULL);
-    }
 }
 
 void Stream::InvalidateFrame()
@@ -460,9 +533,10 @@ extern "C" void moonlight_video_present(
     void *buffer,
     unsigned int width,
     unsigned int height,
-    unsigned int pitch)
+    unsigned int pitch,
+    uint32_t stats_generation)
 {
-    Stream::QueueFrame(buffer, width, height, pitch);
+    Stream::QueueFrame(buffer, width, height, pitch, stats_generation);
 }
 
 extern "C" void moonlight_video_invalidate(void)
