@@ -287,6 +287,61 @@ pairing failure trace; it does not independently establish the cause of the empt
 Per maintainer decision, this is an accepted noncritical compatibility limitation (F6),
 with no Sunshine patch or client workaround planned.
 
+### Second PC: repeated errors and PIN replacement — reproduced, source fix pending Vita check
+
+On 2026-10-20 the maintainer supplied another Vita log and reported testing a current
+Sunshine on a second PC. Its exact version has been requested; do not assume the
+original host's 2025.924.154138 version or equate "current" with an upstream commit.
+Normal pairing on this PC completes all five phases and retrieves three apps. A later
+incorrect-PIN attempt shows this separate sequence:
+
+```text
+pairing phase=serverchallengeresp
+pairing failed: legacy=-1 result=-1001 (Incorrect pairing PIN)
+[SceCommonDialog] Starting Init(), type 1
+[SceCommonDialog] Term() completed, type 1
+[Pairing] text_pairing_status=<widget> text=Pairing with PC...
+pairing phase=getservercert
+pairing failed: legacy=-1 result=-1003 (A pairing session with this uniqueid already exists)
+```
+
+The duplicate-session failures, dialog completion and new getservercert requests then
+repeat. The maintainer observes the displayed PIN changing behind repeated error dialogs.
+The log has no timestamps or dialog button results, so it does not establish whether
+acknowledgements were manual or whether a dialog completed without input.
+
+F7 below identifies the client retry loop. This is distinct from accepting the old
+host's F6 compatibility limitation; fixing client failure navigation requires no Sunshine
+patch or protocol workaround. The maintainer also reports delayed Web UI failure.
+Sunshine [v2026.914.233613 nvhttp.cpp](https://github.com/LizardByte/Sunshine/blob/v2026.914.233613/src/nvhttp.cpp)
+waits for handshake completion or a deadline in pin(), and rejects duplicate uniqueid
+sessions with status 409. This explains a possible delay after the client rejects the
+PIN before clientpairingsecret; the actual second-host version/timing remains unconfirmed.
+
+### Single-dialog Search return after F7 — user/log verified on one Vita, 2026-10-20
+
+The maintainer's follow-up to `8078c62` confirms the following sequence:
+
+1. Enter an incorrect PIN: serverchallengeresp ends with -1001, one error dialog,
+   manual OK and return to Search PCs.
+2. Select that PC again before Sunshine displays its final failure: a new Pairing
+   page/request receives -1003, "A pairing session with this uniqueid already exists".
+   One error dialog ends this explicitly requested attempt and returns to Search again.
+3. Sunshine displays "Pairing Failed: Check if the PIN is typed correctly" after a
+   short delay (user observation, not timestamped in the Vita log). Another explicit
+   PC selection creates a new PIN and reaches getservercert without an immediate error.
+
+Each new pairing request in the supplied log follows another Search selection and
+connection. The previous automatic retry/PIN-changing loop is absent in this tested
+sequence. The second failure is a real host duplicate-session response; returning to
+Search does not cancel that host session. This does not warrant a client retry timer,
+identity rotation, invented cleanup endpoint or Sunshine modification.
+
+The log ends at the third getservercert request. Its response, correct-PIN submission,
+completed pairing and Apps retrieval after this recovery are not shown. Do not count
+waiting with a new PIN as successful pairing. Exact second-host Sunshine version,
+Main/manual entry and other error types remain unverified.
+
 ## 1. Scope and evidence
 
 The client path remains PAF pages → MoonlightApp → services → MoonlightBackend →
@@ -482,6 +537,10 @@ local and referenced upstream branches were read, not that the scenario ran. Tes
   visible error/new PIN and a new getservercert request (2026-10-20). The subsequent retry
   after submitting the new PIN fails at getservercert with empty HTTP response/-1002 and page exit (F6), so
   recovery fails in this tested sequence. F6 is accepted as noncritical; no workaround is planned.
+  F7 single-dialog return to Search and explicit re-entry are now user/log verified on one
+  Vita (2026-10-20); the final correct-PIN recovery after host failure is not yet shown.
+  Server XML status/reason are now copied into pairing-failure events for the native
+  protocol-error dialog (source follow-up below; Vita validation pending).
   T3 still needs refused approval, lost network, malformed proof and local
   crypto/storage failures; semantic enum presence alone does not establish those paths.
 
@@ -493,11 +552,19 @@ local and referenced upstream branches were read, not that the scenario ran. Tes
 - **Current:** L1 reuses authenticated curl handle and refreshes a 64-entry global cache through
   L4 ApplicationService job. The 2026-10-20 source follow-up validates XML status and invalidates
   the cache on connect/disconnect/shutdown and failed refresh. Requests are rejected during stream
-  setup/streaming/disconnect. L7 still displays only eight apps; the backend remains bounded at 64.
+  setup/streaming/disconnect. L7 now owns a vector sized to the ready count and copies all available
+  cached apps, with a shared backend bound of 64. The fixed eight-row/context arrays are removed
+  in the separate 2026-10-20 presentation follow-up. Ten-row population is now log-verified
+  on Vita; the maintainer reports the requested >8 check OK. The broader T4 matrix is pending.
 - **Upstream / Sunshine:** S emits the configured app list; QH `getAppList` verifies status before
   XML parsing; V uses its XML parser.
-- **Verified / runtime:** source; T2/T4 cover revoked client, valid empty list, two hosts with
-  different lists and >8/>64 entries. Complete product support is not established by the 64-entry cache.
+- **Verified / runtime:** ten-app retrieval/population is user/log verified; the requested
+  >8 selection check and normal switching between two PCs with different lists and back
+  are user-reported OK (no new switch trace). The empty-state message without repeated
+  requests or a hang is also user-confirmed. T2/T4 still require revoked client,
+  concurrent/stress host changes; the 64/65 boundary remains unverified and is explicitly
+  deferred by the maintainer (2026-10-20). Complete product support
+  is not established by the 64-entry cache.
 
 ### A08 — Application list parsing — partial
 
@@ -660,9 +727,10 @@ local and referenced upstream branches were read, not that the scenario ran. Tes
 - **Upstream / Sunshine:** QS serializes active session cleanup; S retains process independently of
   stream and accepts resume with fresh session material.
 - **Verified / runtime:** normal stop/restart, app-exit launch, same-app resume and manual resume
-  after unexpected control disconnect are user/log verified on 2026-10-20. Full host
-  disconnect→connect, two-host cache isolation, repeated failure cycles and the remaining T8
-  cases remain open. No automatic network reconnection is implemented.
+  after unexpected control disconnect are user/log verified on 2026-10-20. Normal two-PC
+  app-list switching and return are subsequently user-confirmed without new logs. Full
+  host disconnect→connect API coverage, concurrent host/cache races, repeated failure
+  cycles and the remaining T8 cases remain open. No automatic network reconnection is implemented.
 
 ### A19 — Host-side session cleanup — partial (end-to-end evidence pending)
 
@@ -851,8 +919,9 @@ older GFE BUSY semantics; T5/T8. Do not introduce a destructive `/cancel` as an 
 root status plus verb-result validation, entity decoding, per-App fields, strict IDs, URL validation
 and cache invalidation. Shared HTTP transfers now reinstall their own callback/buffer/timeout under
 a mutex, including shutdown exclusion; app-list no longer inherits the previous launch callback.
-This fixes request-buffer ownership, not all asynchronous API state races (F5). Backend/UI limits
-remain 64/8. C grammar checks passed; C parser fixtures and Vita/Sunshine tests remain unrun.
+This fixes request-buffer ownership, not all asynchronous API state races (F5). The later separate
+Apps presentation change removes the eight-row limit through a page-owned vector; the backend
+bound remains 64. C grammar checks passed; C parser fixtures and the broader UI Vita matrix remain pending.
 The root cause below describes the audit baseline.
 
 **Root cause:** L1 marks app cache valid after any curl-successful body. L2 accepts an OR of
@@ -964,8 +1033,256 @@ do not directly prove the exact server-side failure path.
 
 On 2026-10-20 the maintainer explicitly accepted this as noncritical and excluded
 Sunshine fixes and client workarounds. The uncommitted host patch/materials were
-removed; no runtime code was changed for this issue. Preserve client identity,
+removed; no runtime code was changed for F6 at that stage. The later F7 client retry-loop
+fix is separate from this server compatibility limitation. Preserve client identity,
 authentication and error classification. Continue independent client API work.
+
+### F7 — Pairing error dismissal starts another attempt — Search failure flow verified on one Vita
+
+**Root cause:** Pairing::DialogPollTask unconditionally called RetryPairing after every
+non-network error dialog finished. RetryPairing generated another PIN and enqueued Pair.
+Thus a protocol rejection (including duplicate pairing-session status) could repeatedly
+produce another request, another dialog and another PIN. The new runtime log demonstrates
+that sequence. It does not prove unsolicited dialog completion without user input.
+
+**Reference:** [Moonlight Qt NvPairingManager::pair](https://github.com/moonlight-stream/moonlight-qt/blob/master/app/backend/nvpairingmanager.cpp)
+returns a terminal PIN_WRONG/FAILED result for a failed attempt. Its separate legacy
+/unpair cleanup is not applicable to Sunshine and is not copied here.
+
+**Minimal change:** every failed attempt ends after its existing native OK dialog and
+returns through the Base stack to the parent PC page. Remove RetryPairing and its obsolete
+error-result member; change the incorrect-PIN message to describe explicit PC selection.
+The constructor still starts a user-selected attempt; successful pairing still opens Apps.
+No new endpoint, timer, server patch, authentication change or client identity change.
+This addresses client error navigation and does not promise immediate server retry readiness.
+
+**Regression risks / checks:** non-build diff/call-path review and existing Python checks;
+no application or resource build. On Vita, incorrect PIN and protocol/network/security
+errors should each produce one dialog, then Search/Main, with no new request/PIN while
+idle. Select the PC again to verify explicit re-entry; record any retained host session
+as a server response, without restarting a client loop. Check normal correct-PIN → Apps
+and Back behavior. The follow-up above verifies the incorrect-PIN and duplicate-session
+Search returns and explicit re-entry on one Vita; Main/manual paths, other error types
+and correct-PIN recovery still need maintainer tests. No build was run by the agent.
+
+### Pairing protocol-error details — source follow-up, 2026-10-20
+
+**Trigger/root cause:** the maintainer compared Moonlight Qt's duplicate-session dialog
+with the Vita's generic protocol error. Legacy xml_status_ok read the reason into a
+global error string, but discarded the numeric status; MoonlightEvent conveyed only
+semantic -1003. The UI therefore could not distinguish the server's 409 response from
+other protocol failures. Reading a mutable legacy buffer directly from the UI would
+also violate the queued service/backend boundary.
+
+**Reference:** [Moonlight Qt NvHTTP::verifyResponseStatus](https://github.com/moonlight-stream/moonlight-qt/blob/master/app/backend/nvhttp.cpp)
+extracts XML status_code/status_message and returns them in GfeHttpResponseException.
+Use that diagnostic contract, without copying the legacy GeForce Experience product
+name into a dialog for a Sunshine PC.
+
+**Minimal source change:** legacy pairing returns bounded status/message through a
+caller-owned LegacyGameStreamPairingError. Valid non-200 XML responses fill the details;
+missing/malformed/success responses clear them. XML attribute order does not determine
+whether a message is captured, and truncation preserves UTF-8 code-point boundaries.
+The API copies details into inline MoonlightEvent fields before dispatch. The existing
+adapter/queue copies those fields by value, so the UI never holds a legacy-buffer
+pointer. Settings events are zero-initialized too, to keep the extended event payload
+defined for all producers. The 16-entry queue grows by about 4 KiB.
+
+Protocol dialogs show `The PC returned a pairing error:` plus the host reason and
+`(Error <code>)`. Status without a reason uses a generic reason plus the code; absent
+status keeps the existing generic dialog. Incorrect-PIN/network/security/internal
+classification and messages remain separate. No retry, endpoint or pairing-trust
+change is added. The F7 one-dialog terminal flow remains unchanged.
+
+**Checks/limits:** existing six non-build Python checks pass, plus an ad hoc pycparser
+C grammar check of the changed XML status helpers. Source/diff review covers all five
+pairing phases, initialization, bounded strings and event-copy lifetime. These checks
+do not execute the status parser or PAF. No build or real PAF/HTTP test was run by the agent. Verify 409 text/code, a different
+server error, missing message, wrong PIN, correct PIN and OK → Search/Main on Vita.
+Do not mark the new diagnostic text hardware-verified from the older generic-dialog log.
+
+**Runtime follow-up, 2026-10-20:** a new maintainer log contains two explicit Search
+selections. Both connect successfully, then getservercert immediately responds with
+semantic -1003, server_status=409 and "A pairing session with this uniqueid already
+exists"; neither reaches clientchallenge or PIN verification. This confirms extraction
+of the server code/reason at the API boundary on Vita. It does not identify which prior
+request owns that host session or its remaining lifetime: no server log/timestamps are
+provided. The immediate failure is the host's explicit duplicate-session rejection,
+not evidence that the new display code caused a handshake failure. The maintainer
+subsequently confirms the Vita dialog displays the duplicate-session text with Error 409.
+That verifies this specific diagnostic on one Vita; other codes, long/Unicode messages
+and the broader display/error matrix remain open. No runtime change is justified
+by these two refusals; retry after the host finishes its prior attempt, then verify
+correct-PIN pairing/Apps separately.
+
+**Maintainer follow-up, 2026-10-20:** after the requested retry once the host's prior
+attempt finishes, the maintainer reports "ну теперь вроде всё ок" (qualified user
+confirmation that the discussed flow now appears OK). Record this as a user-reported
+recovery smoke result, without a new runtime trace. Final PIN/HTTPS phases, Apps
+retrieval, repeated recovery and the exact second-host version are not independently
+confirmed by this message. No further runtime change is warranted for the reported
+flow; continue the independent app-list presentation task. F6 remains an accepted
+version-specific limitation and the broader T3/T9 matrix stays open.
+
+### Apps presentation beyond eight — separate source follow-up, 2026-10-20
+
+**Root cause:** page Apps requested/clamped to kMaxApps=8 and owned both app and callback
+arrays of eight, despite the API cache already holding 64. Raising the parser limit
+alone could not expose entries 9–64. The PAF resource has no eight-cell restriction.
+
+**Reference:** the locally inspected BetterHomebrewBrowser `9e615e9186bf7ca5fb985dc06c1a5e06c47f24f5`
+[factory and EntryCB](https://github.com/Ibrahim778/BetterHomebrewBrowser/blob/9e615e9186bf7ca5fb985dc06c1a5e06c47f24f5/src/pages/app_browser.cpp)
+use page-owned list data and a widget name containing the entry's identity, with the
+page as callback userdata. Its ClearList uses the full cell count. These are PAF
+ownership references; no streaming/protocol code is moved into Apps.
+
+**Minimal change:** Apps owns a paf::vector sized to APPLICATIONS_READY's stored count.
+A shared MOONLIGHT_MAX_APPLICATIONS=64 expresses the unchanged backend cache bound.
+Old cells are deleted before data replacement; invalid counts/cache-copy errors leave
+an empty list with an error, while a valid zero count shows the empty state without
+issuing another refresh. Rows carry the real application ID and resolve it in the page's
+current snapshot on selection; no callback retains an address in resizable storage.
+The existing ListView/template handle scrolling. One console-only population diagnostic
+reports count and cells before/delete/insert. Main/Search host limits are unchanged.
+
+**Risks/validation:** check 0/1/9/64 apps, 65 configured apps (the API still stores only
+64), select entries 9/64 and compare the launch ID, reopen with a shorter/empty list,
+switch between hosts, and check normal stream return/Back. The existing six non-build
+checks pass and source review covers ready-count delivery, SDK vector/name APIs and
+callback/data lifetime. They do not execute PAF. No build or new hardware test was run
+by the agent. F5 shared-cache/event races remain outside this change.
+
+**Vita follow-up, 2026-10-20:** the maintainer reports the requested >8-app check OK
+and supplies:
+
+```text
+[GameStream] applist count=10 total=10
+[Apps] ShowApps count=10 cells before=0 after_delete=0 after_insert=10
+```
+
+This verifies copying/populating all ten apps on one Vita, beyond the former eight-row
+limit. The requested scrolling/selection check is user-reported OK; the fragment has
+no selected application ID or launch trace. It starts with an empty ListView, so it
+does not exercise deleting a nonempty list. The 64/65 boundary, empty/smaller-list
+rebuild and two-host cache isolation remain pending. No agent build/hardware test.
+
+**Two-PC follow-up, 2026-10-20:** the maintainer confirms the requested sequence of
+switching between two PCs with different app lists and returning to the first: the
+visible lists correspond to the selected PC. This is user-reported normal-flow success
+without a new runtime log or a separately specified package/version. It covers basic
+visible list isolation; it does not prove concurrent cache/job safety, full backend
+DisconnectHost API coverage or all F5 races. Empty-list behavior, nonempty in-page
+rebuild, exact launch-ID checks and the 64/65 boundary remain pending.
+
+**Empty-list follow-up, 2026-10-20:** the maintainer confirms the requested empty-list
+scenario: Apps shows `No applications available.`, without repeated requests or a hang.
+This is a user-reported Vita result, without a new log or raw XML body; it does not
+validate malformed/error responses or every refresh race. The 64/65 boundary, nonempty
+in-page rebuild and exact launch-ID tracing remain pending. No runtime change is needed.
+
+**Scope decision, 2026-10-20:** the maintainer explicitly defers the 64/65-app boundary
+test. Keep it unverified; do not run it or treat it as a blocker for the completed basic
+Apps improvement. The backend bound remains 64. Other outstanding tests keep their own
+status; this decision is not acceptance of untested protocol/error or concurrency paths.
+
+### F8 — Abandoned pairing holds the connection queue — active-wait cancellation/reconnect verified on one Vita
+
+**New runtime evidence (2026-10-20):** on the older Sunshine host the maintainer reports
+incorrect PIN → return to Main → immediate selection of that PC → apparent full app
+freeze. The Vita system still allows minimizing the app. Initially only connection
+`enqueue ... result=0` was available, without ConnectJob::Run. A later fragment shows
+`pairing getservercert failed ... Timeout was reached`, semantic -1002/status 0, then
+ConnectJob::Run immediately starts and finishes successfully, followed by another PIN
+page/getservercert. Thus the queue was occupied by a pending pairing request, rather
+than permanently deadlocked. The fragments do not identify how that particular pending
+attempt outlived its page; the complete first-attempt trace and installed revision are
+not available. Do not attribute an incorrect-PIN crypto failure to this second request.
+
+**Source cause:** PairingService and ConnectionService use the default PAF job queue.
+PairCurrentHost synchronously waits for the worker's getservercert request (up to 300 s),
+and destroying Pairing did not cancel its job or transfer. Connect accepted another
+job and opened the modal WAIT dialog while that earlier operation could still occupy
+the queue. The newer-host single-dialog result F7 did not cover this abandoned-request
+case. This client ownership problem is separate from accepted F6 server compatibility.
+
+**Reference/minimal implementation:** use the documented libcurl
+[CURLOPT_XFERINFOFUNCTION](https://curl.se/libcurl/c/CURLOPT_XFERINFOFUNCTION.html)
+abort mechanism, with NOPROGRESS=0 for a cancellable transfer. Each PairingService job
+owns a distinct monotonic atomic token, retained by the PAF queue during Run/Finish.
+Page destruction, replacement pairing, application shutdown and a new Connect request
+signal cancellation without taking the HTTP mutex or joining a worker on the UI thread.
+Queued cancelled jobs skip the backend; active pairing HTTP phases and the final status
+refresh check the token. Callback/data are detached under the HTTP mutex before a
+transfer returns. Cancellation returns a distinct local result and suppresses obsolete
+completion/error events. The existing final-HTTPS failure path rolls back temporary
+server trust; cancellation after already completed host pairing cannot undo it.
+
+The 300 s allowance remains for an attempt whose page is still open. No new queue,
+shortened PIN-entry timeout, Sunshine patch, identity rotation, /cancel or /unpair is
+added. Cancellation stops local I/O; it does not promise to erase a host pairing session
+or prevent a later genuine 409. Curl progress scheduling (and DNS/connect behavior)
+limits cancellation latency; do not promise instantaneous abort or a fixed duration.
+Console-only job begin/return/Finish/release and cancel markers support the next test.
+The initially prepared main-thread heartbeat was removed after the timeout log clarified
+the queue wait; no recurring heartbeat is added.
+
+**Checks/remaining:** all six non-build Python checks pass; the C grammar check now
+includes the cancellation token, progress callback and HTTP helper. This is neither
+compilation/type checking nor curl execution. Source review covers job/token lifetime,
+callbacks, all pairing requests, error-event suppression and credential rollback. No agent build or hardware verification of the change. On Vita:
+open Pairing and immediately Back → reselect PC; repeat after incorrect PIN on the
+older host; cancel before a queued job starts; check cancel requested → local cancelled
+result → ConnectJob::Run without the multi-minute timeout. Verify one 409/error dialog
+if Sunshine retains its session, normal correct-PIN → Apps/Back, page close during
+later pairing phases, app shutdown and repeated/two-host cycles. Continue checking F5
+for broader queue/event/cache state races; this does not establish universal thread safety.
+
+**Vita follow-up, 2026-10-20:** the supplied launch line identifies system profile,
+commit `e7e7166ae5db`. For the previously identified older Sunshine host, the first
+active getservercert wait receives cancel requested, returns legacy -11 (Pairing
+cancelled locally), logs no completion event and semantic result -1006, then Finish
+and destruction. A subsequent explicit connection job runs, returns 0, finishes and
+is destroyed before another Pairing page opens. No preceding 300 s timeout is present
+in this sequence. There are no timestamps, so exact cancellation/reconnect latency
+is not measured. This verifies local active-wait cancellation, job release and
+successful reconnect on this Vita/profile; it does not establish every race/path.
+
+The next attempt reaches serverchallengeresp, rejects the incorrect PIN (-1001),
+returns from Run and finishes. Closing its error releases the already-finished job;
+the later cancel requested marker there is not a second network attempt. Another
+explicit Connect also completes, followed by getservercert returning an empty HTTP
+response (-1002, status 0), then Run return, Finish and destruction. That is the
+already accepted old-host compatibility failure F6, not recurrence of queue starvation.
+No new runtime change is justified from this trace. Successful correct-PIN pairing
+through final HTTPS/Apps on this build, cancellation before Run, later-phase rollback,
+shutdown, repeated/two-host cycles and normal-profile behavior remain pending.
+The agent did not build or run on hardware.
+
+**Second-host follow-up, 2026-10-20:** the maintainer selects the newer host, leaves
+Pairing and selects it again. Its log shows the first getservercert being locally
+cancelled (-11/-1006), no completion event, Run return, Finish and destruction. The
+next Connect completes with result 0 and is released. Its new pairing request receives
+a real server_status=409 / duplicate uniqueid rejection and also returns/finishes/releases.
+Thus local cancellation/queue release also works in this second-host sequence; it does
+not clear Sunshine's pending pairing session. There is no new launch/version line in
+this fragment. No host cleanup endpoint or client workaround is added for the refusal.
+
+Separately the maintainer explicitly confirms the ordinary correct-PIN flow succeeds
+and opens Apps. This is user-reported regression success for the cancellation work;
+the attached log contains cancellation/409, not the successful PIN/HTTPS/Apps phases.
+It does not prove immediate successful re-pair after cancel or a change to F6. Normal
+binary profile (distinct from an ordinary usage scenario), pre-Run cancellation,
+later-phase rollback, shutdown, stress and alternating-host cases remain pending.
+No runtime code change is needed for this result. Continue Apps >8-row validation.
+
+**Normal-pairing follow-up, 2026-10-20:** the same new fragment shows PairingService
+Run returned result=0, "Paired. Loading applications...", cancel requested, Finish and
+job destruction, followed by the ten-app result above. This verifies normal pairing
+completion, job release and Apps retrieval with the cancellation path present. The
+page destructor's cancellation signal after Run already succeeded is not a failed
+pairing result or a new handshake. No launch revision/profile line or phase-by-phase
+TLS trace is included. Queued/later-phase cancellation, rollback, shutdown and repeated
+or cross-profile validation remain open; no runtime change is needed from this result.
 
 ## 5. Required validation (all new cases pending)
 
@@ -1030,9 +1347,21 @@ host-side revocation test is also log verified; reconnect without a PIN after re
 Moonlight is subsequently user-confirmed. Wrong-PIN rejection (-1001), error/new PIN and fresh
 retry initiation are now user/log verified, but the next request subsequently fails with an
 empty HTTP response/-1002 after submitting the new PIN (F6). The maintainer accepts
-this as noncritical; Sunshine patches and client workarounds are out of scope. The next
-independent implementation task is scalable app-list presentation (64 backend / 8 UI).
-Remaining setup-cancel/race, trust/error and
+this as noncritical; Sunshine patches and client workarounds are out of scope. The
+maintainer now gives qualified user confirmation that the discussed recovery flow
+appears OK, without a new log or separately stated Apps result. F7 Search error navigation
+and the 409 dialog are verified on one Vita. The separate Apps vector change now
+exposes all cached entries up to the unchanged backend bound of 64. Ten-row population
+is now log-verified and the maintainer reports the requested >8 check OK. Normal
+switching between two PCs with different lists and back is now user-confirmed, without
+a new log. The empty-list message/no-repeat/no-hang scenario is now also user-confirmed.
+The maintainer explicitly defers the unverified 64/65-app boundary test. Next review
+F5 asynchronous backend state/operation ownership; concurrent/stress host changes remain open. The maintainer now explicitly confirms the ordinary correct-PIN flow opens Apps after the cancellation work (user report; the
+cancellation/conflict trace verifies local cancellation followed by genuine server 409,
+not PIN success). A subsequent fragment now verifies pairing Run result 0, job release
+and Apps retrieval/population of ten entries. F8 active-wait cancellation, job release and
+successful reconnect are now log-verified on one Vita/system profile; the remaining
+cancellation matrix stays open. Remaining setup-cancel/race, trust/error and
 repeated-recovery cases stay open. Complete the remaining T3/T4/T5/T8/T9 error/trust matrix. No
 administrative Sunshine credentials are introduced.
 

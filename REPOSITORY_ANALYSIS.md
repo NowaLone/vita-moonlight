@@ -95,6 +95,16 @@ Consequences:
 
 Recommended direction: use dynamically sized page-owned storage while keeping PAF ListView virtualization. BetterHomebrewBrowser demonstrates that PAF ListView item factories do not require a fixed eight-element backing store.
 
+**Source follow-up, 2026-10-20:** the Apps portion above describes the audit baseline.
+Apps now uses a page-owned `paf::vector` sized to the backend ready count, with a shared
+64-entry backend bound and ID-based row callbacks. The fixed eight-app/context arrays
+are removed. A later Vita log verifies ten apps copied into ten cells (after_delete=0);
+the maintainer reports the requested >8 check OK. Normal two-PC list switching and return
+are subsequently user-confirmed without a new log, as is the empty-list message without
+repeated requests or a hang. The 64/65 boundary test is unverified and explicitly deferred
+by the maintainer (2026-10-20). In-page refresh and concurrent host/cache checks remain pending; see `docs/UI.md` and the API audit.
+Main/Search eight-host limits and their canonicalization issue remain open. No build/hardware run by the agent.
+
 ### 2. Backend/stream state is shared across threads without a real synchronization model
 
 Several core modules use process-global state from PAF jobs, Vita threads, pthread workers, Limelight callbacks, and the PAF main thread.

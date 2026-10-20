@@ -22,15 +22,14 @@ private:
     static void DialogPollTask(void *userdata);
 
     void StartPairing();
-    void ShowPairingError(int result);
-    void RetryPairing();
+    void ShowPairingError(int result, int server_status_code = 0,
+                          const char *server_status_message = NULL);
     void ShowSystemError();
     void SetPin(const char pin[5]);
     void SetStatus(const char *text);
 
     char m_pin[5];
     bool m_pairing_started;
-    int m_last_error_result;
     bool m_dialog_open;
     bool m_dialog_task_registered;
     SceMsgDialogParam m_dialog_param;

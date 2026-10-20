@@ -143,7 +143,50 @@ without revisiting the completed PIN page **[code]**. Search callback restoratio
 selection guard and restores its list prompt so another PC can be selected **[code]**. If Apps fails
 to open, Pairing stays available with an error **[code]**. User verified Search → successful Pairing →
 Apps → Back → Search and selecting a PC again on 2026-10-19 **[hw, tested Vita]**. The Main/manual path,
-already-paired path, Pairing cancel/failure and stream-event regression checks remain **[open]**.
+already-paired path, Pairing cancel and stream-event regression checks remain **[open]**.
+Pairing failure coverage is recorded below.
+
+Pairing failure ends the current attempt **[code, 2026-10-20]**. After its native OK
+error dialog finishes, Pairing returns to the existing parent PC page. Dismissing an
+error never generates another PIN or queues another handshake; selecting a PC again
+explicitly starts a new attempt. This replaces the previous automatic retry for every
+non-network error, which repeatedly regenerated PINs on duplicate-session rejection.
+Correct-PIN success navigation is unchanged **[code]**. User/log verified one incorrect-PIN
+error → OK → Search and one duplicate-session error → Search, with new requests only
+after explicit PC selection, on 2026-10-20 **[hw, tested Vita]**. After Sunshine displayed
+its delayed failure, another selection produced a new PIN and waited at getservercert;
+completed pairing/Apps after that recovery is not yet shown. Main return, other error
+types and a fully traced correct-PIN recovery remain **[open]**. The maintainer later
+reports the discussed recovery flow now appears OK (2026-10-20, qualified user confirmation;
+no new log or separate Apps result). Returning to Search does not cancel or reset the
+host's pending pairing session.
+
+Pairing protocol errors now display the host's GameStream XML `status_message` and
+`status_code` **[code, 2026-10-20]**. For the tested duplicate-session response, the
+native dialog is intended to show: `The PC returned a pairing error:` followed by
+`A pairing session with this uniqueid already exists (Error 409)`. This is a server
+response code, not the semantic pairing result (-1003). Wrong PIN, network, security
+and internal failures retain their specific local messages. Missing server details
+use the generic fallback. The maintainer confirms the duplicate-session reason with
+Error 409 is visible in the Vita dialog on 2026-10-20 **[hw, user-reported]**; the
+supplied log independently confirms server_status=409. Other codes and long/Unicode
+message clipping/layout remain **[open]**. The OK → parent PC page behavior is unchanged.
+
+Pairing page destruction now requests local cancellation through PairingService
+**[code, 2026-10-20]**. A new connection also cancels any prior pairing before enqueue.
+This is nonblocking on the UI thread; queued jobs skip work, and an active HTTP pairing
+wait aborts through curl progress. It does not reset Sunshine's pending session. The
+reported older-host wait behind an abandoned pairing request is F8 in the API audit.
+The `e7e7166ae5db` system-profile log shows active getservercert cancellation (-11/-1006),
+job Finish/destruction and successful subsequent connection/new PIN page
+**[hw, tested Vita]** on 2026-10-20. Wrong-PIN and later empty-reply attempts also finish/release their jobs;
+that empty reply remains accepted F6. A second-host trace also verifies local cancellation
+and successful Connect, followed by a real duplicate-session 409 on immediate pairing
+retry **[hw, tested Vita]**. The maintainer separately confirms ordinary correct-PIN
+pairing opens Apps after the cancellation change **[hw, user-reported, 2026-10-20]**;
+its successful phases are not included in that trace. Queued/later-phase cancellation,
+shutdown, stress/alternating-host and normal binary-profile checks remain **[open]**.
+No recurring main-thread heartbeat or changed PIN timeout is introduced.
 
 Add PC is an inline control on Main; there is no Add PC page.
 
@@ -247,8 +290,27 @@ Only these `_common_*` names appear in the XML and are known to resolve: `_commo
 - Refresh: `DeleteCell(0, 0, existing)` then `InsertCell(0, 0, count)`. **The third argument of `DeleteCell` is a
   count, not the last index** **[hw on Main]**; `existing - 1` leaves a stale cell behind (a duplicate row). Search and
   Apps use the same call; their hardware check is open.
-- Cells are created lazily by the factory; do not keep widget pointers across a refresh. Row arrays hold at most 8
-  entries.
+- Cells are created lazily by the factory; do not keep widget pointers across a refresh. Main/Search host arrays
+  still hold at most eight entries. Apps now owns a `paf::vector<MoonlightApplication>` sized from the
+  `APPLICATIONS_READY` count, bounded by the backend's shared `MOONLIGHT_MAX_APPLICATIONS` (64), with no
+  separate eight-row cap **[code, 2026-10-20]**. It deletes old cells before replacing data and inserts exactly
+  the copied count. An empty ready result shows the empty state without calling `GetAll(NULL, 0)`, which would
+  start another refresh. An invalid count/cache failure shows a load error.
+- Apps buttons store the application ID in their PAF name. Their callback receives the page and resolves that ID
+  in its current list, following BetterHomebrewBrowser's `EntryCB`/factory pattern. It holds no pointers into
+  vector elements or a fixed callback-context array. Main/Search callbacks are unchanged. The existing
+  `template_list_item_generic`/native ListView scrolling and 80 px row geometry remain in use.
+- `[Apps] ShowApps count=... cells before=... after_delete=... after_insert=...` is emitted once per successful
+  list population through the existing console debug toggle. Verify `after_delete=0`, `after_insert=count`,
+  scrolling/selection and correct app ID at launch on Vita. A supplied 2026-10-20 log verifies
+  `count=10`, `before=0`, `after_delete=0`, `after_insert=10`; the maintainer reports the requested >8 check OK
+  **[hw, tested Vita; selection user-reported]**. The fragment does not identify a launched app. Smaller
+  nonempty-list rebuild remains **[open]**. The 64/65-app boundary is unverified and explicitly deferred by
+  the maintainer (2026-10-20), rather than required as the next test. Normal switching between PCs with different lists
+  and return to the first is user-confirmed on 2026-10-20 **[hw, user-reported; no new log]**: each shows its own
+  apps. The empty-list state is also user-confirmed on 2026-10-20 **[hw, user-reported; no new log]**:
+  `No applications available.` appears without repeated requests or a hang. These checks do not validate
+  concurrent host changes or every cache race. No agent build/hardware run.
 - Selection mode rebuilds the cells and picks `template_host_list_item_select` instead of `template_host_list_item`.
   The checkbox exists only in the select template.
 

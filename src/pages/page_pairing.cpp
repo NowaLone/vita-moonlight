@@ -1,4 +1,5 @@
 #include <paf.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "common.h"
@@ -17,7 +18,6 @@ Pairing::Pairing(const char pin[5])
            paf::Plugin::TransitionType_SlideFromBottom,
            paf::Plugin::TransitionType_SlideFromBottom),
       m_pairing_started(false),
-      m_last_error_result(MOONLIGHT_PAIRING_ERROR_INTERNAL),
       m_dialog_open(false),
       m_dialog_task_registered(false)
 {
@@ -47,6 +47,10 @@ Pairing::Pairing(const char pin[5])
 
 Pairing::~Pairing()
 {
+    if (MoonlightApp::Instance()) {
+        MoonlightApp::Instance()->Pairing().Cancel();
+    }
+
     if (m_dialog_task_registered) {
         paf::common::MainThreadCallList::Unregister(DialogPollTask, this);
         m_dialog_task_registered = false;
@@ -145,15 +149,14 @@ void Pairing::StartPairing()
     }
 }
 
-void Pairing::ShowPairingError(int result)
+void Pairing::ShowPairingError(int result, int server_status_code,
+                              const char *server_status_message)
 {
-    m_last_error_result = result;
-
     const char *message = "Unable to complete pairing.";
 
     switch (result) {
     case MOONLIGHT_PAIRING_ERROR_INCORRECT_PIN:
-        message = "Incorrect PIN. Enter the new PIN in the Sunshine Web UI.";
+        message = "Incorrect PIN. Select the PC again to retry pairing.";
         break;
 
     case MOONLIGHT_PAIRING_ERROR_NETWORK:
@@ -183,7 +186,15 @@ void Pairing::ShowPairingError(int result)
 
     strncpy(m_dialog_title, "Pairing failed", sizeof(m_dialog_title) - 1);
     m_dialog_title[sizeof(m_dialog_title) - 1] = '\0';
-    strncpy(m_dialog_message, message, sizeof(m_dialog_message) - 1);
+    if (result == MOONLIGHT_PAIRING_ERROR_PROTOCOL && server_status_code > 0) {
+        snprintf(m_dialog_message, sizeof(m_dialog_message),
+                 "The PC returned a pairing error:\n%s (Error %d)",
+                 server_status_message && server_status_message[0]
+                     ? server_status_message : "The PC rejected the pairing request.",
+                 server_status_code);
+    } else {
+        strncpy(m_dialog_message, message, sizeof(m_dialog_message) - 1);
+    }
     m_dialog_message[sizeof(m_dialog_message) - 1] = '\0';
 
     sceMsgDialogParamInit(&m_dialog_param);
@@ -229,36 +240,12 @@ void Pairing::DialogPollTask(void *userdata)
         pairing->m_dialog_task_registered = false;
     }
 
-    if (pairing->m_last_error_result == MOONLIGHT_PAIRING_ERROR_NETWORK) {
-        /*
-         * There is no useful automatic retry when the PC/network is
-         * unreachable. Close the pairing page and return to the PC list
-         * instead of restarting the pairing loop every time the dialog ends.
-         */
-        Base::CloseCurrent();
-        return;
-    }
-
-    pairing->RetryPairing();
-}
-
-void Pairing::RetryPairing()
-{
-    MoonlightApp *app = MoonlightApp::Instance();
-    if (!app) {
-        SetStatus("Pairing unavailable.");
-        return;
-    }
-
-    char pin[5] = {0};
-    int result = app->Pairing().Prepare(pin);
-    if (result != 0) {
-        SetStatus("Unable to prepare pairing.");
-        return;
-    }
-
-    SetPin(pin);
-    StartPairing();
+    /*
+     * A failed attempt is terminal. Acknowledging its error must not enqueue
+     * another handshake or replace the PIN while the host finishes the old
+     * attempt. Selecting the PC again explicitly starts a new attempt.
+     */
+    Base::CloseCurrent();
 }
 
 void Pairing::OnMoonlightEvent(
@@ -294,13 +281,15 @@ void Pairing::OnMoonlightEvent(
                 return;
             }
         } else {
-            pairing->ShowPairingError(event->result);
+            pairing->ShowPairingError(event->result, event->server_status_code,
+                                      event->server_status_message);
         }
         break;
 
     case MOONLIGHT_EVENT_PAIRING_FAILED:
         pairing->m_pairing_started = false;
-        pairing->ShowPairingError(event->result);
+        pairing->ShowPairingError(event->result, event->server_status_code,
+                                  event->server_status_message);
         break;
 
     case MOONLIGHT_EVENT_CONNECTION_FAILED:

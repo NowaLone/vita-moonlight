@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include "moonlight/cancellation.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -18,6 +19,7 @@ extern "C" {
 #define LEGACY_GAMESTREAM_APP_CONFLICT -8
 #define LEGACY_GAMESTREAM_NOT_PAIRED -9
 #define LEGACY_GAMESTREAM_SECURITY_ERROR -10
+#define LEGACY_GAMESTREAM_CANCELLED -11
 
 typedef struct LegacyGameStreamServer {
     char address[256];
@@ -38,6 +40,11 @@ typedef struct LegacyGameStreamServer {
     void *curl;
 } LegacyGameStreamServer;
 
+typedef struct LegacyGameStreamPairingError {
+    int status_code; /* GameStream XML status, not HTTP transport status; zero if absent. */
+    char status_message[256];
+} LegacyGameStreamPairingError;
+
 int legacy_gamestream_init(
     LegacyGameStreamServer *server,
     const char *address,
@@ -49,7 +56,9 @@ int legacy_gamestream_init(
 
 int legacy_gamestream_pair(
     LegacyGameStreamServer *server,
-    const char *pin);
+    const char *pin,
+    LegacyGameStreamPairingError *error,
+    const MoonlightCancellation *cancel);
 
 /* Authenticated snapshot only; never fall back to plaintext when starting a stream. */
 int legacy_gamestream_refresh_server_info(LegacyGameStreamServer *server);

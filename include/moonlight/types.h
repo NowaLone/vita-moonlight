@@ -84,6 +84,9 @@ typedef struct MoonlightApplication {
     char name[256];
 } MoonlightApplication;
 
+/* Shared bound of the backend cache, not a separate page presentation limit. */
+enum { MOONLIGHT_MAX_APPLICATIONS = 64 };
+
 typedef enum MoonlightConnectionState {
     MOONLIGHT_CONNECTION_DISCONNECTED = 0,
     MOONLIGHT_CONNECTION_READY,
@@ -120,7 +123,8 @@ typedef enum MoonlightPairingResult {
     MOONLIGHT_PAIRING_ERROR_NETWORK = -1002,
     MOONLIGHT_PAIRING_ERROR_PROTOCOL = -1003,
     MOONLIGHT_PAIRING_ERROR_SECURITY = -1004,
-    MOONLIGHT_PAIRING_ERROR_INTERNAL = -1005
+    MOONLIGHT_PAIRING_ERROR_INTERNAL = -1005,
+    MOONLIGHT_PAIRING_CANCELLED = -1006 /* Local cancellation; no failure event/dialog. */
 } MoonlightPairingResult;
 
 typedef struct MoonlightEvent {
@@ -130,6 +134,9 @@ typedef struct MoonlightEvent {
     int application_id;
     const char *address;
     char pairing_pin[5];
+    /* Owned response details for pairing failure; zero/empty if no server error. */
+    int server_status_code;
+    char server_status_message[256];
 } MoonlightEvent;
 
 typedef void (*MoonlightEventCallback)(const MoonlightEvent *, void *);
