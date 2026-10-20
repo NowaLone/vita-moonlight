@@ -15,6 +15,9 @@ extern "C" {
 #define LEGACY_GAMESTREAM_WRONG_STATE -4
 #define LEGACY_GAMESTREAM_IO_ERROR -5
 #define LEGACY_GAMESTREAM_UNSUPPORTED_VERSION -7
+#define LEGACY_GAMESTREAM_APP_CONFLICT -8
+#define LEGACY_GAMESTREAM_NOT_PAIRED -9
+#define LEGACY_GAMESTREAM_SECURITY_ERROR -10
 
 typedef struct LegacyGameStreamServer {
     char address[256];
@@ -30,6 +33,8 @@ typedef struct LegacyGameStreamServer {
     bool paired;
     bool unsupported;
     char mac[18];
+    char server_certificate_path[512];
+    void *server_certificate; /* X509, owned by this server, never a client key. */
     void *curl;
 } LegacyGameStreamServer;
 
@@ -38,12 +43,24 @@ int legacy_gamestream_init(
     const char *address,
     unsigned short http_port,
     const char *client_directory,
+    const char *server_certificate_path,
     int log_level,
     bool unsupported);
 
 int legacy_gamestream_pair(
     LegacyGameStreamServer *server,
     const char *pin);
+
+/* Authenticated snapshot only; never fall back to plaintext when starting a stream. */
+int legacy_gamestream_refresh_server_info(LegacyGameStreamServer *server);
+
+/* Assigns only the persistence destination for a newly saved host, never establishes trust. */
+int legacy_gamestream_set_certificate_path(LegacyGameStreamServer *server, const char *path);
+
+/* Caller owns the returned body; timeout and response callback are scoped to the request. */
+int legacy_gamestream_request(
+    LegacyGameStreamServer *server, const char *endpoint, const char *query,
+    long timeout_seconds, char **body, size_t *length);
 
 int legacy_gamestream_launch(
     LegacyGameStreamServer *server,
