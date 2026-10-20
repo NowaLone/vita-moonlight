@@ -2,6 +2,233 @@
 
 This roadmap captures the agreed next steps for Vita Moonlight PAF. It is ordered by risk reduction and release readiness, not by a promise that every item must be completed before development continues. Keep individual changes small and verify device-specific behavior on real PS Vita hardware.
 
+## Requested: build both application profiles in one invocation
+
+`build.sh` now defaults to sequential normal/system builds in separate
+`build/normal/` and `build/system/` trees, sharing one compiled RCO. It publishes
+profile-suffixed VPK/SELF/debug ELF files after both builds succeed. Explicit
+system-mode ON/OFF arguments retain single-profile builds in `build/` for existing
+deployment/manual workflows. Development deployment defaults explicitly to OFF.
+Tracing defaults OFF per invocation and can be enabled only for the system half
+of a dual build. Both packages retain the same title ID and replace each other.
+
+Shell syntax and isolated helper tests with stub configure/build commands passed:
+profile selection, argument quoting, separate trees, resource/artifact copies,
+tracing selection, legacy deployment override and failure propagation. Neither
+build entry point nor real compiler/configure/packaging was run by the agent.
+Maintainer validation of the dual build and both resulting VPKs remains pending.
+
+## Requested: launch alongside an existing Vita application (2026-10-19)
+
+Source research compared BetterHomebrewBrowser's system-mode packaging with Moonlight.
+See [docs/SYSTEM_APP_MODE_RESEARCH.md](docs/SYSTEM_APP_MODE_RESEARCH.md). VitaSDK supports
+explicit SELF budgets, but Moonlight's ordinary profile requests a default 128 MiB newlib heap;
+streaming additionally needs physical-contiguous decoder memory and CDRAM. Changing
+only the SFO category cannot establish coexistence.
+
+Source prototype now lives on `codex/system-app-mode`: an opt-in CMake/build-script
+profile supplies `gdc`, a 32 MiB SELF budget, boot attribute `0x08`, bounded newlib/PAF
+heaps and BHBB-style PAF application/pool settings. Physical reservation defaults to
+zero for the frontend-first trial and is configurable after measurement. Sparse
+`[Memory]` diagnostics follow Debug log; default launch settings remain available.
+Non-build checks cover isolated CMake script branches and invalid budgets, source
+grammar/SDK declarations, shell syntax and diff whitespace. No application/resource
+compilation, project configure, packaging or device test was run. Acceptance items
+below remain unchecked.
+
+Follow-up device report: the app still requested closing the Vita game and emitted
+no `[Memory]` lines. The local package from commit `150c538` was inspected read-only:
+cache OFF, SFO `gd`, SELF total/physical/attribute zero, and no `[Memory]` strings in
+the ELF. This establishes an ordinary local build, not a failed system-mode test or
+proof of which package was installed. The user confirmed building with `build.sh`
+without arguments, which leaves a fresh/default profile OFF. Separately,
+`dev-build-run.sh` previously discarded CMake
+arguments and removed the cache; it now forwards arguments and leaves system-mode
+VPKs for full installation rather than issuing SELF-only load. CMake and runtime
+`[Launch]` messages identify the selected/compiled profile. Correct-profile device
+verification is still pending.
+
+The next user run failed immediately on launch with a Vita game resident: an 8 MiB
+request (`0x00800000`) in `ddrmain: VLMP00001` failed and a coredump was generated.
+The current local VPK now contains the intended system metadata (`gdc`, boot
+attribute 8, total 32768 KiB, physical 0) and the memory diagnostics. Source defaults
+had copied BHBB's 8/4 MiB surface/text pools despite Moonlight's additional 6 MiB
+newlib heap. These pools are now reduced to 4/1 MiB, saving 7 MiB of requested pool
+capacity. The failed allocation's caller is not identified by the log; this is a
+targeted footprint experiment, not a proven crash fix. Total/physical/heap budgets
+are unchanged. Source/whitespace checks passed; build and device retest are pending.
+
+User retest of `7e20e940a52b`: startup no longer crashes and Main/Settings work. The
+runtime confirms system profile, AppMgr mode 2 (A), total USER_RW 32768 KiB, free
+1632 KiB before Settings, 1428 KiB after showing it, and 1632 KiB after closing it.
+PHYCONT is 0/0; CDRAM free/total is 0/16384 KiB; extra memory is 0/0 despite
+`allowed=1`. Newlib's arena is only 12288 bytes, with 4760 used, inside its reserved
+6 MiB heap; arena statistics do not measure the full reservation. The current AVC
+renderer needs PHYCONT plus separate CDRAM framebuffers, so these snapshots do not
+establish streaming support. No further allocation settings were changed from
+this browsing-only result. The user also explicitly confirms no game-close prompt
+and successful return to the same Vita game session. This verifies frontend coexistence
+on that device/game; streaming and broader compatibility remain open. These are
+user-run device results; no agent build/device test ran.
+
+The user's subsequent stream attempt on `7e20e94` completed launch and RTSP but
+failed at stage 8 (control stream establishment), before the Vita video setup
+callback. Kernel allocation/thread creation failed; pthread returned 11. USER_RW
+free/total was 1328/32768 KiB before setup and 292/32768 KiB at the failure snapshot.
+Common-c requests a 1 MiB stack for each transport thread, and control startup
+creates multiple such threads. The log does not identify the failing thread or
+establish a leak from this early post-unwind sample.
+
+The system profile now applies a project-owned pthread adapter only to common-c
+`Platform.c`: 128 KiB stacks, checked setup, attribute cleanup and named `[Thread]`
+creation logs. Normal-profile thread sizes, dependency revisions, protocol flow and
+SELF/heap budgets are unchanged. Preprocessor-fixture, interpreted adapter failure-path,
+isolated CMake selection and whitespace checks passed. No agent compilation or device
+test ran. Device retest must establish stack sufficiency and whether stage 8 advances;
+the separate mode-A/PHYCONT/CDRAM streaming blockers remain open.
+
+The next user capture confirms the adapter is active: AudioPing plus ControlRecv,
+LossStats, ReqIdrFrame and CtrlAsyncCb all report 131072-byte stacks and successful
+creation; stage 8 completes. Stage 9 then reaches the video setup callback and
+`sceVideodecInitLibrary()` fails with `0x80620840`. Mode remains A with zero PHYCONT,
+zero free CDRAM and 648 KiB USER_RW free. Sony's local SDK error table identifies
+`0x80620840` as `SCE_VIDEODEC_ERROR_NOT_GAME_BUDGET`: the standard API rejects this
+application budget. VitaSDK's NID database/stubs expose a `Nongameapp` family, but
+the available headers do not establish its ABI. Verify those signatures and memory
+requirements before calling it. The thread-allocation blocker is passed in this test;
+long-session stack sufficiency and video/system-mode constraints remain unresolved.
+
+Source cleanup now releases the SPS parser and init-info on library-init failure,
+along with the already-freed decoder input buffer. The parser destructor also frees
+its owned slice-data object/buffer. Interpreted cleanup-path checks passed; build,
+repeated failed setup and allocation-baseline checks on Vita remain pending.
+
+On 2026-10-20 the user supplied a decrypted `SceAvcodecUser` ELF. Export/import
+inspection confirms the Nongameapp init/query/create entry points, but their bodies
+only forward unchanged arguments to `SceAvcodec`. They do not expose parameter
+layouts or the budget check. The next required input is the decrypted SceAvcodec
+implementation (`avcodec.skprx.elf`, embedded in the bootimage), or a decrypted
+`os0:kd/bootimage.skprx` ELF for extraction. See the research document for file hash,
+addresses and import NIDs. No guessed ABI, renderer change, build or device test
+was introduced from this wrapper-only evidence.
+
+The supplied bootimage now provides the SceAvcodec and CodecEngineWrapper
+implementations. Disassembly establishes Nongameapp query/init/create structure
+sizes and shows that automatic allocations still reject a non-game budget.
+The next prototype must use explicit library/decoder contexts through CodecEngine,
+preserve its unmap/remap ownership order, and provide output buffers outside the
+unavailable CDRAM budget. ABI/allocation evidence is recorded in the research document;
+runtime sizes, allocation permissions and full streaming remain to be tested.
+
+The system renderer now has an experimental explicit-context adapter. Nongameapp
+queries determine storage sizes before allocation; a contiguous uncached main-RAM
+arena is opened through CodecEngine, then supplies aligned library and decoder
+contexts. Output buffers also use contiguous uncached main RAM instead of CDRAM.
+The ordinary renderer path and default 32 MiB browsing budget remain unchanged.
+For the next device test use an explicit 65536 KiB total budget with physical
+reservation zero; this is headroom for measurement, not a verified requirement.
+Cleanup releases decoder, library, suballocations, pool and backing block in order,
+retaining backing storage and blocking reuse if runtime cleanup fails. Non-build
+failure-path/source-selection checks passed; build and all runtime acceptance
+checks below remain pending.
+
+- [x] Prototype an opt-in system-mode package with bounded newlib/PAF allocations and
+  budget diagnostics; verify the frontend opens without closing a suspended Vita game.
+- [x] Establish decoder/graphics allocations and verify a basic stream with image,
+  sound, controls, stop and return to the suspended game on the tested Vita.
+- [x] Verify two longer streams, one stop/reconnect cycle and stable sampled
+  post-cleanup memory on the tested Vita with the 64 MiB / 6 MiB configuration.
+- [x] Verify streaming/reconnect, Settings, Quick Actions and return to the
+  suspended game with heap tracing OFF on the tested Vita and 64 MiB budget.
+- [x] Smoke-test ordinary-profile launch, Settings, streaming and reconnect after
+  the shared pthread-bootstrap fix, with heap tracing OFF.
+- [ ] Broaden dialog/error-path, device/game and endurance coverage.
+
+User validation of `8b5d9a5` with total 65536 KiB, PHYCONT zero, mode A:
+library query 5767168 bytes, decoder query 8388608 bytes, arena 15728640 bytes;
+explicit init/create and all three main-RAM output mappings succeeded. Setup
+completed all eleven stages, decoded 1088 frames, then the user stopped with a PS
+double press. Audio drain/release and all deferred GXM unmaps returned zero.
+The user explicitly confirms working image, sound, controls and resuming the
+original Vita game. This verifies the requested basic coexistence scenario on
+that device/game, not long-session stability or every lifecycle path.
+
+The same capture contains 120 IDR-wait log messages after out-of-order video at
+frame 249; the existing drop-limit request is followed by resumed decoding.
+That is recovery evidence, not a new decoder-budget failure or proof of a network
+root cause. Final USER_RW free is 31552 KiB versus 33584 before stream setup;
+newlib used grows from 93056 to 3279376 bytes. A repeated settled baseline is
+needed before classifying that retained footprint. No agent build/device test ran.
+
+The project log callback now limits the two exact common-c IDR/RFI wait messages
+to one per kind per second, aggregates omitted repeats and summarizes totals after
+transport teardown (including failed setup). It preserves other messages and all
+protocol/recovery behavior; no dependency source was changed. State resets before
+each session. Interpreted timing/counter checks passed; this logging-only follow-up
+has not been built or hardware-tested by the agent.
+
+The longer user run decoded 2732 frames, then common-c reported `Video Receive:
+malloc() failed` and requested cleanup. Final newlib arena/used/free were
+6287360/5591728/695632 bytes; USER_RW free after deferred frame release was
+31412 KiB out of 65536 KiB. This leaves longer-session stability unresolved.
+The heap is still capped at 6144 KiB; free main RAM does not expand that cap.
+No retained allocation owner is identified by these aggregate counters alone.
+
+An opt-in `MOONLIGHT_HEAP_TRACE` diagnostic now wraps malloc/calloc/realloc/free,
+using fixed BSS metadata and sparse call-site snapshots around setup, video receive
+allocation failure and stop. It defaults off and reports tracking coverage limits;
+it does not change the heap capacity or claim a leak fix. Interpreted actual-source
+allocation/realloc/failure/saturation checks and isolated CMake selection checks
+passed. Build, runtime overhead and identifying the retained sites require the
+maintainer's next diagnostic run and its matching ELF.
+
+The first diagnostic build failed at link. Read-only inspection of its `link.txt`
+shows all four `--wrap` flags missing, while the compiled tracer references the
+corresponding `__real_*` symbols. A later CMake `LINK_FLAGS` assignment overwrote
+the earlier diagnostic flags. It now appends the Vita startup flags, preserving
+wrapping. Script-mode checks cover both blocks in source order; successful relink
+and the diagnostic device run remain pending. No agent build was run.
+
+The user's `df0792a` diagnostic build links and streams, then hits a 1088-byte
+video-receive allocation failure. ASLR-adjusted ELF addresses identify 4048 live
+160-byte records from pthread's `pte_new`; trace saturation means the 647680
+tracked bytes are a lower bound. The supplied dump ends in ENet's OOM `abort`,
+after the attempted AsyncTerm thread also failed to allocate. The entry point
+manually initialized newlib but skipped the `.init_array` pthread constructor.
+It now calls `pthread_init` before the app starts, verifies stable `pthread_self`
+identity and terminates pthread before releasing newlib. This applies to both
+profiles without changing heap budgets or dependency sources. Actual-bootstrap
+AST checks cover startup/teardown ordering and failure paths. Build and longer/
+repeated streams with settled heap measurements remain pending; no agent build ran.
+
+The user now confirms streaming and reconnect no longer crash. The new capture
+contains two sessions with 22270 and 18008 decoded frames, both explicitly stopped
+by a PS double press with worker result zero. Tracing has zero allocation failures,
+dropped records and replaced pointers. PTE records reach 15 / 2400 bytes and stay
+at that count after both stops, instead of accumulating thousands. After deferred
+frame release, newlib used is 96768 then 96936 bytes (+168), and USER_RW free is
+32952 KiB in both cases. The tested failure and one reconnect cycle are verified;
+this does not establish zero retained bytes over arbitrary reconnect counts.
+The first session also logs overlay enter/return, neutral host input and PS
+suppression clearing; broader native-UI verification remains separate. These are
+maintainer-run device results; the agent only parsed logs and inspected the ELF.
+
+The user subsequently reports all requested checks passed with heap tracing OFF:
+streaming, reconnect, Settings, Quick Actions and returning to the resident Vita
+game, using the same 65536/0/6144 KiB total/physical/newlib configuration. This is
+an explicit user result, not a new measured memory log. The ordinary profile still
+needs its regression smoke test because pthread bootstrap is shared. No agent
+build/device test ran; this follow-up changes only verification documentation.
+
+The ordinary-profile regression test now passes by explicit user confirmation:
+launch, Settings, streaming and reconnect with system mode OFF and heap tracing
+OFF. Both profiles have passed their requested smoke tests on the user's Vita.
+The fresh system-profile total-budget default is now the tested 65536 KiB;
+physical/newlib/PAF remain 0/6144/10240 KiB. System mode and heap tracing default
+OFF, and ordinary SELF settings remain unchanged. Existing CMake cache overrides
+are preserved. Isolated script-mode checks cover default/override selection and
+both SELF branches without configuring or building the project.
+
 ## Requested: full stream diagnostics overlay (2026-10-19)
 
 Replace the existing FPS-only display with useful stream diagnostics based on the

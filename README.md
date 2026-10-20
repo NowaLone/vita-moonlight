@@ -173,25 +173,156 @@ Typical setup:
 export VITASDK=/usr/local/vitasdk
 ```
 
-Full build:
+Build both application profiles:
 
 ```bash
 bash build.sh
 ```
 
-Outputs:
+This builds the ordinary profile in `build/normal/` and the system profile in
+`build/system/`, with separate CMake caches and object files. CXML is compiled
+once and copied to both trees. The resulting packages are published as
+`build/vita_moonlight_paf-normal.vpk` and `build/vita_moonlight_paf-system.vpk`.
+Matching debug ELF and SELF files have the same profile suffixes. Both packages
+use title ID `VLMP00001`: installing one replaces the other.
+
+To build only one profile, explicitly select it (maintainer commands):
+
+```bash
+bash build.sh -DMOONLIGHT_SYSTEM_APP=OFF
+bash build.sh -DMOONLIGHT_SYSTEM_APP=ON
+```
+
+Single-profile builds use the legacy `build/` directory and also publish the
+profile-suffixed files. Script selection follows explicit command-line arguments;
+without a profile argument it always builds both, regardless of an old cache.
+Other CMake arguments are forwarded to both selected builds. Heap tracing is
+explicitly OFF by default for each script invocation; passing
+`-DMOONLIGHT_HEAP_TRACE=ON` in a dual build enables it only for the system profile.
+Direct CMake configuration retains its ordinary default/cached profile behavior.
+CMake prints the selected `Moonlight launch profile`. With Debug log enabled,
+Settings logs `[Launch]` with the profile and source revision.
+
+It uses `gdc` packaging, a 64 MiB SELF budget, a 6 MiB newlib heap, a 10 MiB PAF
+heap and PAF application mode. UNSAFE and the existing authority/settings remain.
+These are the device-tested streaming allocations, not an established minimum.
+PAF surface/text pools are 4/1 MiB after the initial 8/4 MiB configuration failed
+with an 8 MiB DDR-main allocation request on startup with a game resident. The
+smaller pools save 7 MiB in requested pool capacity. On `7e20e94`, the user verified
+Main/Settings, launch without closing the Vita game, and resuming its existing session
+on the tested device. Streaming with this 32 MiB budget remains unverified.
+Install the complete VPK through VitaShell, then launch from LiveArea, rather than
+replacing only the SELF, so the changed launch metadata is promoted. Then test
+opening Moonlight with a Vita game suspended and returning to that same game session.
+Physical reservation defaults to zero; the decoder supplies its own explicit main-RAM arena.
+
+The system profile bounds common-c transport thread stacks to 128 KiB (the ordinary
+profile requests 1 MiB each). `[Thread]` logs report each thread name, stack bytes
+and creation result. Thread creation and streaming passed the user's two longer
+sessions and reconnect test; broader endurance/compatibility testing remains open.
+
+The earlier device test passed control-thread creation but stopped at decoder initialization:
+`0x80620840` is `SCE_VIDEODEC_ERROR_NOT_GAME_BUDGET`. The standard decoder API rejects
+automatic allocation with the system application budget. The current prototype uses
+the ABI recovered from the user's firmware dump: explicit library/decoder contexts
+through a CodecEngine pool and contiguous uncached main-RAM output buffers. It logs
+queried sizes and each allocation/init result. On `8b5d9a5` with a 64 MiB budget,
+the user verified image, sound, controls and resuming the suspended Vita game after
+the stream. This is one-device/game validation; broader compatibility remains open.
+
+The initial 32 MiB browsing profile had only 648 KiB free before video setup.
+The system-profile default is now the tested 64 MiB. Existing cached overrides
+are preserved; if an older build directory still has 32768 cached, select the
+tested value explicitly (maintainer command):
+
+```bash
+bash build.sh -DMOONLIGHT_SYSTEM_APP=ON -DMOONLIGHT_SYSTEM_MEMSIZE_KIB=65536 -DMOONLIGHT_SYSTEM_PHYCONT_KIB=0
+```
+
+Install the full VPK when changing the launch budget. The tested 960x544 stream
+queried 5.5 MiB for the library and 8 MiB for decoder storage; the adapter allocated
+a 15 MiB arena plus three 2 MiB output buffers. Decoder creation, GXM mapping,
+1088 decoded frames, stream stop and deferred framebuffer release passed in the
+reported run. Later user tests verified longer sessions, reconnect memory baselines,
+Settings, Quick Actions and returning to the suspended game with tracing disabled.
+Broader device/game, dialog/error-path and endurance coverage remains open.
+
+`dev-build-run.sh -DMOONLIGHT_SYSTEM_APP=ON` forwards the option, builds the VPK and
+stops with installation instructions. It deliberately skips SELF-only deployment
+for this profile. Development deployment explicitly selects one profile in
+`build/`, using the ordinary profile unless ON is supplied. Its clean rebuild
+removes any cached selection, so supply ON on each system-profile invocation.
+
+Enable **Debug log** in Settings for `[Memory]` snapshots, including the actual
+AppMgr mode and USER_RW/PHYCONT/CDRAM budgets. The first useful snapshot is emitted
+when Settings applies the logging preference; successful early bootstrap remains
+quiet. The prototype and tuning parameters are documented in
+[docs/SYSTEM_APP_MODE_RESEARCH.md](docs/SYSTEM_APP_MODE_RESEARCH.md#prototype-on-codexsystem-app-mode).
+
+Repeated common-c `Waiting for IDR/RFI frame` messages are limited to one per
+second for each kind, with omitted-message totals reported after transport teardown.
+IDR requests, recovery/drop-limit events and other logs remain visible. This limits
+console traffic during recovery without changing the transport's recovery behavior.
+
+The longer user run stopped after 2732 decoded frames with `Video Receive: malloc()
+failed`. After teardown, newlib still reported 5591728 used bytes in its 6 MiB
+heap, while USER_RW had 31412 KiB free. Allocation ownership and fragmentation
+must be investigated before treating the system profile as stable for longer sessions.
+The subsequent diagnostic run identified repeated pthread thread-record allocations:
+the custom entry point skipped VitaSDK's pthread constructor. Startup now explicitly
+initializes pthread after newlib and verifies stable thread identity before entering
+PAF. With the same 6 MiB heap, the user's retest completed 22270 decoded frames,
+manual stop, reconnect and another 18008 frames without allocation failure or
+crash. Newlib used returned to 96768 / 96936 bytes after the two stops, and final
+USER_RW free was identical at 32952 KiB. This verifies the reported memory-failure
+fix and one reconnect on the tested device; broader compatibility remains open.
+The user also verified streaming/reconnect, Settings, Quick Actions and returning
+to the suspended game with heap tracing OFF and the same budgets. The ordinary
+profile also passed the user's launch, Settings, stream and reconnect smoke test
+after the shared pthread-bootstrap fix. Direct CMake configuration defaults to
+ordinary launch; `build.sh` builds both profiles by default. The 64 MiB budget
+applies only when system mode is enabled.
+An optional diagnostic build records allocation call sites (maintainer command):
+
+```bash
+bash build.sh -DMOONLIGHT_SYSTEM_APP=ON -DMOONLIGHT_SYSTEM_MEMSIZE_KIB=65536 -DMOONLIGHT_SYSTEM_PHYCONT_KIB=0 -DMOONLIGHT_SYSTEM_NEWLIB_KIB=6144 -DMOONLIGHT_HEAP_TRACE=ON
+```
+
+Install this VPK and enable **Debug log**. Keep its corresponding unstripped
+`build/vita_moonlight_paf.elf`. Capture `[Heap]` lines before/after setup, at
+`video-receive-oom`, and after stop; they report the twelve largest tracked live
+allocation sites, failure size and an address anchor for matching the ELF.
+This option defaults to OFF, adds about 136 KiB of fixed BSS metadata and allocation
+tracking overhead, and does not increase the heap. It records references handled
+by linker wrappers; libc-internal allocations/frees may bypass them. Counters for
+dropped entries, unknown frees, replaced addresses and ambiguous zero-size realloc
+results describe coverage limits. Tracked bytes are not a replacement for `mallinfo`.
+Disable the diagnostic with `-DMOONLIGHT_HEAP_TRACE=OFF` after collecting the log.
+
+CMake cache options persist for manual configurations; the script explicitly
+selects profiles and defaults tracing OFF. To build only the ordinary profile:
+
+```bash
+bash build.sh -DMOONLIGHT_SYSTEM_APP=OFF -DMOONLIGHT_HEAP_TRACE=OFF
+```
+
+Default dual-profile outputs:
 
 ```
-build/vita_moonlight_paf.elf
-build/vita_moonlight_paf.self
-build/vita_moonlight_paf.vpk
+build/vita_moonlight_paf-normal.elf
+build/vita_moonlight_paf-normal.self
+build/vita_moonlight_paf-normal.vpk
+build/vita_moonlight_paf-system.elf
+build/vita_moonlight_paf-system.self
+build/vita_moonlight_paf-system.vpk
 ```
 
-`vita_moonlight_paf.elf` is an unstripped copy of the linked executable, with debug
-symbols for tools such as Vita Crash Dump GUI. CMake generates it alongside SELF/VPK,
-including when building manually. Keep it with the corresponding VPK when collecting a
-crash dump. The extensionless `build/vita_moonlight_paf` remains an internal input to
-the VitaSDK packaging helpers.
+Each build tree contains an unstripped `vita_moonlight_paf.elf` with debug symbols
+for tools such as Vita Crash Dump GUI. The script copies it to the matching
+profile-suffixed name above. Keep the ELF with its corresponding VPK when collecting
+a crash dump. Explicit single-profile/manual builds also retain the original
+`build/vita_moonlight_paf.{elf,self,vpk}` paths. The extensionless executable in
+each build tree remains an internal input to VitaSDK packaging helpers.
 
 Rebuild CXML manually:
 

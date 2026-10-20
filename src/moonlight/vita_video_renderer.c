@@ -11,13 +11,21 @@
 #include <string.h>
 
 #include "debug.h"
+#include "app/memory_budget.h"
 #include "sps.h"
 #include "vita_video_renderer.h"
 #include "stream_stats_internal.h"
+#ifdef MOONLIGHT_SYSTEM_APP
+#include "moonlight/vita_system_video.h"
+#endif
 
 static SceAvcdecCtrl *s_decoder;
+#ifndef MOONLIGHT_SYSTEM_APP
 static SceUID s_decoder_memblock = -1;
+#endif
 #define VITA_VIDEO_FRAME_COUNT 3
+/* Sony SDK error table; this code is absent from VitaSDK's public enum. */
+#define VITA_VIDEO_ERROR_NOT_GAME_BUDGET 0x80620840u
 
 static SceUID s_frame_memblocks[VITA_VIDEO_FRAME_COUNT] = { -1, -1, -1 };
 static void *s_frame_buffers[VITA_VIDEO_FRAME_COUNT] = { NULL, NULL, NULL };
@@ -26,7 +34,9 @@ static unsigned int s_frame_index = 0;
 static int s_frame_pool_pending_release;
 static unsigned int s_frame_pool_generation;
 static SceVideodecQueryInitInfoHwAvcdec *s_init_info;
+#ifndef MOONLIGHT_SYSTEM_APP
 static SceAvcdecQueryDecoderInfo *s_decoder_info;
+#endif
 static char *s_decoder_buffer;
 static size_t s_decoder_buffer_size;
 static unsigned int s_frame_width;
@@ -205,18 +215,27 @@ static int vita_video_setup(
     void *context,
     int dr_flags)
 {
+#ifndef MOONLIGHT_SYSTEM_APP
     SceAvcdecDecoderInfo decoder_mem_info;
     size_t decoder_size;
+#endif
     size_t frame_size;
     int result;
 
     (void)context;
     (void)dr_flags;
 
+#ifdef MOONLIGHT_SYSTEM_APP
+    if (s_decoder) {
+        vita_debug_log("[Video] nongame decoder retained; restart required");
+        return -1;
+    }
+#endif
     if (width <= 0 || height <= 0) {
         return -1;
     }
 
+    moonlight_log_memory_budget("video-before-setup");
     s_requested_width = (unsigned int)width;
     s_requested_height = (unsigned int)height;
     vita_video_calculate_output_size(
@@ -243,9 +262,20 @@ static int vita_video_setup(
     s_init_info->numOfRefFrames = 4;
     s_init_info->numOfStreams = 1;
 
+#ifdef MOONLIGHT_SYSTEM_APP
+    result = vita_system_video_create(s_init_info, &s_decoder);
+    if (result < 0) {
+        goto fail;
+    }
+#else
     result = sceVideodecInitLibrary(SCE_VIDEODEC_TYPE_HW_AVCDEC, s_init_info);
     if (result < 0) {
         vita_debug_log("[Video] sceVideodecInitLibrary failed 0x%08x", result);
+        if ((unsigned int)result == VITA_VIDEO_ERROR_NOT_GAME_BUDGET) {
+            vita_debug_log(
+                "[Video] SCE_VIDEODEC_ERROR_NOT_GAME_BUDGET: "
+                "standard decoder init rejects this application budget");
+        }
         goto fail;
     }
 
@@ -281,6 +311,7 @@ static int vita_video_setup(
         "[Video] decoder frameMemSize=0x%08x alloc=0x%08x",
         (unsigned int)decoder_mem_info.frameMemSize,
         (unsigned int)decoder_size);
+    moonlight_log_memory_budget("video-before-physical-allocation");
 
     s_decoder->frameBuf.size = decoder_size;
     s_decoder_memblock = sceKernelAllocMemBlock(
@@ -316,6 +347,7 @@ static int vita_video_setup(
         goto fail_decoder_memblock;
     }
 
+#endif
     /*
      * The output dimensions follow the selected fit/crop mode rather than the
      * source stream dimensions. Reserve enough memory for each RGBA surface,
@@ -354,11 +386,22 @@ static int vita_video_setup(
         frame_opt.attr = 0x00000004;
         frame_opt.alignment = 256 * 1024;
 
+#ifdef MOONLIGHT_SYSTEM_APP
+        frame_opt.attr = VITA_SYSTEM_VIDEO_MEM_ATTR;
+        frame_opt.alignment = VITA_SYSTEM_VIDEO_MEM_ALIGNMENT;
+        /* CDRAM remains occupied by PAF/the suspended game in this profile. */
+        s_frame_memblocks[frame_index] = sceKernelAllocMemBlock(
+            "moonlight_frame_ddr",
+            SCE_KERNEL_MEMBLOCK_TYPE_USER_MAIN_NC_RW,
+            frame_size,
+            &frame_opt);
+#else
         s_frame_memblocks[frame_index] = sceKernelAllocMemBlock(
             "moonlight_frame",
             SCE_KERNEL_MEMBLOCK_TYPE_USER_CDRAM_RW,
             frame_size,
             &frame_opt);
+#endif
         if (s_frame_memblocks[frame_index] < 0) {
             vita_debug_log(
                 "[Video] frame[%d] memblock failed 0x%08x",
@@ -401,6 +444,7 @@ static int vita_video_setup(
     }
 
     s_active = 1;
+    moonlight_log_memory_budget("video-ready");
     s_decoded_frames = 0;
     s_last_present_time = 0;
     s_stats_generation = moonlight_stats_configure_video(
@@ -435,6 +479,10 @@ fail_frame_pool:
         }
         s_frame_buffers[frame_index] = NULL;
     }
+#ifdef MOONLIGHT_SYSTEM_APP
+    vita_system_video_destroy();
+    s_decoder = NULL;
+#else
     sceAvcdecDeleteDecoder(s_decoder);
 fail_decoder_memblock:
     sceKernelFreeMemBlock(s_decoder_memblock);
@@ -447,12 +495,16 @@ fail_info:
     s_decoder_info = NULL;
 fail_library:
     sceVideodecTermLibrary(SCE_VIDEODEC_TYPE_HW_AVCDEC);
+#endif
+fail:
+    /* SPS/init-info also exist when library initialization itself fails. */
+    gs_sps_stop();
     free(s_init_info);
     s_init_info = NULL;
-fail:
     free(s_decoder_buffer);
     s_decoder_buffer = NULL;
     s_decoder_buffer_size = 0;
+    moonlight_log_memory_budget("video-setup-failed");
     return -1;
 }
 
@@ -463,7 +515,15 @@ static void vita_video_cleanup(void)
     moonlight_video_invalidate();
 
     if (s_decoder) {
+#ifdef MOONLIGHT_SYSTEM_APP
+        if (vita_system_video_destroy() < 0) {
+            /* Runtime ownership is uncertain: retain buffers until restart. */
+            vita_debug_log("[Video] nongame cleanup retained resources");
+            return;
+        }
+#else
         sceAvcdecDeleteDecoder(s_decoder);
+#endif
         s_decoder = NULL;
     }
 
@@ -477,6 +537,7 @@ static void vita_video_cleanup(void)
      */
     s_frame_pool_pending_release = 1;
 
+#ifndef MOONLIGHT_SYSTEM_APP
     if (s_decoder_memblock >= 0) {
         sceKernelFreeMemBlock(s_decoder_memblock);
         s_decoder_memblock = -1;
@@ -484,11 +545,14 @@ static void vita_video_cleanup(void)
 
     free(s_decoder_info);
     s_decoder_info = NULL;
+#endif
 
     free(s_init_info);
     s_init_info = NULL;
 
+#ifndef MOONLIGHT_SYSTEM_APP
     sceVideodecTermLibrary(SCE_VIDEODEC_TYPE_HW_AVCDEC);
+#endif
 
     free(s_decoder_buffer);
     s_decoder_buffer = NULL;
@@ -532,6 +596,7 @@ static void vita_video_release_frame_buffers_internal(void)
     s_frame_pool_pending_release = 0;
 
     vita_debug_log("[Video] deferred frame buffers released");
+    moonlight_log_memory_budget("video-framebuffers-released");
 }
 
 void moonlight_video_release_frame_buffers(void)
