@@ -161,6 +161,25 @@ recipes for common UI changes live in [`docs/UI.md`](docs/UI.md). Read it before
 - In a `style_plane`, the style `color` and its `planeobj` `color` multiply, alpha included: keep the style at `1, 1, 1, 1` and put the real value in the `planeobj`.
 - The PAF coordinate system is center-origin on a 960×544 screen: `(0,0)` is screen center and positive Y points upward. Anchor/align values, `adjust`, the visible-edge inset of buttons and the speech-balloon placement rule are in `docs/UI.md` sections 2 and 5.4.
 - Saved-host Delete uses `SceMessageDialog` for confirmation and removes the selected persistent records through the HostService → backend → legacy device store path.
+- Page text is static content: show the empty-list label only when the corresponding list is empty.
+  Do not restore inline progress, selection prompts, success/result messages or connection/stream-stop
+  status. Long foreground steps use the existing native progress dialog; errors use native OK dialogs.
+  If a dialog cannot be displayed, report through `vita_debug_log()` only; no text fallback on the page.
+- Foreground progress uses PAF `sce::CommonGuiDialog::Param::s_dialogTextSmallBusy`, as in BHBB,
+  through ConnectionService. Close the owned slot with `CommonGuiDialog::Dialog::Close()`;
+  after success PAF owns widget/animation cleanup. This API has no FINISHED/Term polling contract.
+  Error/confirmation dialogs still use SceMsgDialog and its own FINISHED/Term lifecycle.
+  Include `platform/paf_common_gui_dialog.h` for this binding: the upstream umbrella header
+  depends on Sony-SDK kernel/appmgr headers unavailable in VitaSDK. Keep the native ABI exact;
+  do not add global fake kernel/appmgr headers or replacement implementations.
+  Do not add timed minimum visibility or main-thread sleeps; inspect `[Workflow] PAF busy dialog`
+  open/first-poll/close timing first. Dialog/module failures are log-only, with no inline fallback.
+- Saved-host Delete confirmation uses native **OK/Cancel**; OK performs deletion, Cancel preserves
+  selection. Successful deletion has no result message. Failure uses a native error dialog.
+- Pairing instructions are static CXML/localized text styled from the PS4 Link reference in `docs/UI.md`.
+  Only the PIN changes with the explicit attempt; do not add `Pairing...` / `Paired` status text or cover
+  the PIN with generic progress. Preserve the specific native pairing error and OK → parent behavior.
+  The opt-in stream statistics/status overlay is separate and remains unchanged.
 - Measured PS4 Link and Photos values (bars, header line, paragraph, rows, popup geometry), the earlier horizontal speech-balloon observation and the Sony vertical-sample reference are in `docs/UI.md` section 5. The selection bar deliberately keeps the Photos values.
 - Do not move streaming implementation into PAF pages.
 
@@ -168,6 +187,16 @@ recipes for common UI changes live in [`docs/UI.md`](docs/UI.md). Read it before
 
 - UI should normally use `MoonlightApp` services rather than calling legacy globals directly.
 - `MoonlightApp` owns backend lifecycle and queues backend events for main-thread delivery.
+- Foreground network workflows must be sequential and modal: one user action owns the operation until
+  success, failure or completed cancellation/cleanup. Show native PAF CommonGuiDialog busy windows
+  for long steps, block conflicting actions, and close the owned wait slot before navigating or showing an error.
+  This is the maintainer's target workflow (2026-10-20); current coverage/gaps are in `docs/UI.md`.
+- Keep blocking GameStream calls within the operation's worker/job so PAF can update dialogs and process
+  lifecycle/cancellation. Main-thread completion delivery is an internal implementation mechanism; it
+  does not authorize overlapping foreground flows. Preserve the threaded streaming transport/renderers.
+- Pairing is an interactive sequential step: keep the PIN visible and provide explicit cancellation;
+  do not cover the PIN-entry page with a generic WAIT dialog. A new conflicting operation starts only
+  after the previous operation releases its local resources. Host-side pending pairing may still return 409.
 - Asynchronous backend callbacks must not mutate PAF UI directly from worker threads.
 - `LegacyMoonlightAdapter` is the compatibility boundary between the service/backend layer and the legacy Moonlight code.
 - Pairing events use semantic `MoonlightPairingResult` values at the Moonlight API boundary. Only `MOONLIGHT_PAIRING_ERROR_INCORRECT_PIN` means the cryptographic PIN check failed; transport, protocol, security, and local/internal failures remain distinguishable.

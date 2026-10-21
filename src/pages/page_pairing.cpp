@@ -23,12 +23,6 @@ Pairing::Pairing(const char pin[5])
 {
     m_pin[0] = '\0';
 
-    vita_debug_log(
-        "[Pairing] constructor pin=%s valid=%d root=%p",
-        pin ? pin : "(null)",
-        IsValid() ? 1 : 0,
-        root);
-
     if (!IsValid()) {
         return;
     }
@@ -41,7 +35,6 @@ Pairing::Pairing(const char pin[5])
 
     MoonlightApp::Instance()->SetEventCallback(OnMoonlightEvent, this);
 
-    SetStatus("Enter this PIN in the Sunshine Web UI.");
     StartPairing();
 }
 
@@ -100,7 +93,6 @@ void Pairing::SetPin(const char pin[5])
 
     if (root) {
         paf::ui::Widget *widget = root->FindChild("text_pairing_pin");
-        vita_debug_log("[Pairing] text_pairing_pin=%p", widget);
         if (widget) {
             paf::string pin_text = paf::common::FormatString(
                 "%c  %c  %c  %c",
@@ -115,18 +107,6 @@ void Pairing::SetPin(const char pin[5])
     }
 }
 
-void Pairing::SetStatus(const char *text)
-{
-    if (!root || !text) return;
-
-    paf::ui::Widget *widget = root->FindChild("text_pairing_status");
-    vita_debug_log("[Pairing] text_pairing_status=%p text=%s", widget, text);
-    if (!widget) return;
-
-    ((paf::ui::Text *)widget)->SetString(
-        paf::common::string_util::ToWString(text));
-}
-
 void Pairing::StartPairing()
 {
     if (m_pairing_started || m_pin[0] == '\0') {
@@ -135,12 +115,11 @@ void Pairing::StartPairing()
 
     MoonlightApp *app = MoonlightApp::Instance();
     if (!app) {
-        SetStatus("Pairing unavailable.");
+        ShowSystemError("Pairing unavailable.");
         return;
     }
 
     m_pairing_started = true;
-    SetStatus("Pairing with PC...");
 
     int result = app->Pairing().Pair(m_pin);
     if (result != 0) {
@@ -197,6 +176,18 @@ void Pairing::ShowPairingError(int result, int server_status_code,
     }
     m_dialog_message[sizeof(m_dialog_message) - 1] = '\0';
 
+    ShowSystemError(m_dialog_message);
+}
+
+void Pairing::ShowSystemError(const char *message)
+{
+    vita_debug_log("[Pairing] error: %s", message);
+    if (m_dialog_open) return;
+    if (message != m_dialog_message) {
+        strncpy(m_dialog_message, message, sizeof(m_dialog_message) - 1);
+        m_dialog_message[sizeof(m_dialog_message) - 1] = '\0';
+    }
+    memset(&m_dialog_user, 0, sizeof(m_dialog_user));
     sceMsgDialogParamInit(&m_dialog_param);
 
     m_dialog_user.buttonType = SCE_MSG_DIALOG_BUTTON_TYPE_OK;
@@ -206,8 +197,9 @@ void Pairing::ShowPairingError(int result, int server_status_code,
     m_dialog_param.mode = SCE_MSG_DIALOG_MODE_USER_MSG;
     m_dialog_param.userMsgParam = &m_dialog_user;
 
-    if (sceMsgDialogInit(&m_dialog_param) < 0) {
-        SetStatus("Pairing failed: unable to show error.");
+    int dialog_result = sceMsgDialogInit(&m_dialog_param);
+    if (dialog_result < 0) {
+        vita_debug_log("[Pairing] error dialog init failed result=0x%08X", (unsigned int)dialog_result);
         return;
     }
 
@@ -261,13 +253,11 @@ void Pairing::OnMoonlightEvent(
     case MOONLIGHT_EVENT_PAIRING_FINISHED:
         pairing->m_pairing_started = false;
         if (event->result == 0) {
-            pairing->SetStatus("Paired. Loading applications...");
-
             if (!Base::IsOpen("page_apps")) {
                 Apps *apps = new Apps();
                 if (!apps->IsValid()) {
                     delete apps;
-                    pairing->SetStatus("Unable to open applications.");
+                    pairing->ShowSystemError("Unable to open applications.");
                     return;
                 }
 
@@ -294,7 +284,7 @@ void Pairing::OnMoonlightEvent(
 
     case MOONLIGHT_EVENT_CONNECTION_FAILED:
         pairing->m_pairing_started = false;
-        pairing->SetStatus("Connection failed.");
+        pairing->ShowPairingError(MOONLIGHT_PAIRING_ERROR_NETWORK);
         break;
 
     default:

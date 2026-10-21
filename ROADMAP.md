@@ -597,6 +597,91 @@ Not part of the PS4 Link parity pass because the needed pieces do not exist in t
 - [ ] Implement missing client-side API support that is required for compatibility, in small changes following the existing backend/legacy-adapter boundaries; preserve protocol behavior from upstream implementations rather than inventing shortcuts.
 - [ ] Exercise the relevant endpoints against a real Sunshine host, including success, error, and version/feature-compatibility cases; document any intentionally unsupported endpoints and why.
 
+**Foreground workflow direction, 2026-10-20:** the maintainer requires sequential modal
+user flows: action → native WAIT for a long step → terminal result and local cleanup →
+next step. Keep the PIN page visible during pairing and process cancellation explicitly.
+Control requests may block within their job/worker while PAF continues to service dialogs;
+ongoing stream threads and main-thread completion delivery remain. This is the target for F5.
+
+- [ ] Validate the shared foreground operation/native WAIT workflow on Vita. Source implemented
+  2026-10-21 for Connect, app-list loading and launch/setup through ConnectionService: reserve
+  before work, reject overlap/WAIT init failure, wait for backend return (Connect/apps) and
+  dialog teardown before dispatch, then release for the next step. Connect/apps retain job
+  results if their event is lost; Base guards page opening/ordinary Back while busy. No blocking
+  wait on the PAF main thread. PIN cancellation and stream cleanup ownership remain separate;
+  Stop/Disconnect APIs and broader F5 races remain open. Check Connect → Apps/loading → launch
+  WAIT → playback, failure handoffs and repeated activation/Back. No agent build/device test.
+  User feedback 2026-10-21: wait appeared only for launch; Connect/Apps still showed page text.
+  Source follow-up moves the three operation messages into native SceMsgDialog USER_MSG/NONE,
+  hides/removes duplicate page progress, and restores Search status visibility for errors/idle.
+  The visibility cause of the earlier short-step dialogs is unconfirmed; no timed delay added.
+  Follow-up build and Vita appearance/handoff verification remain pending.
+  Text-policy follow-up, 2026-10-21: remove page status APIs; retain static empty-list labels
+  and PS4 Link-style static pairing instructions. Main/Search/Apps errors now reuse the native
+  OK-dialog owner; Pairing keeps its specific error/return path. Dialog failures are Debug Log
+  only. Delete uses OK/Cancel with no success result; IME retry waits for error dismissal.
+  Source review and non-build checks do not verify rendering. Next check Delete Cancel/OK,
+  native error dismissal/retry and pairing text/PIN layout against the supplied PS4 Link image.
+  User feedback 2026-10-21 accepts the pairing screen appearance on one Vita; keep that layout.
+  The new log shows native Init/Term success for Connect and four-app loading but those windows
+  are still unseen; only Starting stream is visible. No timing/status evidence was supplied.
+  Source follow-up replaces normal-completion Abort with checked Close → FINISHED → checked
+  Term, retaining the poll while open and recording open/first-poll/close/term elapsed times.
+  No timed display delay. Visibility root cause and this change's effect remain pending a new
+  Vita log; this checkbox stays open. Pairing acceptance does not verify error/Delete dialogs.
+  The next timing log has first poll 15/2 ms, close 1750/1531 ms, Term 2602/2383 ms for
+  Connect/Apps, with both native Close/Term successful; appearance is reported late/brief.
+  Maintainer selected BHBB's compact PAF `s_dialogTextSmallBusy`. Source now checks/loads
+  CommonGuiDialog, shows/owns a native PAF slot and releases it after successful PAF Close,
+  following BHBB (no SceMsgDialog FINISHED/Term for this API). Error/Delete dialogs remain
+  SceMsgDialog. Module/Show failure rejects the operation; no inline or alternate wait fallback.
+  Next validate compact Connect → Apps → launch waits and their error handoffs on Vita;
+  performance/presentation is not verified by the source change. No agent build/device run.
+  Maintainer build then fails on Sony-SDK `kernel.h` included by common_gui_dialog.h.
+  Source compatibility follow-up uses a project-local narrow native Param/Show/Close header,
+  checked against the installed header and stub symbols. No SDK modification or fake stubs.
+  Rebuild/link and hardware checks remain pending; the compact wait is not yet build-verified.
+  Subsequent maintainer acceptance, 2026-10-21: compact dialogs now look good. The provided
+  system-profile trace embeds ca359a25edf0 and shows operation 3/slot 2 first poll at 132 ms,
+  Close returns 0xEE251690 at 5337 ms then 0 at 5654 ms, operation completion → StreamPage,
+  successful launch/setup, audio/video packets and decoded frames, then PS-double-tap stop
+  and all three buffers unmapped successfully. Appearance and this launch/stop handoff are
+  accepted on one Vita. First Close return semantics remain unexplained; Connect/Apps dialog
+  traces, errors, input blocking, shutdown and normal profile remain pending. The embedded
+  revision does not establish inclusion of header fix 279d35e; no build transcript supplied.
+  Do not broadly close F5 or change dialog timing based on the unexplained return alone.
+  Close-contract investigation, 2026-10-21: installed/pinned and newer local ScePaf-RE headers
+  declare int32_t without result semantics. BHBB/NetStream ignore the return and clear the slot
+  after one call; our negative-result retry is an unverified project assumption. Stub/NID
+  inspection establishes the export only. Both available core dumps omit the Close body.
+  At that stage the missing input was a decrypted common_gui_dialog.suprx.elf; runtime was unchanged.
+  Subsequent supplied-ELF inspection establishes the Close export at text offset 0x2b6c:
+  it leaves internal values in r0, including the closing helper's stack guard, rather than a
+  status code. This explains why treating 0xEE251690 as a failure and retrying was invalid.
+  Source correction now calls Close once, discards the return and releases the logical slot,
+  matching BHBB/NetStream. Retry state is removed; upstream int32_t declaration is retained.
+  Diff/lifetime review and eight non-build Python checks pass. No agent build/device test.
+  Next validate Connect → Apps → launch and native error handoffs without the former retry
+  delay; native animation completion is not inferred from logical slot release. Evidence/hash
+  details and immediate-start-failure/shutdown risks are in docs/UI.md. F5 remains open.
+  Maintainer follow-up trace, 2026-10-21: Connect/Apps/setup use slots 0/1/2 with exactly one
+  close-request line each at 1767/1547/5187 ms, followed by completion results 0/4/0.
+  Apps inserts four rows; same-app resume/RTSP/setup reaches StreamPage. This verifies the
+  normal three-step logical handoff without return-based retry on the tested Vita; exact
+  visible presentation, errors, unstarted-job failure, shutdown and repeats remain unverified.
+  PS double press stops the owner with result 0 and all three buffers unmap successfully.
+  Playback quality is not accepted from this trace: 42 frames, subsequent IDR waiting/request,
+  no logged recovery and no audio traffic reported. Await user observation before attributing
+  a playback symptom or making runtime changes. No revision marker or agent build/device run.
+  Subsequent maintainer reply to the image/sound clarification: “всё нормально”. Record normal
+  observed playback for this run as user-confirmed. The log warnings remain unexplained, but
+  no playback defect is confirmed and no streaming-code change is warranted from this report.
+  Maintainer-requested diagnostic cleanup removes temporary workflow/timing and Connect/Pairing
+  job-lifetime/address traces, plus Pairing PIN/widget logging. Unused timing state is removed;
+  errors/failed enqueue and required list-population diagnostics remain. Dialog/worker/cancel
+  behavior is unchanged. Diff review and eight non-build Python checks pass; cleanup build/Vita
+  validation is pending. Earlier traces remain recorded in docs/UI.md as historical evidence.
+
 Source findings and isolated follow-ups (basic user smoke test passed; full runtime acceptance remains pending):
 
 **User confirmation, 2026-10-20:** after the source follow-ups through `22ff3ae`, the maintainer
@@ -617,7 +702,7 @@ is not an independent TLS-handshake trace or verification of rejection/error cas
 - [x] **F8 active pairing-wait cancellation and reconnect verified on one Vita/system profile, 2026-10-20.** Launch log identifies `e7e7166ae5db`. Active getservercert → cancel requested → legacy -11/local semantic -1006/no completion event → Finish/destruction → new ConnectJob Run result=0/Finish/destruction and new PIN page. No preceding 300 s timeout occurs in this sequence; exact latency is unmeasured without timestamps. Another wrong-PIN attempt returns -1001 and releases its job, and the next explicit connection succeeds too. The subsequent empty HTTP reply (-1002) also completes/releases its job and remains accepted old-host F6, not a stuck queue. This closes the tested active-wait/reconnect regression only. A second-host log also verifies local cancellation/release, successful Connect and a real server 409 on immediate re-pair; local cancellation does not remove the pending host session. The maintainer separately confirms ordinary correct-PIN pairing opens Apps (user-reported, successful phases not in that trace). The subsequent ten-app fragment now shows pairing Run returned 0 → Paired/Loading applications → applist/Apps count=10, with job Finish/destruction; no launch revision/profile line is included. Queued cancellation, later-phase trust rollback, shutdown, stress/alternating-host and normal binary-profile cases remain pending. No agent build or hardware run.
 - [ ] Run audit tests T1–T10 with recorded Vita/package and Sunshine version/configuration. API methods with no UI caller require a backend-level test trigger; page close alone does not prove DisconnectHost ran (F5).
 
-Current independent work order: F1–F4 have source follow-ups. The user confirmed the basic pairing/Apps/restart/reconnect/launch/stop flow. Different-app rejection is now user/log verified: app A remained running and selecting B returned -8. Same-app resume is now user/log verified through successful setup and decoded video. Host-app exit without reconnect is also verified to select launch and produce decoded video; the basic F2 decision branches are complete on the tested device. F1 established-stream unexpected-disconnect cleanup and manual resume are now log verified. The maintainer also confirmed audible sound on Vita. TLS rejection of a mismatched saved server certificate and recovery after restoring the original are now user/log verified. Host-side revocation → new PIN → successful pairing and app retrieval is now log verified. Reconnect without PIN after that specific re-pair is now user-confirmed. Wrong-PIN rejection is verified, but the subsequent retry is now known to fail with an empty getservercert reply (-1002). F6 is an accepted noncritical compatibility limitation, with no Sunshine fix or client workaround planned. F7 incorrect-PIN/duplicate-session returns to Search and explicit re-entry are now verified on one Vita. The maintainer now reports the discussed recovery flow appears OK (qualified confirmation, no new log or separate Apps result). F8 active-wait cancellation, release and reconnect are now log-verified on one Vita/system profile. The maintainer also explicitly confirms ordinary correct-PIN pairing opens Apps after the cancellation change; the broader cancellation matrix remains open. Ten-row Apps population is now log-verified and the maintainer reports the requested >8 check OK. Normal two-PC switching and return with the correct app lists is now user-confirmed, without a new log. The empty-list message/no-repeat/no-hang scenario is also user-confirmed. The 64/65-app boundary test is explicitly deferred by the maintainer and remains unverified. Next review F5 asynchronous backend state/operation ownership; malformed/error, setup-cancel/race and repeated-recovery cases remain open. Continue the remaining error/trust matrix before claiming compatibility. F5 state ownership and the remaining T1–T10 matrix also stay open. The maintainer runs builds and device tests. Main cold start has user verification for immediate visibility with one saved PC (2026-10-19); empty/multiple-host cases and the initial-refresh completion log remain open. Do not modify `Main::InitialRefreshTask()` speculatively. Older chronological notes retain their original verification status.
+Current independent work order: F1–F4 have source follow-ups. The user confirmed the basic pairing/Apps/restart/reconnect/launch/stop flow. Different-app rejection is now user/log verified: app A remained running and selecting B returned -8. Same-app resume is now user/log verified through successful setup and decoded video. Host-app exit without reconnect is also verified to select launch and produce decoded video; the basic F2 decision branches are complete on the tested device. F1 established-stream unexpected-disconnect cleanup and manual resume are now log verified. The maintainer also confirmed audible sound on Vita. TLS rejection of a mismatched saved server certificate and recovery after restoring the original are now user/log verified. Host-side revocation → new PIN → successful pairing and app retrieval is now log verified. Reconnect without PIN after that specific re-pair is now user-confirmed. Wrong-PIN rejection is verified, but the subsequent retry is now known to fail with an empty getservercert reply (-1002). F6 is an accepted noncritical compatibility limitation, with no Sunshine fix or client workaround planned. F7 incorrect-PIN/duplicate-session returns to Search and explicit re-entry are now verified on one Vita. The maintainer now reports the discussed recovery flow appears OK (qualified confirmation, no new log or separate Apps result). F8 active-wait cancellation, release and reconnect are now log-verified on one Vita/system profile. The maintainer also explicitly confirms ordinary correct-PIN pairing opens Apps after the cancellation change; the broader cancellation matrix remains open. Ten-row Apps population is now log-verified and the maintainer reports the requested >8 check OK. Normal two-PC switching and return with the correct app lists is now user-confirmed, without a new log. The empty-list message/no-repeat/no-hang scenario is also user-confirmed. The 64/65-app boundary test is explicitly deferred by the maintainer and remains unverified. Next validate the source-implemented F5 foreground operation/WAIT handoffs on Vita (Connect → Apps/loading → launch → playback); malformed/error, setup-cancel/race and repeated-recovery cases remain open. Continue the remaining error/trust matrix before claiming compatibility. F5 state ownership and the remaining T1–T10 matrix also stay open. The maintainer runs builds and device tests. Main cold start has user verification for immediate visibility with one saved PC (2026-10-19); empty/multiple-host cases and the initial-refresh completion log remain open. Do not modify `Main::InitialRefreshTask()` speculatively. Older chronological notes retain their original verification status.
 
 **Done when:** the API inventory is checked against source and runtime behavior, required missing client functionality is implemented, and remaining unsupported cases are explicitly documented.
 

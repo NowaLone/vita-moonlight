@@ -1003,17 +1003,130 @@ format change. Standard CA-only verification would reject normal paired self-sig
 host certificate renewal and existing host records; T3/T9. The negative-return logic issue is proven
 from source semantics; no exploit or device failure was demonstrated.
 
-### F5 — Async API state and reachability qualify lifecycle coverage
+### F5 — Sequential foreground workflow, operation state and lifecycle coverage
+
+**Maintainer direction, 2026-10-20:** implement sequential user workflows: one foreground
+operation, native WAIT for long steps, no conflicting actions, terminal result/cleanup,
+then the next step. Pairing retains the visible PIN page and explicit cancellation.
+GameStream control calls already block inside jobs/workers; keep PAF main-thread dialog
+and lifecycle processing responsive. Streaming's ongoing transport/render threads remain.
+The async event mechanism is internal completion delivery, not a product requirement for
+parallel foreground workflows. The source-risk findings below still apply to ownership
+and late completion; the proposed direction is a small serialized operation model.
 
 **Root cause:** L4 eagerly changes adapter state on enqueue/stop/disconnect; L1/L2 workers and
 callbacks update globals without a synchronization owner. L7/L4 event delivery can lag and
-MoonlightApp's 16-event queue silently drops overflow. ConnectionService exposes Disconnect but
+MoonlightApp's 16-event queue drops overflow (now logged by the follow-up below). ConnectionService exposes Disconnect but
 no page calls it. Closing a PAF page is not necessarily protocol disconnect.
 
 **Minimal direction:** keep durable backend operation state and terminal cleanup ownership, update
 observable state on actual completion, make important event loss diagnosable, and use a backend-level
 test trigger for currently unreachable disconnect scenarios. Do not add a new disconnect UI only
 to make an audit row green. Respect N/B page-lifetime patterns and main-thread dispatch.
+
+**First source implementation, 2026-10-21; build/Vita pending:** ConnectionService now owns
+reservation and native WAIT for Connect, app-list loading and launch/setup. Reserve before
+starting work, reject overlap/WAIT initialization failure, and terminate WAIT before forwarding
+completion to the page. Connect/app-list jobs retain their return result with release/acquire
+publication, preventing completion before the backend call returns and providing a fallback
+when their queued event is lost. Zero apps is a successful result. Ownership is released before
+dispatch so a successful connection may immediately enter Apps/loading. Enqueue/start failures
+close WAIT before releasing the reservation. Base blocks page opening/ordinary Back while busy.
+Connect retains its native error dialog; app-list/launch failures retain their page status.
+
+This reuses the existing native connection WAIT/termination path without changing any endpoint
+or protocol semantics. Pairing keeps its visible PIN/cancellation path and the stream retains
+its own worker/cleanup owner. Queue overflow now logs event/result, but launch/pairing terminal
+events lack the job-result fallback. Stop/Disconnect APIs are not serialized by this gate;
+late events, shutdown and broader backend/cache races remain open. No universal F5 closure
+or device verification is claimed. Check `[Workflow]` operation 1/2/3 handoffs on Vita.
+
+**UI follow-up, 2026-10-21:** the maintainer reports the wait window appeared only during
+launch after `e838d91`; Connect/Apps still showed inline progress. The source still had those
+page status calls. They are now removed/hidden for foreground progress; ConnectionService
+shows the operation text in SceMsgDialog USER_MSG/NONE instead of generic system WAIT.
+This changes presentation only, with the same reservation/completion ownership and no
+protocol changes or artificial delay. Earlier short-step dialog visibility is not explained
+by the supplied observation alone. Build, no-button dialog appearance and handoffs remain pending.
+
+**Page-text policy follow-up, 2026-10-21; source only:** Main/Search/Apps error notifications
+now use the existing service-owned native OK dialog, with immutable displayed text and
+log-only suppression of concurrent notifications. Connection errors have one service owner;
+the page no longer repeats the failure text. Pairing retains its native semantic/server error
+dialog and OK → parent navigation; failure to show it is log-only. Pages contain static
+empty-state labels and pairing instructions instead of dynamic progress/result/error strings.
+Invalid-address IME retry waits for the native error to close. These changes do not alter
+GameStream endpoints, pairing semantics, cancellation or the stream statistics overlay.
+Native presentation, error handoffs and retry regression tests remain Vita/build pending.
+
+**Progress visibility follow-up, 2026-10-21:** maintainer accepts the static pairing layout
+but sees only the stream-start dialog. The supplied log shows successful Init/Term and
+completion for Connect (result 0) and app list (four apps), followed by successful resume/setup.
+It has no timing or presentation evidence for the first two windows. Source review found normal
+completion used unconditionally unchecked Abort. ConnectionService now uses checked native
+Close → FINISHED → checked Term, retrying a close request when initialization has not yet
+reached RUNNING. The installed message-dialog reference samples use normal Close for no-button
+and wait messages; this does not establish visibility behavior on firmware. Open/first-poll/
+close/term elapsed diagnostics were added, without artificial delay or protocol changes.
+The missing presentation root cause and effect remain runtime pending; pairing appearance
+acceptance is not acceptance of these windows. See UI.md for the focused follow-up.
+
+**Compact PAF busy-window follow-up, 2026-10-21; source only:** later timings show first PAF
+poll at 15/2 ms, close requests at 1750/1531 ms and Term at 2602/2383 ms for Connect/Apps.
+The maintainer still sees late/brief windows and selects BHBB's native `s_dialogTextSmallBusy`.
+ConnectionService now checks/loads CommonGuiDialog and owns a PAF Show/Close slot for the three
+foreground steps. Backend result ownership and event dispatch remain; no GameStream request,
+pairing or streaming protocol is changed. The initial implementation released the logical slot
+on a nonnegative PAF Close return; this incorrect interpretation is corrected below.
+BHBB itself does not check the return. Native PAF owns visual cleanup,
+without SceMsgDialog FINISHED/Term polling. Errors/Delete
+still use SceMsgDialog. Pending checks include native appearance/latency, input blocking,
+success/error handoffs and shutdown on Vita. No automatic visibility or speed claim is made.
+
+**Compact wait acceptance, 2026-10-21:** maintainer reports good appearance. The system-profile
+trace embeds `ca359a25edf0` and verifies operation 3/slot 2 completion after native Close returns
+0, then StreamPage, successful launch/setup, received audio/video and decoded frames. PS double
+tap ends the stream, followed by successful three-buffer unmapping. First Close returned
+`0xEE251690`, with the second return 0 317 ms later; its semantics/root cause are unknown.
+Do not decode it as a known SCE error or claim the retry proves a permanent fix. No new
+Connect/Apps dialog trace, failure/shutdown/normal-profile matrix or build transcript is supplied;
+inclusion of the later header fix cannot be inferred from that embedded revision. F5 remains
+open beyond the accepted appearance/launch-stop path. Runtime code is unchanged for this record.
+
+**Close-contract investigation, 2026-10-21:** initial source/header and binary-metadata checks
+did not establish the meaning of the return. ScePaf-RE declares int32_t without result semantics;
+BHBB/NetStream call once and ignore it. Our negative-result retry was a project assumption.
+The two available core dumps omit the function body; that stage required a decrypted native
+module and made no runtime changes. The subsequently supplied ELF establishes that Close
+leaves internal register values, including a stack guard, rather than a signed status code.
+The client now calls Close once, discards the return and releases its logical slot, matching
+BHBB/NetStream; the negative-result retry is removed. No GameStream protocol code changes.
+See docs/UI.md for file hash, export/import mapping, return paths and regression risks.
+Eight existing non-build checks pass; build and Vita handoffs/errors/shutdown remain pending.
+
+**Post-correction Vita trace, 2026-10-21:** all three normal foreground steps now have exactly
+one close-request line before completion: Connect slot 0 at 1767 ms/result 0, Apps slot 1 at
+1547 ms/result 4, setup slot 2 at 5187 ms/result 0. Four app rows are inserted; same-app resume
+and RTSP/setup succeed, then StreamPage opens. This verifies the normal logical handoffs on
+one Vita without the former return-based retry. It does not measure visual animation completion
+or cover error dialogs, failed job start, shutdown, repeated sessions or broader F5 races.
+The trace has no build-revision marker. Explicit PS-double-press stop completes result 0,
+restores the infobar and unmaps all three video buffers successfully. Sustained playback is
+not verified: 42 decoded frames, subsequent IDR wait/request and no audio traffic reported;
+user observation is needed before diagnosing a playback issue. No runtime code, build or
+agent device test accompanies this documentation update.
+
+**Maintainer clarification, 2026-10-21:** in reply to the moving-image/sound question, the
+maintainer reports “всё нормально”. Normal observed playback in this run is user-confirmed.
+The IDR/audio log warnings remain unexplained; this report does not establish a playback defect
+or justify streaming changes. Longer-session quality and the remaining F5 cases are unchanged.
+
+**Diagnostic cleanup, 2026-10-21:** after that acceptance, the maintainer requests removal of
+temporary diagnostics. Workflow timing/success traces, Connect/Pairing job-lifetime pointers,
+successful enqueue and Pairing PIN/widget traces are removed, together with timing-only state.
+Failure/fallback logs remain; historical evidence above is retained. No protocol, cancellation
+or dialog-lifecycle behavior changes. Eight existing non-build checks pass; the agent did not
+build or run on Vita for this cleanup. See docs/UI.md for the exact scope.
 
 **Regression risks / tests:** queue saturation, old-session events affecting a new session, host
 switch and page close during jobs; T7/T8. This is consistent with the existing repository analysis;

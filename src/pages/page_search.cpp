@@ -46,8 +46,11 @@ Search::Search()
 
     MoonlightApp::Instance()->SetEventCallback(OnMoonlightEvent, this);
 
-    SetStatus("Searching for PCs...");
-    MoonlightApp::Instance()->Discovery().Start();
+    ShowEmptyState();
+    int result = MoonlightApp::Instance()->Discovery().Start();
+    if (result != 0) {
+        MoonlightApp::Instance()->Connection().ShowError("Unable to start PC search.", result);
+    }
 }
 
 Search::~Search() {
@@ -66,7 +69,7 @@ void Search::RestoreEventCallback() {
         /* A completed/cancelled child flow must allow selecting a PC again. */
         m_host_selected = false;
         m_selected_index = -1;
-        SetStatus(m_host_count > 0 ? "Select a PC." : "No PCs found.");
+        ShowEmptyState();
         MoonlightApp::Instance()->SetEventCallback(OnMoonlightEvent, this);
     }
 }
@@ -130,23 +133,20 @@ void Search::SelectHost(int index) {
     MoonlightApp *app = MoonlightApp::Instance();
     if (!app) {
         m_host_selected = false;
-        SetStatus("Connection failed.");
+        MoonlightApp::Instance()->Connection().ShowError("Connection failed.");
         return;
     }
 
     app->Discovery().Stop();
 
-    SetStatus("Saving PC...");
+    HideStatus();
     int add_result = app->Hosts().Add(
         host.internal,
         host.port,
         host.name[0] ? host.name : host.internal);
 
     if (add_result != 0) {
-        paf::string status = paf::common::FormatString(
-            "Unable to save PC: 0x%08X",
-            (unsigned int)add_result);
-        SetStatus(status.c_str());
+        MoonlightApp::Instance()->Connection().ShowError("Unable to save PC.", add_result);
         m_host_selected = false;
         return;
     }
@@ -198,15 +198,10 @@ void Search::SelectHost(int index) {
         saved_count,
         canonical_host.host_id);
 
-    SetStatus("Connecting to PC...");
-
     int connect_result = app->Connection().Connect(canonical_host);
     if (connect_result != 0) {
-        paf::string status = paf::common::FormatString(
-            "Unable to start connection: 0x%08X",
-            (unsigned int)connect_result);
-        SetStatus(status.c_str());
         m_host_selected = false;
+        ShowEmptyState();
         return;
     }
 }
@@ -215,18 +210,17 @@ void Search::OnConnectionReady() {
     MoonlightApp *app = MoonlightApp::Instance();
     if (!app || m_selected_index < 0) {
         m_host_selected = false;
-        SetStatus("Connection failed.");
+        MoonlightApp::Instance()->Connection().ShowError("Connection failed.");
         return;
     }
 
     if (app->Connection().State() == MOONLIGHT_CONNECTION_PAIRED) {
-        SetStatus("PC is paired. Loading applications...");
         if (!Base::IsOpen("page_apps")) {
             Apps *apps = new Apps();
             if (!apps->IsValid()) {
                 delete apps;
                 m_host_selected = false;
-                SetStatus("Unable to open applications.");
+                MoonlightApp::Instance()->Connection().ShowError("Unable to open applications.");
             }
         }
         return;
@@ -235,10 +229,7 @@ void Search::OnConnectionReady() {
     char pin[5] = {0};
     int prepare_result = app->Pairing().Prepare(pin);
     if (prepare_result != 0) {
-        paf::string status = paf::common::FormatString(
-            "Pairing preparation failed: 0x%08X",
-            (unsigned int)prepare_result);
-        SetStatus(status.c_str());
+        MoonlightApp::Instance()->Connection().ShowError("Unable to prepare pairing.", prepare_result);
         m_host_selected = false;
         return;
     }
@@ -247,18 +238,28 @@ void Search::OnConnectionReady() {
     if (!pairing || !pairing->IsValid()) {
         delete pairing;
         m_host_selected = false;
-        SetStatus("Unable to open pairing screen.");
+        MoonlightApp::Instance()->Connection().ShowError("Unable to open pairing screen.");
     }
 }
 
-void Search::SetStatus(const char *text) {
-    if (!root || !text) return;
-
+void Search::ShowEmptyState() {
+    if (!root) return;
     paf::ui::Widget *widget = root->FindChild("text_search_status");
     if (!widget) return;
+    if (m_host_count == 0 && !m_host_selected) {
+        widget->Show(paf::common::transition::Type_Reset);
+    } else {
+        widget->Hide(paf::common::transition::Type_Reset);
+    }
+}
 
-    ((paf::ui::Text *)widget)->SetString(
-        paf::common::string_util::ToWString(text));
+void Search::HideStatus() {
+    if (!root) return;
+
+    paf::ui::Widget *widget = root->FindChild("text_search_status");
+    if (widget) {
+        widget->Hide(paf::common::transition::Type_Reset);
+    }
 }
 
 void Search::RefreshHosts() {
@@ -278,8 +279,8 @@ void Search::RefreshHosts() {
 
     if (m_host_count > 0) {
         m_list->InsertCell(0, 0, m_host_count);
-        SetStatus("Select a PC.");
     }
+    ShowEmptyState();
 }
 
 void Search::OnMoonlightEvent(
@@ -290,9 +291,6 @@ void Search::OnMoonlightEvent(
 
     switch (event->type) {
     case MOONLIGHT_EVENT_HOST_SCAN_STARTED:
-        if (!search->m_host_selected) {
-            search->SetStatus("Searching for PCs...");
-        }
         break;
 
     case MOONLIGHT_EVENT_HOSTS_CHANGED:
@@ -302,15 +300,12 @@ void Search::OnMoonlightEvent(
     case MOONLIGHT_EVENT_HOST_SCAN_FINISHED:
         if (!search->m_host_selected) {
             search->RefreshHosts();
-            if (search->m_host_count == 0) {
-                search->SetStatus("No PCs found.");
-            }
         }
         break;
 
     case MOONLIGHT_EVENT_HOST_SCAN_FAILED:
         if (!search->m_host_selected) {
-            search->SetStatus("PC search failed.");
+            MoonlightApp::Instance()->Connection().ShowError("PC search failed.", event->result);
         }
         break;
 
@@ -321,7 +316,7 @@ void Search::OnMoonlightEvent(
     case MOONLIGHT_EVENT_CONNECTION_FAILED:
         search->m_host_selected = false;
         search->m_selected_index = -1;
-        search->SetStatus("Unable to connect to PC.");
+        search->ShowEmptyState(); /* ConnectionService owns the error dialog. */
         break;
 
     default:

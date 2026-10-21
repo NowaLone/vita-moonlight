@@ -120,7 +120,20 @@ Some flags are `volatile`, but `volatile` is not a thread synchronization primit
 
 The recent lifecycle fixes reduce practical races, but the state model is still fragile. A single lock/state owner per subsystem, or a small message-driven state machine, would make stream disconnect/restart and host-store access substantially safer.
 
-### 3. Event delivery uses one mutable page callback and a small silent-drop queue
+**Maintainer direction, 2026-10-20:** foreground user actions should form sequential modal
+workflows with one active operation and native WAIT during long steps. Blocking GameStream
+calls stay within jobs/workers while PAF processes dialogs and lifecycle events. Centralize
+operation reservation, completion and dialog ownership through the application/services;
+keep the PIN step visible and release cancelled operations after local cleanup. Existing
+completion events and stream transport threads remain implementation infrastructure.
+Source follow-up, 2026-10-21: ConnectionService now reserves Connect/app-list/launch operations
+and owns their native WAIT handoffs; completion reaches pages after WAIT teardown. Connect
+and app-list results are retained independently of the event ring and delivered only after
+the backend call returns. Base guards opening/back navigation while the owner is busy.
+Pairing cancellation and stream-session ownership remain separate. Build and Vita checks
+are pending; this narrows the foreground workflow problem, not all backend state races.
+
+### 3. Event delivery uses one mutable page callback and a small bounded queue
 
 `MoonlightApp` has one active UI callback:
 
@@ -131,7 +144,10 @@ void *m_event_userdata;
 
 Pages replace it on construction and manually restore another page's callback in destructors. This creates lifecycle coupling between `Main`, `Search`, `Pairing`, and `Apps`.
 
-The app-level event ring has capacity 16. If it fills, `QueueEvent()` silently returns and drops the event.
+The app-level event ring has capacity 16. If it fills, `QueueEvent()` drops the event.
+The 2026-10-21 source follow-up logs overflow and retains Connect/app-list job results in
+ConnectionService, allowing completion delivery when the ring empties even if their event
+was lost. Other events still have no such fallback; overflow/lifecycle stress is unverified.
 
 This is risky for state transitions such as:
 
@@ -140,7 +156,10 @@ This is risky for state transitions such as:
 - stream started/stopped/failed;
 - settings closed.
 
-Recommended direction: make `MoonlightApp` the stable event owner and dispatch to registered subscribers/page IDs, or keep a durable application state and let pages render from that state. At minimum, log queue overflow and coalesce low-value discovery events instead of silently dropping lifecycle events.
+Current direction: keep durable application/service operation state and let pages render on
+completion of a serialized foreground step. Do not expand subscriptions merely to support
+parallel foreground workflows. Stream/pairing terminal delivery and low-value discovery-event
+coalescing still need focused ownership/overflow review.
 
 ### 4. Persistence APIs can report success even when the file was not saved
 

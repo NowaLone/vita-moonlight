@@ -57,6 +57,318 @@ Evidence tags used below:
 7. **Small, reversible changes.** One visual decision per commit; put the measured numbers and their source in the
    commit message and in this guide.
 
+### Sequential foreground workflow — maintainer direction, 2026-10-20
+
+**Current implementation, 2026-10-21:** the compact PAF busy-dialog follow-up below supersedes
+the historical SceMsgDialog progress-window descriptions. Error/confirmation dialogs keep SceMsgDialog.
+The temporary workflow/timing and job-lifetime traces described below were removed after the
+maintainer's successful run; they remain documented as historical evidence, not current output.
+
+Target: one action → native WAIT during a long step → completed operation/dialog teardown →
+result or next page. Conflicting selection/navigation must stay blocked until success, failure,
+or cancellation with local cleanup. A cancellation request alone does not release the operation.
+Pairing keeps its visible PIN page as the interactive step, with explicit cancellation; a generic
+WAIT must not hide the PIN. Normal stream transport/render/input threads continue during playback.
+
+Blocking control requests run inside the operation's worker/job while the PAF main thread keeps
+dialogs and lifecycle events responsive. Completion events are internal delivery to that thread.
+This implements a sequential user workflow; adding independently overlapping foreground requests
+or a new general-purpose asynchronous subscription architecture is not the target.
+
+**Source implementation, 2026-10-21; build/Vita validation pending:** ConnectionService owns
+one foreground operation across Connect, ApplicationService refresh and stream launch/setup.
+It opens native WAIT before starting the operation and rejects overlap or WAIT initialization
+failure. Connect/app-list jobs publish their returned result with release/acquire ordering;
+their completion cannot reach the page until the backend call returns and WAIT close is requested.
+The result also supplies a completion if the corresponding queued event was dropped. Launch
+retains the stream worker and waits for STREAM_STARTED/FAILED/STOPPED, then requests dialog close.
+Reservation is released before dispatch so Connect → Apps → app-list loading can proceed.
+
+Base blocks page opening and ordinary Back while this owner is busy, including connection
+error dismissal. Connect retains its native error dialog; the later text-policy follow-up below
+moves Apps/load and launch errors into native OK dialogs too. Enqueue/start failure closes WAIT before releasing
+ownership. The interactive pairing page and its explicit Back cancellation remain separate;
+no generic WAIT covers its PIN. Stop/Disconnect APIs and broader lifecycle races are not covered
+by this three-operation reservation. Pages still own presentation/navigation.
+
+Diagnostics: `[Workflow] begin operation=N` / `complete operation=N ...`, with Connect=1,
+Applications=2, Launch=3. Verify successive WAIT handoffs, failures, blocked Back/repeated
+activation and transition into playback on Vita.
+
+**User feedback / source follow-up, 2026-10-21:** after `e838d91`, the maintainer saw the
+wait window only during stream launch, while Connect/Apps still displayed page status.
+The page calls did still write progress text; they are now removed/hidden for saved/manual
+Connect, Search selection, Apps loading and launch. Pairing success no longer says it is
+loading apps behind the Apps page. Search `SetStatus()` explicitly shows the widget again
+for error/discovery/idle states after hiding it during connection.
+
+ConnectionService's progress dialog now uses native `SceMsgDialog` USER_MSG with
+BUTTON_TYPE_NONE and a static-lifetime message for the current operation: `Connecting to PC...`,
+`Loading applications...`, or `Starting stream...`. At that revision it closed on completion
+through an Abort/FINISHED/Term handoff (corrected below); errors/empty lists remained page state and
+the PIN remains visible. The installed VitaSDK header defines this mode and button type;
+this replaces the generic system WAIT text rather than adding a custom PAF dialog.
+No artificial minimum display time is added. The reason for the unseen earlier short-step
+dialogs is not established without logs. This source follow-up still needs build/Vita checks,
+including the no-button dialog's appearance and immediate Connect → Apps handoff.
+
+### Page text and native messages — maintainer decision, 2026-10-21
+
+**[code; build/hardware pending]** Main/Search/Apps now contain static empty-list labels only,
+shown when their list is empty (hidden during foreground progress/selection). No inline
+search/keyboard/connection progress, `Select a PC`, delete-success result, `Connected`, or
+`Stream stopped` text remains. CXML defaults also use empty-state labels; Apps no longer has
+`Loading apps...` as its resource default. Pairing uses static instructions and the PIN only.
+
+Errors use native OK dialogs: ConnectionService reuses its existing persistent message buffer,
+WAIT teardown and dialog poll for Main/Search/Apps errors. Connection failures are owned by
+the service; pages restore their empty-state visibility without showing a duplicate error.
+A displayed/pending message is not overwritten by another error; that notification is logged.
+Busy native dialog initialization waits for the existing dialog to release; other initialization
+failures are log-only. No error text is drawn on a page if dialog initialization fails.
+Invalid manual input waits for the error dialog to close before retrying IME.
+
+Pairing retains its specific error messages/server Error 409 and OK → parent behavior; local
+page-open/internal errors now use that same native dialog path. Failure to initialize it is
+console-only. Instructions never change to `Pairing...` or `Paired`. Stream's opt-in statistics
+and video status overlay are unchanged. Delete confirmation now uses OK/Cancel: OK deletes,
+Cancel keeps selection, success returns to the refreshed list, failure opens a native OK error.
+
+**PS4 Link reference [shot]:** user-supplied 960×544 JPEG, 2026-10-21. Pixel threshold measurement
+of the bright text gives first-line ink y≈98–117, second y≈138–157; the next paragraph starts
+y≈217–237, followed by y≈257–277 and y≈298–317 (descenders/compression add edge pixels).
+Left ink begins x≈65–67, consistent with the existing x=64 text origin. This corroborates
+40 px line spacing and a second paragraph 120 px below the first. The existing shared
+`style_text_paragraph` supplies 26 px regular native PAF text, opaque white, 40 px pitch,
+790 px wrap width. Font family/size cannot be established exactly from JPEG pixels alone;
+the actual Vita rendering still needs comparison with the reference **[open]**.
+
+Pairing uses that same paragraph style at layout origins (64,88) and (64,208), with localized
+Sunshine-specific two-line instructions. PIN moves below the instructions to a 490×68 widget
+at (64,368); the existing 48 px bold PIN style and bottom Back bar remain. Those positions are
+source choices **[code]**, not measurements of Moonlight running on Vita. Validate wrapping,
+PIN/bar separation, no status flicker, dialog error handoffs and Delete OK/Cancel on hardware.
+
+**Pairing appearance [hw, user-reported, 2026-10-21]:** the maintainer confirms the new
+pairing screen looks excellent on the tested Vita. Keep this layout. No new Moonlight screenshot
+or installed revision/profile is supplied, so this is appearance acceptance on one device,
+not a measured pixel match or verification of every pairing/error state.
+
+### Short progress-dialog investigation — 2026-10-21
+
+The supplied Vita log shows successful native Init → connect result=0 → Term → operation 1
+completion, then Init → applist count=4 → Term → operation 2 completion. Operation 3 reaches
+stream setup/decoded video and the maintainer sees `Starting stream...`; the first two windows
+remain unseen. No init failure is logged. The trace has no timestamps or dialog polling status,
+so it establishes successful API lifetimes, not visible presentation or their durations.
+
+**Source defect / minimal follow-up [code; Vita pending]:** normal operation completion called
+`sceMsgDialogAbort()` unconditionally and ignored its result. The installed VitaSDK exposes
+[`sceMsgDialogClose()`](https://docs.vitasdk.org/group__SceMessageDialogUser.html) separately.
+The local SDK `api_message_dialog/user_message` sample closes BUTTON_TYPE_NONE with Close,
+and the system-message example does the same for its wait dialog. NetStream/BHBB also use
+normal Close for their native PAF CommonGuiDialog waits; that is a different API and is not
+copied into this SceMsgDialog path. These references support normal closing, not a guarantee
+about animation/visibility on this firmware.
+
+ConnectionService now requests Close in RUNNING, waits for FINISHED, checks Term, and retains
+operation ownership until Term succeeds. A request made before RUNNING is retried by the
+existing PAF poll. Close errors remain pending and are logged without repeated identical logs;
+Abort remains only for forced shutdown. Polling is registered at successful Init and retained
+while the window is open. No minimum duration, sleeps, extra UI or protocol changes are added.
+
+Targeted console diagnostics emit `dialog open`, `dialog first poll`, `dialog close` and
+`dialog term` with operation/status/API result and elapsed_ms. There is one first-poll message
+per operation, not a frame heartbeat. These distinguish a short lifetime from a late first PAF
+poll; RUNNING alone still does not prove a frame was displayed. Repeat Connect → Apps → launch
+and collect these lines. The visibility root cause and the effect of normal Close remain
+unverified until that Vita follow-up. Eight existing Python checks do not execute these dialogs;
+no build or hardware run was performed by the agent.
+
+### Compact PAF busy dialog — source follow-up, 2026-10-21
+
+**Evidence:** the next Vita log measures Connect first poll at 15 ms, close request at 1750 ms,
+Term at 2602 ms; Apps first poll at 2 ms, close at 1531 ms, Term at 2383 ms. Both have successful
+Close/Term, with about 850 ms from close request to termination. The maintainer sees the windows
+late, just before closing. Opening/render-ready time is still not directly measured; RUNNING
+does not establish visible presentation. This evidence does not prove all subsequent PAF frames
+were responsive or identify a specific opening-animation duration.
+
+**Maintainer-approved change [code; build/Vita pending]:** Connect, Apps loading and stream setup
+now use `sce::CommonGuiDialog::Param::s_dialogTextSmallBusy` through ConnectionService. This is
+the small native PAF spinner/message box without Cancel shown in the supplied BHBB screenshot.
+The reference is local BHBB `9e615e9186bf7ca5fb985dc06c1a5e06c47f24f5`,
+[`common/dialog.cpp`](https://github.com/Ibrahim778/BetterHomebrewBrowser/blob/9e615e9186bf7ca5fb985dc06c1a5e06c47f24f5/common/dialog.cpp)
+(`OpenPleaseWait` without Cancel and `Close`), corroborated by NetStream's same helpers. The
+large official-app screenshot resembles a cancellable busy dialog; its exact API is unconfirmed.
+
+Before Show, the service checks/loads `SCE_SYSMODULE_INTERNAL_COMMON_GUI_DIALOG`. The module
+stays loaded for the application/PAF lifetime, as in the references; its stub was already linked.
+Show uses `g_plugin` and PAF wide-string content on the main thread. A failed module load or Show
+rejects starting the network operation and logs the failure; Connect reports a native progress-dialog
+error instead of suggesting a PC/network failure. The existing reservation, worker
+result publication and main-thread event delivery remain. Messages still describe Connect,
+Apps and stream start; no custom CXML imitation or minimum display duration is introduced.
+
+The service retains its slot while busy and calls the native PAF `Dialog::Close(slot)` once at
+completion, discarding its return and releasing the logical slot, as in BHBB/NetStream.
+The supplied native implementation does not produce a status code (see the ELF investigation
+below); the earlier negative-result retry has been removed. PAF owns visual cleanup/animation;
+logical slot release does not establish that the final closing frame has been presented.
+This API does not expose SceMsgDialog's FINISHED/Term contract, so do not poll it using
+SceMsgDialogGetStatus or invent an animation-ready condition.
+Next-step dispatch occurs only after backend completion (Connect/apps) and logical slot release.
+Shutdown also closes the owned PAF slot. No callback is attached to this noninteractive wait.
+
+Native SceMsgDialog OK errors and Delete OK/Cancel, the accepted static pairing layout and
+stream statistics are unchanged. Regression checks: compact wait appearance/latency, Connect →
+Apps → launch handoffs, busy input blocking, PAF busy → Sce error handoff and shutdown. Console
+diagnostics are now `[Workflow] PAF busy dialog open/first poll/close` with slot and elapsed_ms;
+no progress `dialog term` is expected. Eight existing Python checks do not run PAF or compile
+this API usage. Appearance, speed and cleanup on Vita remain pending maintainer build/testing.
+
+**Header compatibility follow-up [code; build pending]:** the maintainer's build fails in
+the installed `common_gui_dialog.h`: missing Sony-SDK `kernel.h`. That umbrella header also
+includes `appmgr.h` and unused ErrorDialog declarations requiring a Sony-only app ID constant.
+ConnectionService now includes `include/platform/paf_common_gui_dialog.h`, a narrow declaration
+binding for native Param/Show/Close using VitaSDK/PAF types. Param fields, callback enum and
+function signatures match the installed upstream header; `arm-vita-eabi-nm -C` confirms the
+Show callback signature, Close(int) and s_dialogTextSmallBusy symbols in the linked stub archive.
+No fake implementation, replacement symbol, SDK edit or global compatibility headers are added.
+This read-only symbol/header check is not compilation/link validation. The maintainer must
+rebuild before the compact window can be tested on Vita.
+
+**Compact busy appearance / launch [hw, user/log-reported, 2026-10-21]:** the maintainer
+confirms the compact dialog now looks good. The attached trace identifies `profile=system`,
+`system_app=ON`, embedded revision `ca359a25edf0`. It contains operation 3 first poll at 132 ms
+on slot 2, close return `0xEE251690` at 5337 ms, then close return 0 at 5654 ms. Only after
+that does operation 3 complete and StreamPage open. Launch/setup result=0, audio packets and
+decoded video follow; PS double press stops the stream and all three frame buffers unmap
+with result=0. This supports appearance acceptance and the tested launch/play/stop handoff.
+
+The first Close return is negative when interpreted as int32, but no named native error or
+root cause has been established. Return-value semantics and the repeated Close need further
+review; do not label it a proven harmless/native error or change timing speculatively. The
+trace omits Connect/Apps dialog open/close lines, so their full handoffs/latency are not newly
+log-verified. This is one system-profile run, not normal-profile, failure, shutdown or stress
+coverage. Its embedded revision does not establish inclusion of `279d35e` (the header fix);
+no configure/build transcript is supplied. No new build or device test was run by the agent.
+
+**Initial Close investigation [source/binary metadata; superseded below, 2026-10-21]:**
+the installed ScePaf-RE header, pinned by vitasdk-paf-component to
+[`b76d6ae`](https://github.com/GrapheneCt/ScePaf-RE/blob/b76d6ae00516b107d37e7e8a1a16211e3b729a07/include/common_gui_dialog.h),
+and the newer locally available upstream revision
+[`7b1d3b6`](https://github.com/GrapheneCt/ScePaf-RE/blob/7b1d3b6aca81131fd90c65b81f317909e4feda1c/include/common_gui_dialog.h)
+both declare `static int32_t Close(int32_t instanceSlot)`. Neither specifies result codes or
+whether another call is required. The project's narrow declaration matches that return type.
+
+BHBB at the revision linked above and
+[NetStream `f812de8`, `source/dialog.cpp`](https://github.com/GrapheneCt/NetStream/blob/f812de87f739a740ae71fa1c23cd5c788084530c/NetStream/source/dialog.cpp)
+call Close once and clear their current slot without inspecting its result. This establishes
+their usage, but does not prove that the native function returns void or that every negative
+value can safely be ignored. The import metadata maps Close to NID `0xBC311DC0` in
+SceCommonGuiDialog (library NID `0x4B4AAE97`); the installed stub confirms the symbol
+`_ZN3sce15CommonGuiDialog6Dialog5CloseEi`. A stub contains no native implementation, and
+[ordinary non-template C++ symbol names omit the return type](https://itanium-cxx-abi.github.io/cxx-abi/abi.html#mangling-function).
+Thus symbol matching alone cannot verify the return contract.
+
+Two available Vita core dumps contain that export at Thumb addresses `0xe01d4ced` and
+`0xe052412d` (both text offset `0x2b6c` after clearing the Thumb bit), but neither includes
+the memory page containing the function body. Their included CommonGuiDialog text pages
+cover only the tail of the module. No decrypted native module was found in the inspected local
+references. Read-only header/history, reference-wrapper, stub/NID and core-segment inspection
+therefore cannot explain `0xEE251690` or justify changing the runtime return handling.
+
+At this stage a decrypted native module was required; the following supplied-ELF inspection
+supersedes that unresolved conclusion. No runtime change was made in the metadata-only stage.
+
+**Supplied ELF / minimal correction [binary/source; build/Vita pending, 2026-10-21]:**
+the maintainer supplied `common_gui_dialog.suprx.elf`, SHA-256
+`e7c0cf0fc184f00930c345cc0d8bef7d730923da47ed82a0e529042e516efede`.
+It is an ARM EABI5 ELF with executable PT_LOAD at VA `0x81000000`, file offset `0xe0`,
+size `0xe66c`. The export table independently maps library `0x4B4AAE97`, function
+`0xBC311DC0` to Thumb entry `0x81002b6d` (code offset `0x2b6c`). No firmware version
+was supplied; these binary findings apply to this module, not every firmware.
+
+Read-only disassembly establishes these return paths:
+
+- Close at `0x81002b6c..0x81002ba6` looks up the slot through `0x810055ec`.
+  A missing/invalid slot returns the lookup's zero, without a distinct error status.
+- For an existing slot it calls `0x81006a50`, then decrements the positive internal counter
+  at object offset `+8`. If the counter stays nonzero, it returns without normalizing `r0`.
+- With the counter zero it updates widget state, calls the closing helper at `0x81005676`,
+  and returns directly. That helper's normal epilogue at `0x81005904..0x81005914` loads the
+  stack-guard value into `r0`, compares it to the saved guard and returns without replacing it.
+  The mismatch path calls the fail stub at `0x8100a0d8`. Import tables identify
+  `__stack_chk_guard` (SceLibKernel NID `0x93B8AA67`, referenced through `0x8100b460`) and
+  `__stack_chk_fail` (NID `0x37691BF8`), matching the installed VitaSDK NID database.
+
+Thus this Close implementation exposes internal register residue, not a meaningful signed
+success/error result. The earlier `0xEE251690` is consistent with the stack-guard return path;
+its exact runtime value was not independently captured from the guard. A later zero can mean
+the slot is already absent. Neither return establishes visual teardown completion, and an
+extra call can decrement the internal counter again if the object still exists. The previous
+`result < 0` check/retry was a client defect, not evidence of a native close failure.
+
+ConnectionService now calls Close once per owned slot and discards the return; it removes
+the retry/error fields and releases unstarted operations immediately after requesting close.
+The narrow header retains upstream's int32_t declaration with a discard-return warning.
+Logs say `PAF busy dialog close requested` without reporting register residue as a result.
+Backend-result gating, operation reservation, Show/module error checks, first-poll diagnostics,
+native error/Delete dialogs and pairing layout are unchanged. No minimum delay or guessed
+animation/status API is added, and the supplied native binary is not stored in the repository.
+
+Diff/lifetime review and all eight existing non-build Python checks passed. Those checks do
+not execute ARM code or PAF. Regression risk: the next step/error can now start after the
+first close request, without the former accidental retry delay. Maintainer build/Vita checks
+remain necessary for Connect → Apps → launch, failure-to-OK handoff, immediate job-start failure
+and shutdown. Expect one close-request log per opened slot and no return-based retry; appearance
+acceptance from the earlier run does not verify this new handoff behavior.
+
+**Post-correction device trace [hw, user/log-reported, 2026-10-21]:** the new maintainer
+log contains all three operations with the revised `close requested` diagnostics:
+
+- Connect, slot 0: open at 2 ms, first poll at 15 ms, one close request at 1767 ms,
+  then completion event 9/result 0.
+- Applications, slot 1: open at 2 ms, first poll at 3 ms, one close request at 1547 ms,
+  then event 15/result 4 and four rows (`after_delete=0`, `after_insert=4`).
+- Stream setup, slot 2: open at 2 ms, first poll at 14 ms, one close request at 5187 ms,
+  then event 12/result 0 and StreamPage. This run uses same-app resume, accepted RTSP,
+  successful setup and the nongame decoder path in AppMgr mode 2.
+
+There is exactly one close-request line per opened slot and no return-based close retry
+in the supplied trace. This verifies the normal three-step logical handoff on the tested Vita;
+the log alone does not measure visible opening/closing frames. It includes no build-revision
+marker, failure-to-OK handoff, immediate job-start failure, application shutdown or repeat cycle.
+These remaining checks and broader F5 races are not closed by this run.
+
+PS double press requests stop; the owner finishes with result 0, the infobar is restored and
+all three video buffers unmap with result 0. Playback quality is a separate open observation:
+42 frames decode, followed by IDR waiting/drop-limit/request messages, and common-c reports no
+audio traffic received. The trace contains no later decoded-frame recovery or audible-output
+confirmation. Do not infer sustained video/audio success or a dialog-related cause. The ENet
+interruption/control error 4 appears after explicit stop and is consistent with common-c's
+`ConnectionInterrupted` → `EINTR` path (`Misc.c` / `ControlStream.c`), not evidence by itself
+of an earlier network disconnect. This record changes documentation only; no agent build or
+device test was run.
+
+**Playback clarification [hw, user-reported, 2026-10-21]:** asked whether this attempt had moving
+video and sound or a playback problem, the maintainer replies “всё нормально”. Observed playback
+is accepted for this run. This does not explain the IDR/audio log warnings or establish sustained
+quality measurements; no playback defect is confirmed and no streaming-code change is made.
+
+**Diagnostic cleanup [code; build/Vita pending, 2026-10-21]:** at the maintainer's request,
+remove temporary foreground begin/complete, busy-dialog open/first-poll/close timing traces,
+their timestamp/poll fields and the now-unused process-time include. Connect/Pairing jobs no
+longer print addresses or Run/Finish/destruction/cancellation lifetimes; successful enqueue
+traces are removed, with enqueue failures retained. Pairing no longer logs the constructor
+PIN/root or PIN-widget address. Error/fallback messages remain in Debug Log. Main/Search/Apps
+list-population diagnostics, backend protocol diagnostics and streaming logs are unchanged.
+Native dialog calls, operation gating, main-thread polling, result publication and pairing
+cancellation are preserved; the pairing result local was used only for the removed log.
+This is an output cleanup, not a new UI/protocol fix. Source/diff review and eight existing
+non-build Python checks pass; no build or hardware test was run for the cleanup.
+
 ## 2. Screen geometry and the layout language
 
 ### 2.1 Zones (960 x 544, **[shot]**)
@@ -126,7 +438,7 @@ Rows are 80 px tall and 960 px wide. The first row's top edge is at y = 96 and d
 | Class (`page::Type`) | XML page | Purpose | Back mechanism |
 |---|---|---|---|
 | `Main` (`Type_Main`) | `page_main` | saved-PC list, inline Add PC / Search PCs, selection mode | none (bottom of the stack) |
-| `Search` (`Type_Search`) | `page_search_pcs` | LAN discovery list; the header text is the status | corner button `btn_close_search` |
+| `Search` (`Type_Search`) | `page_search_pcs` | LAN discovery list; static text only when empty | corner button `btn_close_search` |
 | `Pairing` (`Type_Pairing`) | `page_pairing` | shows the PIN, pairs as soon as it opens | bar button `btn_close_pairing` |
 | `Apps` (`Type_Apps`) | `page_apps` | application list of the connected PC | corner button `btn_close_apps` |
 | `Stream` (`Type_Stream`) | `page_stream` | full-screen video plane, black background, optional statistics overlay; no chrome | none (closed by stream events) |
@@ -140,7 +452,7 @@ Successful Pairing is removed from the existing Base stack only after Apps opens
 Apps then reclaims the event callback that Pairing's destructor temporarily returns to the parent.
 Back from Apps returns to Search when pairing began there, or to Main for a Main/manual connection,
 without revisiting the completed PIN page **[code]**. Search callback restoration clears the previous
-selection guard and restores its list prompt so another PC can be selected **[code]**. If Apps fails
+selection guard and restores empty-state visibility so another PC can be selected **[code]**. If Apps fails
 to open, Pairing stays available with an error **[code]**. User verified Search → successful Pairing →
 Apps → Back → Search and selecting a PC again on 2026-10-19 **[hw, tested Vita]**. The Main/manual path,
 already-paired path, Pairing cancel and stream-event regression checks remain **[open]**.
