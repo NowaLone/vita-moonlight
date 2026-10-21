@@ -30,6 +30,22 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g3 -fno-rtti -fno-exceptions -Wl,-q -Wa
 
 option(MOONLIGHT_SYSTEM_APP "Experiment: launch alongside a suspended Vita game" OFF)
 option(MOONLIGHT_HEAP_TRACE "Diagnostic: track newlib allocation call sites" OFF)
+option(MOONLIGHT_DISCONNECT_TEST "Test only: disconnect/reconnect once after opening Apps" OFF)
+option(MOONLIGHT_ACTIVE_DISCONNECT_TEST "Test only: disconnect/reconnect after a selected stream starts" OFF)
+option(MOONLIGHT_PENDING_DISCONNECT_TEST "Test only: disconnect after launch response before RTSP" OFF)
+option(MOONLIGHT_HTTP_DISCONNECT_TEST "Test only: disconnect inside launch/resume HTTPS transfer" OFF)
+option(MOONLIGHT_STARTUP_DISCONNECT_TEST "Test only: disconnect during selected common-c startup stage" OFF)
+set(MOONLIGHT_STARTUP_DISCONNECT_STAGE "4" CACHE STRING "Startup disconnect checkpoint: 4=RTSP entry, 10=after video setup")
+set_property(CACHE MOONLIGHT_STARTUP_DISCONNECT_STAGE PROPERTY STRINGS 4 10)
+if(MOONLIGHT_STARTUP_DISCONNECT_TEST AND NOT MOONLIGHT_STARTUP_DISCONNECT_STAGE MATCHES "^(4|10)$")
+  message(FATAL_ERROR "MOONLIGHT_STARTUP_DISCONNECT_STAGE must be 4 or 10")
+endif()
+if((MOONLIGHT_STARTUP_DISCONNECT_TEST AND (MOONLIGHT_DISCONNECT_TEST OR MOONLIGHT_ACTIVE_DISCONNECT_TEST OR MOONLIGHT_PENDING_DISCONNECT_TEST OR MOONLIGHT_HTTP_DISCONNECT_TEST)) OR
+   (MOONLIGHT_HTTP_DISCONNECT_TEST AND (MOONLIGHT_DISCONNECT_TEST OR MOONLIGHT_ACTIVE_DISCONNECT_TEST OR MOONLIGHT_PENDING_DISCONNECT_TEST)) OR
+   (MOONLIGHT_DISCONNECT_TEST AND MOONLIGHT_ACTIVE_DISCONNECT_TEST) OR
+   (MOONLIGHT_PENDING_DISCONNECT_TEST AND (MOONLIGHT_DISCONNECT_TEST OR MOONLIGHT_ACTIVE_DISCONNECT_TEST)))
+  message(FATAL_ERROR "Select only one disconnect test: idle, active stream, pending setup, HTTP or startup")
+endif()
 if(MOONLIGHT_HEAP_TRACE AND NOT MOONLIGHT_SYSTEM_APP)
   message(FATAL_ERROR "MOONLIGHT_HEAP_TRACE requires MOONLIGHT_SYSTEM_APP=ON")
 endif()
@@ -195,6 +211,32 @@ target_include_directories(${PROJECT_NAME} PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src/moonlight
 )
 
+if(MOONLIGHT_STARTUP_DISCONNECT_TEST)
+  message(STATUS "Startup disconnect test enabled at stage ${MOONLIGHT_STARTUP_DISCONNECT_STAGE}; expect cancellation error/OK")
+  target_compile_definitions(${PROJECT_NAME} PRIVATE MOONLIGHT_DISCONNECT_TEST=1 MOONLIGHT_STARTUP_DISCONNECT_TEST=1
+    MOONLIGHT_STARTUP_DISCONNECT_STAGE=${MOONLIGHT_STARTUP_DISCONNECT_STAGE})
+  target_sources(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests/runtime/disconnect_startup.cpp)
+elseif(MOONLIGHT_HTTP_DISCONNECT_TEST)
+  message(STATUS "HTTP disconnect test enabled: cancel inside curl before response; acknowledge expected error")
+  target_compile_definitions(${PROJECT_NAME} PRIVATE
+    MOONLIGHT_DISCONNECT_TEST=1 MOONLIGHT_PENDING_DISCONNECT_TEST=1 MOONLIGHT_HTTP_DISCONNECT_TEST=1)
+  target_sources(${PROJECT_NAME} PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/runtime/disconnect_pending.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/runtime/disconnect_http.c)
+elseif(MOONLIGHT_PENDING_DISCONNECT_TEST)
+  message(STATUS "Pending disconnect test enabled: cancel after launch response before RTSP; acknowledge expected error")
+  target_compile_definitions(${PROJECT_NAME} PRIVATE MOONLIGHT_DISCONNECT_TEST=1 MOONLIGHT_PENDING_DISCONNECT_TEST=1)
+  target_sources(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests/runtime/disconnect_pending.cpp)
+elseif(MOONLIGHT_ACTIVE_DISCONNECT_TEST)
+  message(STATUS "Active disconnect test enabled: select an app; stream disconnects once after 3 seconds")
+  target_compile_definitions(${PROJECT_NAME} PRIVATE MOONLIGHT_DISCONNECT_TEST=1)
+  target_sources(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests/runtime/disconnect_active.cpp)
+elseif(MOONLIGHT_DISCONNECT_TEST)
+  message(STATUS "Disconnect test enabled: opening Apps triggers one local disconnect/reconnect")
+  target_compile_definitions(${PROJECT_NAME} PRIVATE MOONLIGHT_DISCONNECT_TEST=1)
+  target_sources(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests/runtime/disconnect_smoke.cpp)
+endif()
+
 if(MOONLIGHT_SYSTEM_APP)
   target_compile_definitions(${PROJECT_NAME} PRIVATE
     MOONLIGHT_SYSTEM_APP=1
@@ -309,5 +351,15 @@ vita_create_vpk(vita_moonlight_paf.vpk "VLMP00001" ${PROJECT_NAME}.self
   FILE ${CMAKE_CURRENT_SOURCE_DIR}/sce_sys/livearea/contents/bg0.png sce_sys/livearea/contents/bg0.png
   FILE ${CMAKE_CURRENT_SOURCE_DIR}/sce_sys/livearea/contents/startup.png sce_sys/livearea/contents/startup.png
   FILE ${CMAKE_CURRENT_SOURCE_DIR}/sce_sys/livearea/contents/template.xml sce_sys/livearea/contents/template.xml
+  FILE ${CMAKE_CURRENT_SOURCE_DIR}/sce_sys/livearea/contents/frame1.png sce_sys/livearea/contents/frame1.png
+  FILE ${CMAKE_CURRENT_SOURCE_DIR}/sce_sys/livearea/contents/frame2.png sce_sys/livearea/contents/frame2.png
+  FILE ${CMAKE_CURRENT_SOURCE_DIR}/sce_sys/livearea/contents/frame3.png sce_sys/livearea/contents/frame3.png
+  FILE ${CMAKE_CURRENT_SOURCE_DIR}/sce_sys/livearea/contents/frame4.png sce_sys/livearea/contents/frame4.png
+  FILE ${CMAKE_CURRENT_SOURCE_DIR}/sce_sys/livearea/contents/frame5.png sce_sys/livearea/contents/frame5.png
+  FILE ${CMAKE_CURRENT_SOURCE_DIR}/sce_sys/livearea/contents/frame6.png sce_sys/livearea/contents/frame6.png
+  FILE ${CMAKE_CURRENT_SOURCE_DIR}/sce_sys/livearea/contents/frame7.png sce_sys/livearea/contents/frame7.png
+  FILE ${CMAKE_CURRENT_SOURCE_DIR}/sce_sys/manual/001.png sce_sys/manual/001.png
+  FILE ${CMAKE_CURRENT_SOURCE_DIR}/sce_sys/manual/002.png sce_sys/manual/002.png
+  FILE ${CMAKE_CURRENT_SOURCE_DIR}/sce_sys/manual/003.png sce_sys/manual/003.png
 )
 vita_create_stubs(stubs_${PROJECT_NAME} ${PROJECT_NAME} exports.yml)

@@ -11,6 +11,9 @@
 #include "common.h"
 #include "services/pairing_service.h"
 #include "debug.h"
+#ifdef MOONLIGHT_DISCONNECT_TEST
+#include "app/disconnect_test.h"
+#endif
 
 namespace {
 
@@ -349,6 +352,9 @@ int ConnectionService::Connect(const MoonlightHost &host)
         if (!IsBusy()) ShowError("Unable to open the progress dialog.", begin_result);
         return begin_result;
     }
+#ifdef MOONLIGHT_DISCONNECT_TEST
+    disconnect_test_capture_host(host);
+#endif
     strncpy(m_connect_address, host.internal, sizeof(m_connect_address) - 1);
     m_connect_address[sizeof(m_connect_address) - 1] = '\0';
 
@@ -389,6 +395,9 @@ int ConnectionService::Start(int application_id)
      * can hide launch failures from the caller/UI.
      */
     int result = m_backend.StartApplication(application_id);
+#if defined(MOONLIGHT_PENDING_DISCONNECT_TEST) || defined(MOONLIGHT_STARTUP_DISCONNECT_TEST)
+    disconnect_test_capture_start(application_id, result);
+#endif
 
     vita_debug_log(
         "[ConnectionService] Start app=%d result=%d",

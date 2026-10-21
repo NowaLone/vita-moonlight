@@ -38,6 +38,30 @@ Evidence tags used below:
 - **[code]** read from the source; not a claim about how it looks.
 - **[open]** not verified; do not treat as fact.
 
+Earlier LiveArea packaging follow-up (2026-10-21): `CMakeLists.txt` initially included the seven
+`sce_sys/livearea/contents/frame*.png` images referenced by the `a5` template and
+the then-four `sce_sys/manual/` pages **[code]**. `frame1.png` uses an 8-bit palette with
+identical decoded RGB pixels; template content/frame revisions are 2 **[code]**.
+Missing frame files were confirmed in the earlier local packages. After installing
+the full updated system VPK over the existing app, the maintainer's screenshot still
+showed the standard background/gate while the Guide button appeared **[shot]**.
+The maintainer reported `a1` in the installed app's template and no template at the
+checked `ur0:appmeta` path; the supplied archive XML matched packaged `a5` revision 2
+**[code]**. After deleting the old app and installing again, the maintainer confirms
+the requested LiveArea assets appeared **[hw, user-reported, tested Vita]**. This
+supports stale installation/registration state, but does not establish which step
+preserved it. Updating LiveArea in place remains unverified **[open]**; clean removal
+is a recovery observed on this device, not a required general update procedure.
+Layout and image content are unchanged.
+
+Three-page manual packaging follow-up (2026-10-21): the maintainer's `529c3c5` asset update
+removed `sce_sys/manual/004.png`, retaining `001.png`–`003.png`. Its stale explicit CMake entry
+caused the reported VPK packaging failure after SELF creation. That entry is now removed
+**[code]**; all 15 source-file entries in the VPK manifest exist and its manual list matches
+the three current pages. No assets are restored or edited. This is a source/manifest check;
+VPK packaging/install was not separately reported. The subsequent stage-4 startup-interruption
+log is scoped below; other hardware checks remain **[open]**. No agent build.
+
 ## 1. Principles
 
 1. **Look like a native Vita system app.** PAF + CXML for pages, `SceAppSettings` for settings, `SceImeDialog` for
@@ -628,13 +652,18 @@ Only these `_common_*` names appear in the XML and are known to resolve: `_commo
 
 ### 4.8 Status text
 
-- Main, Apps and Pairing show status as centred or left text on the list area; Search uses the header text itself as
-  the status.
-- The idle hint is hidden while rows are listed, because the text is centred on the list and would be drawn over
-  row two **[shot]**. On Main every return to the idle state goes through `Main::ShowIdleStatus()`, never a direct
-  `SetStatus("Select a PC to connect.")`; Apps hides it in `ShowApps()`. Transient messages (connecting, launching,
-  errors) are still drawn over the rows.
-- `SetStatus()` shows the widget; selection mode keeps the Main status hidden.
+- Main/Apps show only static empty-list labels in the list area; Search uses its header text for the
+  empty state. Pairing keeps static instructions and the PIN. Progress/errors use native dialogs.
+- On Main every return to idle goes through `Main::ShowIdleStatus()`: it shows the localized
+  `msg_no_pcs` only with no hosts, outside selection/connection. The label would otherwise overlap
+  the rows **[shot]**. Apps controls its empty state in `ShowApps()`.
+- Main's `text_main_status` starts without a CXML label; `HideStatus()` also clears its string so
+  parent/page transitions cannot expose stale empty-state text. Leaving selection mode refreshes
+  hosts without an unconditional status `Show()` **[code, 2026-10-21]**.
+  A failed host-store read preserves the current rows and hides the label rather than treating
+  the error as an empty list **[code]**. Check startup with saved PCs,
+  return from Search/Apps/Settings, selection Cancel/delete with PCs remaining, and a truly empty
+  list on Vita **[open]**. No agent build or hardware test.
 
 ### 4.9 Events and threads **[code]**
 
@@ -651,6 +680,35 @@ also stays registered while counting down and unregisters on completion or inval
 lists are persistent, so treating them as one-shot queues accumulated callbacks in the previous
 source. The fix bounds registration count but its effect on the reported resource failure still
 needs a long stream/reconnect check on Vita.
+
+Apps schedules the same generation-guarded deferred framebuffer release for STREAM_FAILED as
+for STREAM_STOPPED **[code, 2026-10-21]**. Failed or cancelled setup can create decoder buffers
+without publishing STARTED/opening Stream. Release remains on the main-thread call list after
+common-c teardown; a pending release never frees a newer pool or a pool still referenced by an
+active Stream page. This also covers a successful common-c return suppressed by a prior local
+cancel, after the owner stops that transport. No new progress/error UI or inline text is added.
+The later strict stage-4 cancellation trace verifies no first STARTED/Stream page, partial
+common-c unwind → -7/CLOSED → native error termination → paired recovery/PASS late_start=0
+and final normal stop/audio release/three unmaps **[hw, log, 2026-10-21]**. That first cancelled
+setup never allocated video buffers. The earlier late_start=1 teardown test predates this change.
+The existing startup test now offers stage 10 after video setup **[code, 2026-10-21]**:
+it requires the old framebuffer generation to clear after FAILED/CLOSED before reconnect.
+The later stage-10 trace verifies three mapped buffers/generation=1, suppressed frontend STARTED
+after cancelled common-c success, owner cleanup → FAILED=-7/CLOSED → three old unmaps returning 0
+before native error termination/reconnect, and same-app recovery/PASS **[hw, log, 2026-10-21]**.
+Recovery decodes 445 frames; final double PS releases audio and all three buffers successfully.
+The maintainer confirms image/sound on Sunshine 2025.924.154138. This covers that late cancelled-
+success path on one Vita; other races, blocked-I/O latency, shutdown and repeats remain **[open]**.
+See the [maintainer procedure and evidence](../tests/runtime/README.md#after-video-allocation-checkpoint).
+No UI behavior is changed by this evidence record.
+
+Three ordinary same-app start/double-PS stop cycles on system build 98f0d44194af now verify
+Stream creation/infobar hide → owner stop=0/audio release → infobar restore/three successful
+unmaps/deferred release before the next Start **[hw, log, 2026-10-21]**. Post-release USER_RW
+free is 33596 KiB each time; newlib used rises by 464 bytes across the repeats, so this is
+resource-reuse evidence rather than a leak-free proof. It does not validate host reconnect,
+active application shutdown or the later ee485a2 Main-label change. See
+[the recorded result](../tests/runtime/README.md#ordinary-repeated-startstop--maintainer-result-2026-10-21).
 
 Backend callbacks may arrive on worker threads. `MoonlightApp` queues them and delivers them through
 `MainThreadCallList`, so page callbacks run on the PAF main thread. Only the topmost page owns the event callback; when

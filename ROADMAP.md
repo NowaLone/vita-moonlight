@@ -2,6 +2,46 @@
 
 This roadmap captures the agreed next steps for Vita Moonlight PAF. It is ordered by risk reduction and release readiness, not by a promise that every item must be completed before development continues. Keep individual changes small and verify device-specific behavior on real PS Vita hardware.
 
+## Current API work decision (2026-10-21)
+
+The [consolidated API decision](docs/SUNSHINE_API_AUDIT.md#6-completion-and-next-work)
+supersedes older chronological "next test" instructions below. The normal client path is
+implemented with scoped Vita evidence; inventory completion is separate from full release/
+interoperability certification. Further automatic stop/reconnect test variants and active
+shutdown validation are deferred while concrete source gaps are addressed.
+
+- [ ] **Next isolated change: preserve pairing/stream lifecycle delivery on event-ring overflow.**
+  QueueEvent logs and drops every incoming event at capacity 16. Connect/Apps retain worker
+  results, but Launch/pairing/stream close have no equivalent recovery; a lost completion can
+  leave WAIT/PIN/Stream presentation inconsistent with the backend. The overflow branch is
+  source-confirmed, not reproduced on Vita. Keep sequential foreground ownership and PAF main-
+  thread delivery; implement bounded operation-owned completion retention and coalesce redundant
+  discovery notifications where appropriate. Do not rely only on increasing queue capacity.
+  Check >16 discovery bursts with terminal success/failure/stop, order/exactly-once delivery,
+  copied event payload lifetime, native-dialog completion and normal host-list behavior.
+- [ ] Follow with host persistence error propagation (`save_device_info` still returns void),
+  then the remaining eight-host Main/Search presentation limit and discovery-service completion
+  state. Implement each separately; preserve successful pairing when a metadata write fails.
+- Requested remote self-unpair remains **missing/blocked by upstream client protocol**; no admin
+  login, host patch, fake `/unpair`, `/cancel` workaround or global identity rotation is authorized.
+- Malformed trust/XML/transport faults, custom ports, mandatory encryption, shutdown, long stress
+  and the explicitly deferred 64/65-app case remain unverified. They are not missing endpoints;
+  retain them as milestone/release checks or investigate when concrete runtime evidence appears.
+
+This decision changes documentation/priorities only. It does not mark broad T1–T10 acceptance
+complete or alter runtime code; dated evidence and accepted compatibility limitations remain below.
+
+## Packaging follow-up: three-page manual (2026-10-21)
+
+The maintainer's `529c3c5` asset update deletes `sce_sys/manual/004.png`, but the explicit
+VPK manifest still depended on it. The supplied build reaches SELF creation, then fails
+with `No rule to make target .../manual/004.png`. Remove only that obsolete FILE entry;
+retain the current three-page manual and all LiveArea assets. Read-only manifest checks
+confirm all 15 packaged source files exist and the manual list is exactly `001.png`–`003.png`.
+README/UI documentation now reflects the current list. No agent configure/build/package run;
+maintainer VPK rebuild/install was not separately reported. A subsequent Vita log now verifies
+the updated stage-4 startup-interruption test as scoped in the API section below.
+
 ## Requested: build both application profiles in one invocation
 
 `build.sh` now defaults to sequential normal/system builds in separate
@@ -709,6 +749,156 @@ ongoing stream threads and main-thread completion delivery remain. This is the t
   of the current application. No new log, revision marker or individual test steps were supplied.
   Direct DisconnectHost remains unverified: the current UI has no caller; ordinary navigation
   does not establish its execution or pending/active/error/shutdown coverage.
+  A concrete idle test trigger is now prepared behind MOONLIGHT_DISCONNECT_TEST=ON (default
+  OFF). After selecting a PC/opening Apps it requests local disconnect, requires CLOSED,
+  reconnects to the captured host/port and refreshes Apps once, reporting PASS/FAIL in Debug
+  Log. Normal builds exclude its source/hooks; build.sh resets the option OFF each invocation
+  unless explicitly requested. No game launch, new endpoint or permanent UI. Maintainer steps
+  and test scope: tests/runtime/README.md. Source-interpreted scenario checks pass; no agent
+  build/device run. The maintainer has now supplied the successful idle result below;
+  pending/active cases remain separate.
+- [x] **Direct idle DisconnectHost → CLOSED → reconnect → Apps verified on one Vita, 2026-10-21.**
+  The opt-in test reports disconnect result=0, CLOSED/state=DISCONNECTED, reconnect to the
+  captured host/port with state=PAIRED without a new PIN, and a fresh authenticated list of four
+  apps followed by PASS. Apps rebuild logs before=4, after_delete=0, after_insert=4. This closes
+  the normal A15 idle cycle and nonempty Apps rebuild, not pending/active disconnect, duplicate
+  requests, rollback, shutdown, stress or the full F5/T7/T8 matrix. The fragment has no launch
+  revision/profile or Sunshine version marker. No runtime change or agent build/device run.
+  Full evidence and memory-sample limits: docs/SUNSHINE_API_AUDIT.md, F5.
+- [x] **Active-stream DisconnectHost protocol cycle log-verified on one Vita/system build f25e735baf54, 2026-10-21 (A17/F5).**
+  MOONLIGHT_ACTIVE_DISCONNECT_TEST reports owner stop result=0 → STOPPED → CLOSED/DISCONNECTED
+  → reconnect/PAIRED without PIN → fresh four-app list/rebuild → explicit same-app resume
+  (1093255277)/RTSP/setup result=0 → PASS. The resumed session decodes 654 frames and receives
+  audio; final double-PS stop completes cleanup with result=0. Both teardowns unmap all three
+  framebuffers successfully, with the first deferred release before the next decoder setup.
+  This closes the normal event/resume cycle, not the full F5/T7/T8 matrix. No production change
+  or agent build/device run. Evidence and memory/version limits: docs/SUNSHINE_API_AUDIT.md, F5.
+- [x] **Visible image and audible sound after the automatic active-test reconnect confirmed by
+  the maintainer, 2026-10-21:** “Да, изображение и звук работают”. This confirms playback for
+  the f25e735baf54 run above, separately from its decoded-frame/audio-packet log evidence.
+  Pending launch, rollback, shutdown, repeats/stress and remaining error cases stay separate.
+  Test modes remain mutually exclusive/default OFF; procedure: tests/runtime/README.md.
+- [ ] **Pending-launch DisconnectHost (A16/F5): cancellation/reconnect log-verified; immediate RTSP recovery FAILS, 2026-10-21.**
+  MOONLIGHT_PENDING_DISCONNECT_TEST=ON adds a one-shot bounded worker checkpoint after an
+  accepted launch/resume response. While Launch is busy, the main-thread test calls real
+  Disconnect and releases the worker into the existing cancel check. Require STREAM_FAILED=-7
+  before CLOSED/DISCONNECTED, one native error/OK, paired reconnect, fresh Apps and actual
+  STREAM_STARTED for the same app on recovery. No automatic retry/remote quit or production
+  cancellation change. The checkpoint is compiled out normally and released on failure,
+  timeout or shutdown. All 44 non-build Python checks pass; no agent build/device run.
+  Procedure: tests/runtime/README.md. This does not cover curl wait, RTSP/common-c startup,
+  real concurrency/lifetime, host pending-session cleanup, repeats or the full F5/T7/T8 matrix.
+  Maintainer Vita trace: checkpoint → disconnect accepted → setup -7 → CLOSED → error OK →
+  reconnect/PAIRED → four Apps/rebuild → second resume accepted → encrypted RTSP OPTIONS fails
+  (-1), test FAIL/AwaitRestarted. No STREAM_STARTED/PASS. Reported Sunshine 2025.924.154138
+  logs `Failed to verify RTSP message tag`. Versioned upstream retains an existing pending
+  session rather than replacing it; old/new session-key mismatch is supported by source and
+  both logs, but exact key/session identity is not captured. Full analysis: API audit F5.
+  No client runtime fix or Sunshine workaround is justified by this evidence; no changes to
+  encryption/keys/retries/endpoints. Pending expiry followed by a new explicit attempt remains
+  unverified. No Launch marker in the Vita fragment, so exact installed revision is unconfirmed.
+- [x] **Pending setup → delayed error OK → paired reconnect → same-app resume/PASS log-verified on a second host, 2026-10-21.**
+  The maintainer reports analogous behavior with the latest Sunshine and waits about five seconds
+  before OK in this successful run. Host .154 has another server UUID and one app (2072647516).
+  Trace: accepted resume → checkpoint/cancel -7 → CLOSED → error dismissed → PAIRED → fresh
+  one-app list/rebuild → same-app resume/RTSP/setup=0 → PASS; received audio, 404 decoded frames,
+  final double-PS stop result=0 and three successful framebuffer unmaps. Restart success is
+  user-confirmed. Sunshine version is subsequently reported as 2026.914.233613; client revision
+  and separately itemized image/sound are not supplied.
+  This closes this delayed-OK cycle only. Timing is approximate; host/version changed and total
+  elapsed time is unmeasured. No universal five-second threshold, immediate-retry fix or full
+  A16/F5 acceptance is claimed. No runtime change or agent build/device run. See API audit F5.
+- [x] **In-flight HTTPS DisconnectHost → CLOSED → paired reconnect → same-app resume/PASS log-verified on one Vita, 2026-10-21.**
+  MOONLIGHT_HTTP_DISCONNECT_TEST=ON enters the bounded checkpoint inside curl_easy_perform.
+  Maintainer trace for host .134/app 1093255277: outgoing headers/checkpoint → Disconnect=0 →
+  response headers → transfer result=0, checkpoint=1, response_headers=1 → accepted resume →
+  setup -7 before RTSP → CLOSED → native error termination → PAIRED without PIN → fresh four-app
+  list/rebuild → same-app encrypted RTSP/setup=0 → PASS. Video decodes through frame 661
+  (number 665); first video packet at 400 ms and first audio packet at 2700 ms. This validates
+  the targeted client-side in-flight ordering and successful recovery in this run; curl is not
+  aborted and remote rollback is not claimed. No Launch marker, current Sunshine version or
+  error-OK timing is supplied; earlier host/version reports cannot identify this run. The
+  maintainer subsequently confirms visible image, audible sound and ordinary double-PS stop
+  (user report); final release/unmaps are not in the log fragment.
+  No claim of zero leaks, repeatability or a fix for the earlier immediate-recovery failure.
+  All four modes remain default OFF/exclusive. Source checks previously passed (62); no agent build/device run.
+  Procedure/evidence: tests/runtime/README.md and API audit F5. A16/A18/F5 remain partial for
+  transport errors/timeouts, RTSP/common-c startup cancellation, shutdown and repeated recovery.
+
+- [x] **Common-c startup late-start teardown → CLOSED → paired reconnect → same-app resume/PASS log-verified on one Vita, 2026-10-21.**
+  Maintainer trace for host .134/app 1093255277 reaches the checkpoint inside LiStartConnection
+  at stage 4, accepts Disconnect=0, then completes startup and emits late STARTED. The session
+  owner stops with result=0; audio drain/release succeed, STOPPED precedes CLOSED/DISCONNECTED,
+  and all three old frame buffers unmap successfully before recovery setup. Reconnect is PAIRED
+  without PIN, the four-app list rebuilds correctly, and encrypted RTSP/setup=0 reaches PASS
+  late_start=1 for the same app. Video arrives at 300 ms and decoding resumes after an IDR wait/
+  drop-limit/request sequence, continuing through sampled frame 301 (number 424).
+  This verifies this late-start cleanup/recovery sequence, not prompt startup interruption or
+  cancellation during blocked RTSP I/O. The maintainer subsequently confirms visible image,
+  audible sound and ordinary double-PS stop (user report); recovery audio receipt and final
+  stop/release are not in the log fragment. First-session no-audio/video warnings belong to its
+  immediate owner stop; they do not establish a second-session audio regression. Initial USER_RW free is
+  33880 KiB versus 33600 KiB at paired reconnect; one cycle is insufficient to diagnose a leak.
+  No Launch marker or current Sunshine version is supplied; source mode was prepared in 95eb968,
+  but the installed revision/profile is unconfirmed. All five modes remain default OFF/exclusive;
+  73 source checks previously passed. No runtime change or agent build/device run for this record.
+  Procedure/evidence: tests/runtime/README.md and API audit F5. Prompt cancellation, startup-error
+  unwind, timeouts, shutdown and repeated recovery remain open under A16/A18/F5.
+
+- [x] **Stage-4 common-c interruption → -7/CLOSED → same-app reconnect/PASS late_start=0 → final stop log-verified on one Vita, 2026-10-21.**
+  Source fix 499a241 publishes safe entry after common-c's reset, replays early cancellation,
+  requests one interrupt and keeps cleanup with the owner; Apps also queues existing deferred
+  release on STREAM_FAILED. Maintainer host .134/app 1093255277 trace: checkpoint/Disconnect=0 →
+  RTSP OPTIONS/stage-4 raw -1 → audio/platform unwind → local setup -7 → CLOSED → error OK →
+  PAIRED without PIN → fresh four Apps/rebuild → same-app encrypted RTSP/setup=0/PASS late_start=0.
+  No first STARTED, input startup, video decoder or Stream page occurs in the cancellation trace.
+  Recovery receives video at 400 ms and decodes 208 frames. Final double-PS stop returns 0,
+  audio drain/release succeed and three deferred framebuffer unmaps return 0. This verifies
+  stage-entry interruption/unwind, recovery and normal final teardown in this run; blocked RTSP
+  I/O latency, cancel-before-entry replay, cancelled-success/late-init buffers, shutdown and
+  repeats remain open. The maintainer confirms audible sound on Vita, while the recovery log
+  warns no audio was received; retain this discrepancy without diagnosing an audio regression.
+  No current Sunshine version, Launch marker or error-OK timing is supplied. USER_RW free is 33880 KiB initially and after paired reconnect, 33600
+  after final frame-buffer release; one cycle proves neither leak freedom nor a leak diagnosis.
+  Earlier immediate-recovery RTSP failure remains a separate result. No runtime change or agent
+  build/device run for this record; 82 source checks previously passed. Full evidence: API audit
+  F5 and tests/runtime/README.md. Next cover cancellation after video allocation;
+  A16/A18/F5 remain partial.
+
+- [x] **Stage-10 cancellation after video allocation → owner cleanup/-7/CLOSED → deferred release → reconnect/recovery verified on one Vita, 2026-10-21.**
+  Test prepared in 2c11d3b; the supplied trace has no Launch marker/exact installed revision.
+  Host .134/app 1093255277 reaches three mapped buffers/generation=1, then Disconnect=0.
+  Common-c completes audio/input and returns success after cancellation; the frontend suppresses
+  input/STARTED and the owner stops the transport before reporting local -7/CLOSED. First audio
+  drain/release return 0, decoded frames=0, then all three old unmaps return 0 before error dialog
+  termination, cleared-generation marker and reconnect. Reconnect is PAIRED without PIN; fresh
+  four Apps/rebuild precede same-app encrypted RTSP/PASS late_start=0 stage=10. Recovery receives
+  video at 500 ms/audio at 3000 ms, decodes 445 frames and stops via double PS with audio release
+  and three successful final unmaps. Maintainer confirms visible image/audible sound and Sunshine
+  2025.924.154138 for this run. Initial no-traffic warnings belong to the cancelled attempt;
+  recovery has a separate IDR wait/request and resumed decoding, not error-free quality proof.
+  USER_RW free is 33872 KiB initially, 33868 after paired reconnect and 33592 after final release;
+  one cycle does not establish leak freedom or a leak. Exact error-OK timing is unspecified.
+  This verifies the targeted late cancelled-success/FAILED resource-release path, not earlier-
+  entry races, blocked-I/O latency, shutdown or repeats. A16/A18/F5 remain partial. No runtime
+  change or agent build/device run for this record; full evidence: API audit F5 and
+  tests/runtime/README.md. Next check repeated ordinary start/stop cycles with test modes OFF.
+
+- [x] **Three ordinary same-app start/double-PS stop cycles log-verified on one Vita/system build 98f0d44194af, 2026-10-21.**
+  Host .134/app 1093255277 remains paired; each resume/encrypted RTSP/setup=0 opens Stream,
+  receives audio/video and decodes 1833, 1856 and 1840 frames respectively. Every double PS
+  completes owner stop=0, audio drain/release=0, infobar restore and three successful GXM unmaps;
+  deferred release finishes before the next Start. No test-controller markers or automatic
+  disconnects appear. USER_RW after release is 33596 KiB in all three cycles (33876 before the
+  first stream); newlib arena stays 196608 bytes while used rises 98792 → 99096 → 99256 bytes.
+  Stable kernel free memory does not prove leak freedom; the +464-byte newlib change has no
+  established root cause from three samples. All starts reuse the existing host, with no new
+  ConnectHost/CLOSED sequence: this is repeat start/stop coverage, not repeated host reconnect
+  or application shutdown. Playback confirmation/current Sunshine version remain separate from
+  packet/decode evidence. This binary predates the newer ee485a2 Main-label change and cannot
+  validate it. No runtime change or agent build/device run for this record; full evidence:
+  API audit F5 and tests/runtime/README.md. Next inspect/prepare active-stream application
+  shutdown validation; the broader race/failure/stress matrix remains open.
 
 Source findings and isolated follow-ups (basic user smoke test passed; full runtime acceptance remains pending):
 
@@ -730,7 +920,7 @@ is not an independent TLS-handshake trace or verification of rejection/error cas
 - [x] **F8 active pairing-wait cancellation and reconnect verified on one Vita/system profile, 2026-10-20.** Launch log identifies `e7e7166ae5db`. Active getservercert → cancel requested → legacy -11/local semantic -1006/no completion event → Finish/destruction → new ConnectJob Run result=0/Finish/destruction and new PIN page. No preceding 300 s timeout occurs in this sequence; exact latency is unmeasured without timestamps. Another wrong-PIN attempt returns -1001 and releases its job, and the next explicit connection succeeds too. The subsequent empty HTTP reply (-1002) also completes/releases its job and remains accepted old-host F6, not a stuck queue. This closes the tested active-wait/reconnect regression only. A second-host log also verifies local cancellation/release, successful Connect and a real server 409 on immediate re-pair; local cancellation does not remove the pending host session. The maintainer separately confirms ordinary correct-PIN pairing opens Apps (user-reported, successful phases not in that trace). The subsequent ten-app fragment now shows pairing Run returned 0 → Paired/Loading applications → applist/Apps count=10, with job Finish/destruction; no launch revision/profile line is included. Queued cancellation, later-phase trust rollback, shutdown, stress/alternating-host and normal binary-profile cases remain pending. No agent build or hardware run.
 - [ ] Run audit tests T1–T10 with recorded Vita/package and Sunshine version/configuration. API methods with no UI caller require a backend-level test trigger; page close alone does not prove DisconnectHost ran (F5).
 
-Current independent work order: F1–F4 have source follow-ups. The user confirmed the basic pairing/Apps/restart/reconnect/launch/stop flow. Different-app rejection is now user/log verified: app A remained running and selecting B returned -8. Same-app resume is now user/log verified through successful setup and decoded video. Host-app exit without reconnect is also verified to select launch and produce decoded video; the basic F2 decision branches are complete on the tested device. F1 established-stream unexpected-disconnect cleanup and manual resume are now log verified. The maintainer also confirmed audible sound on Vita. TLS rejection of a mismatched saved server certificate and recovery after restoring the original are now user/log verified. Host-side revocation → new PIN → successful pairing and app retrieval is now log verified. Reconnect without PIN after that specific re-pair is now user-confirmed. Wrong-PIN rejection is verified, but the subsequent retry is now known to fail with an empty getservercert reply (-1002). F6 is an accepted noncritical compatibility limitation, with no Sunshine fix or client workaround planned. F7 incorrect-PIN/duplicate-session returns to Search and explicit re-entry are now verified on one Vita. The maintainer now reports the discussed recovery flow appears OK (qualified confirmation, no new log or separate Apps result). F8 active-wait cancellation, release and reconnect are now log-verified on one Vita/system profile. The maintainer also explicitly confirms ordinary correct-PIN pairing opens Apps after the cancellation change; the broader cancellation matrix remains open. Ten-row Apps population is now log-verified and the maintainer reports the requested >8 check OK. Normal two-PC switching and return with the correct app lists is now user-confirmed, without a new log. The empty-list message/no-repeat/no-hang scenario is also user-confirmed. The 64/65-app boundary test is explicitly deferred by the maintainer and remains unverified. Normal F5 foreground dialog handoffs are now user/log verified as scoped above. Adapter Start/Stop state transitions have a separate source correction with ordering checks and a subsequent user-reported Vita smoke-test success; individually enumerated failure/cancel cases remain pending. Pending-disconnect admission and post-cleanup DisconnectHost state now have a source correction with mock ordering checks. Next validate direct DisconnectHost with a backend-level trigger; malformed/error, setup-cancel/race and repeated-recovery cases remain open. Continue the remaining error/trust matrix before claiming compatibility. F5 state ownership and the remaining T1–T10 matrix also stay open. The maintainer runs builds and device tests. Main cold start has user verification for immediate visibility with one saved PC (2026-10-19); empty/multiple-host cases and the initial-refresh completion log remain open. Do not modify `Main::InitialRefreshTask()` speculatively. Older chronological notes retain their original verification status.
+Current independent work order: use the current API work decision at the top of this roadmap and API audit §6. The dated records above retain source/runtime evidence and accepted limits; completed normal flows are not reopened solely because the broader T1–T10 catalogue still contains untested cases. Next correct event-ring overflow delivery for pairing/stream lifecycle, then persistence error reporting and the remaining host/discovery limits. Remote self-unpair stays blocked by the missing supported upstream client operation. Deferred trust/error/compatibility and shutdown/stress checks remain release work, without claiming hardware acceptance.
 
 **Done when:** the API inventory is checked against source and runtime behavior, required missing client functionality is implemented, and remaining unsupported cases are explicitly documented.
 

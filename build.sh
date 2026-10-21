@@ -16,6 +16,13 @@ To build a single profile in the legacy build/ directory:
 
 Heap tracing defaults OFF for each invocation. In a dual-profile build,
 -DMOONLIGHT_HEAP_TRACE=ON enables tracing only in the system profile.
+The idle disconnect/reconnect test defaults OFF per invocation; enable explicitly
+with -DMOONLIGHT_DISCONNECT_TEST=ON for a test package. The separate active-stream
+scenario uses -DMOONLIGHT_ACTIVE_DISCONNECT_TEST=ON instead; pending setup uses
+-DMOONLIGHT_PENDING_DISCONNECT_TEST=ON. In-flight HTTPS uses -DMOONLIGHT_HTTP_DISCONNECT_TEST=ON.
+Common-c startup uses -DMOONLIGHT_STARTUP_DISCONNECT_TEST=ON, stage 4 by default.
+Add -DMOONLIGHT_STARTUP_DISCONNECT_STAGE=10 to test cancellation after video setup.
+All five default OFF and are mutually exclusive.
 Other CMake arguments are forwarded to the selected profile(s).
 EOF
 }
@@ -57,7 +64,10 @@ parse_arguments() {
 build_profile() {
     local profile="$1" build_dir="$2" mode=OFF
     [[ "$profile" == system ]] && mode=ON
-    local -a profile_args=(-DMOONLIGHT_HEAP_TRACE=OFF "${CMAKE_ARGS[@]}"
+    local -a profile_args=(-DMOONLIGHT_HEAP_TRACE=OFF -DMOONLIGHT_DISCONNECT_TEST=OFF
+        -DMOONLIGHT_ACTIVE_DISCONNECT_TEST=OFF -DMOONLIGHT_PENDING_DISCONNECT_TEST=OFF
+        -DMOONLIGHT_HTTP_DISCONNECT_TEST=OFF -DMOONLIGHT_STARTUP_DISCONNECT_TEST=OFF
+        -DMOONLIGHT_STARTUP_DISCONNECT_STAGE=4 "${CMAKE_ARGS[@]}"
         "-DMOONLIGHT_SYSTEM_APP=$mode")
     if [[ "$BUILD_SELECTION" == both && "$profile" == normal ]]; then
         profile_args+=(-DMOONLIGHT_HEAP_TRACE=OFF)
