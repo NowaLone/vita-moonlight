@@ -1,5 +1,10 @@
 # Focused checks
 
+Latest recorded committed-source gate: **147 checks at bff5712 (2026-10-22)**. Counts in the
+individual correction records below belong to those historical source stages. Current test
+output is authoritative for any later checkout. Device evidence and remaining acceptance
+cases are in the API audit and `runtime/README.md`; source checks do not replace those gates.
+
 Non-build checks (Python 3 and pycparser):
 
     PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -p 'test_*.py'
@@ -11,10 +16,20 @@ RNG/AES/RSA/certificate/parser/HTTP failure propagation, cleanup and final XML-r
 rollback, server error payload/409, cancellation without a failure event and response-error reset.
 The actual helpers and selected caller guards/API completion fragment are interpreted; pointer,
 buffer, allocation, crypto, curl, XML and mutex behavior is modeled. This is not a complete
-handshake or actual library/ABI/native-dialog/device validation. All 137 Python checks pass.
+handshake or actual library/ABI/native-dialog/device validation. The recorded gate had 137 passes.
 The server-trust checks interpret the actual X509 comparison expression with mocked comparison
 results and check enrollment/rollback ordering. They do not execute OpenSSL, TLS or file I/O.
 C grammar checks are not compilation or type checking.
+
+`test_controller_light.py` adds ten non-build checks for controller RGB feedback and the two
+optional stream overlays. It interprets the actual callback, accepted-start reset, snapshot getter
+and normalized PAF update method: controller filtering, Off/stop/cancel/finished gating, fresh
+black RGB on restart, black turning the light off, stale generation, unchanged-color deduplication,
+missing widgets and no polling when disabled. It also checks capability/service wiring, update
+without a new video frame, CXML layering/settings/localization and reproducible mirrored PNG masks.
+Mutexes, pointer/struct copies, color vectors and widgets are serial mocks. These checks do not
+compile CXML/C++, render PAF, run a host or verify real concurrency, Vita appearance/performance,
+AppSettings persistence or actual game-generated RGB. See docs/UI.md section 4.10.
 
 `test_host_persistence.py` interprets the actual metadata writer, three host-store mutations and
 the successful-pairing completion fragment. Eight checks inject fopen failure, each of eight
@@ -22,7 +37,7 @@ fprintf failures (sticky ferror), buffered close failure and directory failure; 
 close of every opened file, unchanged INI fields, new/existing record status propagation and
 pairing success despite failed metadata save. The three fprintf macros are expanded from their
 source definitions; char arrays, struct pointers, directory calls and stdio are mocked. The
-previous source fails 24 cases across six of these tests; all 108 current Python tests pass.
+previous source fails 24 cases across six of these tests; that source gate had 108 passing tests.
 No compiler/ABI, actual filesystem/flush, concurrency, native-dialog or Vita behavior is tested.
 Atomic replacement, memory rollback and power-loss durability are outside this correction.
 
@@ -33,7 +48,7 @@ shrink/empty/error preservation, conflicting UUID/MAC and port, selection follow
 obsolete tokens, Select/Clear All and deletion past eight, and lookup after eight despite duplicate
 names. Callback bindings are source-checked. PAF vectors, allocation, service reads, widgets and
 action-bar exit are modeled; C++ template/member syntax is normalized for the serial interpreter.
-All 117 Python checks pass. No compiler/ABI, allocator, real threading/snapshot consistency, PAF
+That source gate had 117 passing checks. No compiler/ABI, allocator, real threading/snapshot consistency, PAF
 scrolling/focus, native dialogs or Vita run is established. Backend discovery still holds at most 16.
 
 Main startup crash follow-up (2026-10-22): the original host-list normalizer replaced the actual

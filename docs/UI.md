@@ -7,6 +7,14 @@ measured numbers behind every layout decision. Read this before changing anythin
 Companion documents: `AGENTS.md` (hard rules for agents), `ROADMAP.md` (plan and hardware checks), `README.md`
 (overview and build).
 
+**Current-state review, 2026-10-22:** foreground progress uses PAF CommonGuiDialog
+`s_dialogTextSmallBusy`; errors/Delete confirmation use SceMessageDialog. The maintainer
+accepted the compact busy and pairing appearance; ordinary handoffs/stop have scoped logs.
+Main/Search/Apps use page-owned dynamic snapshots (backend discovery 16/apps 64). Typed pairing
+errors and later wrong-PIN → separate 409 attempts → successful pairing/Apps are recorded in
+API audit §6.10. Dated investigations below preserve earlier implementations, failed experiments
+and test counts; obsolete progress APIs/diagnostics and “next” requests are historical.
+
 System infobar during streaming: [research and implementation notes](STREAM_INFOBAR_RESEARCH.md)
 compare NetStream's AppMgr calls with the Stream lifecycle **[code]**. A valid Stream page requests
 hidden through `MoonlightApp::HideStreamInfobar()`; its destructor requests visible before returning
@@ -491,8 +499,10 @@ Correct-PIN success navigation is unchanged **[code]**. User/log verified one in
 error → OK → Search and one duplicate-session error → Search, with new requests only
 after explicit PC selection, on 2026-10-20 **[hw, tested Vita]**. After Sunshine displayed
 its delayed failure, another selection produced a new PIN and waited at getservercert;
-completed pairing/Apps after that recovery is not yet shown. Main return, other error
-types and a fully traced correct-PIN recovery remain **[open]**. The maintainer later
+completed pairing/Apps was not yet shown at that stage. A later system 5db31a9 trace
+(2026-10-22, API audit §6.10) now completes all five phases and inserts one app after wrong
+PIN and two separate 409 attempts on host .154. Main return and other error types remain
+**[open]**. The maintainer earlier
 reports the discussed recovery flow now appears OK (2026-10-20, qualified user confirmation;
 no new log or separate Apps result). Returning to Search does not cancel or reset the
 host's pending pairing session.
@@ -634,7 +644,8 @@ Only these `_common_*` names appear in the XML and are known to resolve: `_commo
   as the item.
 - Refresh: `DeleteCell(0, 0, existing)` then `InsertCell(0, 0, count)`. **The third argument of `DeleteCell` is a
   count, not the last index** **[hw on Main]**; `existing - 1` leaves a stale cell behind (a duplicate row). Search and
-  Apps use the same call; their hardware check is open.
+  Apps use the same call. Apps has logged 10-row population and a four-row → four-row rebuild
+  with after_delete=0; full Search/shrink/empty acceptance remains open.
 - Cells are created lazily by the factory; do not keep widget pointers across a refresh. Main/Search own
   dynamic `paf::vector<MoonlightHost>` snapshots **[code, 2026-10-21]**, removing their eight-host cap.
   `pages/host_list.h` queries the service count and copies that many records; discovery's total-count return
@@ -660,7 +671,8 @@ Only these `_common_*` names appear in the XML and are known to resolve: `_commo
   scrolling/selection and correct app ID at launch on Vita. A supplied 2026-10-20 log verifies
   `count=10`, `before=0`, `after_delete=0`, `after_insert=10`; the maintainer reports the requested >8 check OK
   **[hw, tested Vita; selection user-reported]**. The fragment does not identify a launched app. Smaller
-  nonempty-list rebuild remains **[open]**. The 64/65-app boundary is unverified and explicitly deferred by
+  four-row → four-row rebuild is logged in the idle DisconnectHost test **[hw, log, 2026-10-21]**;
+  shrinking/empty rebuild remains **[open]**. The 64/65-app boundary is unverified and explicitly deferred by
   the maintainer (2026-10-20), rather than required as the next test. Normal switching between PCs with different lists
   and return to the first is user-confirmed on 2026-10-20 **[hw, user-reported; no new log]**: each shows its own
   apps. The empty-list state is also user-confirmed on 2026-10-20 **[hw, user-reported; no new log]**:
@@ -722,8 +734,9 @@ in its destructor, like NetStream's surface update task. `QueueFrame()` only rep
 frame; neither it nor the callback registers another entry. The deferred framebuffer release task
 also stays registered while counting down and unregisters on completion or invalidation. PAF call
 lists are persistent, so treating them as one-shot queues accumulated callbacks in the previous
-source. The fix bounds registration count but its effect on the reported resource failure still
-needs a long stream/reconnect check on Vita.
+source. The fix bounds registration count in source. Later owner-cleanup/restart and repeated
+stream logs are scoped in the API audit; actual callback counts and attribution of the original
+resource failure are not established by those traces.
 
 Apps schedules the same generation-guarded deferred framebuffer release for STREAM_FAILED as
 for STREAM_STOPPED **[code, 2026-10-21]**. Failed or cancelled setup can create decoder buffers
@@ -758,6 +771,65 @@ Backend callbacks may arrive on worker threads. `MoonlightApp` queues them and d
 `MainThreadCallList`, so page callbacks run on the PAF main thread. Only the topmost page owns the event callback; when
 a page is destroyed it hands the callback back to the page below (`RestoreEventCallback()` in `Main`, `Search`, `Apps`,
 `Pairing`). Streaming stays behind the `moonlight_api_*` boundary; never move it into a page.
+
+### 4.10 Controller RGB overlay **[code, 2026-10-22; Vita validation open]**
+
+Input settings now offer `Controller light`: Off (default), Like DualShock 4, Like DualSense.
+The choice is captured on the next stream; it changes the local effect, not the host controller
+type. This is game/controller RGB feedback, not an image-derived ambient-light effect. A host
+virtual controller/game must produce RGB output; no default blue or invented color is displayed.
+The existing common-c `setControllerLED` callback receives controller 0 RGB. Input advertises
+`LI_CCAP_RGB_LED` only for an enabled, started session. No protocol/dependency replacement or
+physical Vita/controller LED API is introduced.
+
+The stream mutex protects a small cached snapshot (generation, mode, RGB). The callback writes
+only that cache, ignoring other controller IDs, Off and stopping/finished sessions. An accepted
+start resets RGB to black and advances the generation; the sole owner joins transport callbacks
+before another session can be admitted. The getter reports Off before STARTED and immediately
+after stop/cancel/termination or completion. There is no new event type, worker, allocation,
+network query, per-frame diagnostic or statistics dependency.
+
+`ConnectionService -> backend -> Moonlight API -> stream` exposes the snapshot. Stream's existing
+main-thread `PresentTask` reads it even when no video frame arrives, rejects another generation
+and changes PAF widgets only when mode/RGB changes. Off pages do not poll it. Black hides the
+effect, including its halo. The planes belong to the Stream root and disappear with that page;
+no additional call-list registration or framebuffer ownership is added. Video scaling/cropping,
+statistics, touch/controller input and infobar behavior are unchanged.
+
+Appearance is project artwork, **not measured Sony UI or hardware-verified geometry**:
+
+- Like DualShock 4: a **200 x 36 px [code]** white/alpha mask anchored at bottom center. Its
+  light-bar lens has an almost straight bottom, rounded ends and a raised curved upper center,
+  with a soft halo. Host RGB tints it. The silhouette follows the maintainer's DS4 photo:
+  blue lens bounds **x=348..833, y=493..571 [shot]**, about **6.2:1 [shot]** width/height;
+  the source lens spans approximately **164 x 26 px [code]** inside the existing plane.
+  Per the 2026-10-23 request, the mask is rotated **180 degrees [code]** from the photo's
+  orientation so the straight edge faces the screen bottom; Vita viewing remains **[open]**.
+- Like DualSense: two **24 x 448 px [code]** planes flush to the left/right edges, vertically
+  centered. Mirrored **16 x 128 px [code]** alpha masks fade inward and toward both ends.
+- All three planes appear after video and before statistics in CXML. Both style and planeobj
+  colors remain white; widget tint supplies RGB. No full-screen tint, top/bottom border, animation
+  loop or input handler is added. Source masks total **45,184 uncompressed RGBA bytes [code]**;
+  this is not a measurement of PAF/GPU allocation overhead.
+
+`tools/generate_controller_light_textures.py` authors these source PNG masks with the standard
+library; it does not compile resources. Ten non-build checks interpret the actual RGB callback,
+accepted-start reset, snapshot getter and normalized PAF update method with serial mutex/widget
+mocks. They cover filtering, stop/cancel/inactive gating, restart, black, duplicate events, stale
+generation, Off/missing-widget behavior, service/capability wiring, CXML layering/localization and
+reproducible alpha assets. A software composition preview checks source artwork only. CXML/C++
+compilation, real callback ordering, PAF alpha/tint, AppSettings persistence and both modes over
+video (including stop/restart, paused frames, crop/fit, statistics and Quick Actions) remain
+**[open]** for the maintainer's build/Vita validation. No agent build or device run.
+
+**Maintainer follow-up, 2026-10-22:** the user reports both modes work **[hw, user-reported]**
+and supplies `2026-10-22-154233.jpg` showing the prior orange DS4 cap over a running stream
+**[shot]**. This establishes the reported basic RGB/display path, not the entire lifetime,
+settings-persistence or performance matrix above. The DS4-only source mask is now reshaped to
+match the supplied real light-bar photo (`codex-clipboard-7de963d3-463a-4830-a94e-38bdd7a2016e.png`);
+its plane size/anchor and DualSense assets are unchanged. Software preview and existing mask
+checks verify source artwork; the revised shape still needs maintainer RCO rebuild/Vita viewing
+**[open]**. No agent build or device run.
 
 ## 5. Components and their measured look
 
