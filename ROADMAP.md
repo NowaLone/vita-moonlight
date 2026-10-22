@@ -4,32 +4,89 @@ This roadmap captures the agreed next steps for Vita Moonlight PAF. It is ordere
 
 ## Current API work decision (2026-10-21)
 
+**Priority regression, 2026-10-22:** the supplied Main-startup core localizes a null write to
+the dynamic row-vector count constructor introduced in `02541bc`. The installed PAF constructor
+reads its capacity before initialization; one requested row becomes a roughly 495 MiB allocation.
+Main now uses empty construction then resize, leaving InitialRefreshTask unchanged. All 127
+non-build checks pass; the earlier vector mock hid this SDK defect and has been corrected.
+See [dump/source evidence](docs/MAIN_STARTUP_CRASH.md). The subsequent system-profile log identifies
+`6af2e3639c69`: Main rebuilds one PC (after_delete=0/after_insert=1), two discovery cycles find two
+PCs, paired Connect is ready and four Apps cells are inserted. The previous crash does not recur
+in this logged path. Initial cold-start visibility/timing, natural timeout vs explicit Stop and
+>8-PC/selection/stream acceptance are not established by that fragment; keep those scopes separate.
+The subsequent stream fragment adds successful same-app resume/setup, StreamPage, 411 decoded
+frames/audio packets and deliberate double-PS owner stop=0, audio release=0/three unmaps=0 with
+deferred release. The maintainer explicitly confirms image and audible sound in this attempt.
+The fragment has no separate build marker/Sunshine release. See the same evidence record;
+this is one ordinary cycle, not stress/shutdown proof.
+
 The [consolidated API decision](docs/SUNSHINE_API_AUDIT.md#6-completion-and-next-work)
 supersedes older chronological "next test" instructions below. The normal client path is
 implemented with scoped Vita evidence; inventory completion is separate from full release/
 interoperability certification. Further automatic stop/reconnect test variants and active
 shutdown validation are deferred while concrete source gaps are addressed.
 
-- [ ] **Next isolated change: preserve pairing/stream lifecycle delivery on event-ring overflow.**
-  QueueEvent logs and drops every incoming event at capacity 16. Connect/Apps retain worker
-  results, but Launch/pairing/stream close have no equivalent recovery; a lost completion can
-  leave WAIT/PIN/Stream presentation inconsistent with the backend. The overflow branch is
-  source-confirmed, not reproduced on Vita. Keep sequential foreground ownership and PAF main-
-  thread delivery; implement bounded operation-owned completion retention and coalesce redundant
-  discovery notifications where appropriate. Do not rely only on increasing queue capacity.
-  Check >16 discovery bursts with terminal success/failure/stop, order/exactly-once delivery,
-  copied event payload lifetime, native-dialog completion and normal host-list behavior.
-- [ ] Follow with host persistence error propagation (`save_device_info` still returns void),
-  then the remaining eight-host Main/Search presentation limit and discovery-service completion
-  state. Implement each separately; preserve successful pairing when a metadata write fails.
+- [x] **Source correction: isolate snapshot bursts from ordered lifecycle delivery (2026-10-21).**
+  A fixed queue now stores HOSTS_CHANGED/SETTINGS_CHANGED in two latest-value slots, separately
+  from the unchanged 16-slot ordered FIFO. Pairing/stream/closure/scan boundaries/errors are not
+  coalesced. Sequence order merges retained snapshots with FIFO events; a separate immutable
+  pending head survives PrepareCompletion returning false, then is acknowledged before page
+  dispatch. Address/PIN/server-error payloads are owned; no heap allocation, producer wait,
+  extra diagnostics on normal delivery, PAF worker-thread UI or protocol change.
+  All 100 non-build Python checks pass (12 new actual-queue/dispatch source checks). This fixes
+  snapshot-pressure loss under the sequential foreground workflow. More than 16 simultaneously
+  queued ordered events is still rejected/logged explicitly; arbitrary critical-only storms and
+  stale-session routing are not claimed solved. See API audit F5 and tests/README.md.
+- [ ] Maintainer build/Vita smoke check for this correction: discovery → pairing/error or success
+  → Apps → launch/stop/restart; confirm native dialogs close and list refresh/resource release
+  still work. Source tests model bursts/producer interleavings; no agent build or device run.
+- [x] **Source correction: host persistence error propagation (2026-10-21).** `save_device_info`
+  returns failure on open, write (`ferror`) or buffered flush/close failure and always closes an
+  opened file. Add/MarkPaired/SetHostId return that status; UUID-saved diagnostics require success.
+  Search's existing native save-error path now receives write failures. Successful connection/
+  pairing remain protocol successes with separately logged persistence failures. Normalization
+  retains usable in-memory records and logs failed rewrites. Storage format/paths are unchanged.
+  All 108 non-build checks pass; eight new source checks inject stdio/store failures and preserve
+  pairing success. Real storage faults and restart behavior remain unverified. Writes still use
+  non-atomic truncation; errors do not roll back in-memory metadata or guarantee durable storage.
+- [ ] Maintainer build/Vita validation of saved-host creation/update and reuse after restart;
+  controlled storage-failure handling remains pending. No agent build or hardware run.
+- [x] **Source correction: remove the eight-host Main/Search presentation limit (2026-10-21).**
+  Page-owned vectors read full service snapshots; discovery growth between count/copy retries.
+  Cells are removed before replacing data, with page-owned callback userdata and fresh row tokens
+  rejecting obsolete rows. Main remaps deletion selection by host identity, including after reorder;
+  Search canonicalizes against all saved PCs by address/port, without display-name fallback.
+  Native PAF templates, selection bar/dialogs, initial Main refresh, storage and discovery's 16-host
+  backend bound remain. All 117 non-build checks pass; nine new actual-source checks cover lists
+  beyond eight, growth/shrink/empty/error, selection, stale tokens and canonical lookup. No agent build.
+- [ ] Maintainer build/Vita validation: scroll/select a PC beyond eight in Main/Search, exercise
+  Select/Clear All and Delete OK/Cancel, then return/reopen. Source simulation is not PAF proof.
+- [x] **Source correction: discovery lifecycle and start errors (2026-10-22).** Remove the extra
+  DiscoveryJob and stale service m_running flag: the backend already owns the native scan worker.
+  Start returns its actual result; Search's existing native dialog owns a synchronous failure,
+  without a queued duplicate HOST_SCAN_FAILED. Repeated Start while scanning is a no-op. Stop
+  always reaches backend cleanup, including after natural completion; restart joins a previous
+  worker before replacing its UID. Thread-create errors retain their exact result. Network
+  polling stays in the existing backend worker, with unchanged scan duration/capacity/protocol.
+  All 126 non-build checks pass; nine new actual-source lifecycle checks use serial kernel/network
+  mocks. Three checks fail against the previous native start code. No build or hardware run.
+- [ ] **Next priority: maintainer build/Vita smoke of the accumulated source fixes**, including
+  Search → wait for scan completion → Back → Search again, immediate Back/reopen and normal
+  discovery → connect → Apps. Runtime start-error presentation and worker cleanup remain pending.
+  Choose further narrow API work from a concrete required case; do not add more automatic
+  cancellation scenarios or endpoints merely to fill the audit.
+  Runtime follow-up: system build `6af2e3639c69` reaches one-PC Main, two discovery cycles,
+  paired Connect and four Apps. This covers that ordinary path; the fragment does not distinguish
+  natural timeout/immediate Back or include stream/error cases, so this broader gate stays open.
 - Requested remote self-unpair remains **missing/blocked by upstream client protocol**; no admin
   login, host patch, fake `/unpair`, `/cancel` workaround or global identity rotation is authorized.
 - Malformed trust/XML/transport faults, custom ports, mandatory encryption, shutdown, long stress
   and the explicitly deferred 64/65-app case remain unverified. They are not missing endpoints;
   retain them as milestone/release checks or investigate when concrete runtime evidence appears.
 
-This decision changes documentation/priorities only. It does not mark broad T1–T10 acceptance
-complete or alter runtime code; dated evidence and accepted compatibility limitations remain below.
+The consolidation itself changed documentation only; the dated queue, persistence, host-list and discovery follow-ups
+above are source changes with maintainer build/Vita validation pending. Broad T1–T10 acceptance remains open;
+dated evidence and accepted compatibility limitations remain below.
 
 ## Packaging follow-up: three-page manual (2026-10-21)
 
@@ -920,7 +977,7 @@ is not an independent TLS-handshake trace or verification of rejection/error cas
 - [x] **F8 active pairing-wait cancellation and reconnect verified on one Vita/system profile, 2026-10-20.** Launch log identifies `e7e7166ae5db`. Active getservercert → cancel requested → legacy -11/local semantic -1006/no completion event → Finish/destruction → new ConnectJob Run result=0/Finish/destruction and new PIN page. No preceding 300 s timeout occurs in this sequence; exact latency is unmeasured without timestamps. Another wrong-PIN attempt returns -1001 and releases its job, and the next explicit connection succeeds too. The subsequent empty HTTP reply (-1002) also completes/releases its job and remains accepted old-host F6, not a stuck queue. This closes the tested active-wait/reconnect regression only. A second-host log also verifies local cancellation/release, successful Connect and a real server 409 on immediate re-pair; local cancellation does not remove the pending host session. The maintainer separately confirms ordinary correct-PIN pairing opens Apps (user-reported, successful phases not in that trace). The subsequent ten-app fragment now shows pairing Run returned 0 → Paired/Loading applications → applist/Apps count=10, with job Finish/destruction; no launch revision/profile line is included. Queued cancellation, later-phase trust rollback, shutdown, stress/alternating-host and normal binary-profile cases remain pending. No agent build or hardware run.
 - [ ] Run audit tests T1–T10 with recorded Vita/package and Sunshine version/configuration. API methods with no UI caller require a backend-level test trigger; page close alone does not prove DisconnectHost ran (F5).
 
-Current independent work order: use the current API work decision at the top of this roadmap and API audit §6. The dated records above retain source/runtime evidence and accepted limits; completed normal flows are not reopened solely because the broader T1–T10 catalogue still contains untested cases. Next correct event-ring overflow delivery for pairing/stream lifecycle, then persistence error reporting and the remaining host/discovery limits. Remote self-unpair stays blocked by the missing supported upstream client operation. Deferred trust/error/compatibility and shutdown/stress checks remain release work, without claiming hardware acceptance.
+Current independent work order: use the current API work decision at the top of this roadmap and API audit §6. The dated records above retain source/runtime evidence and accepted limits; completed normal flows are not reopened solely because the broader T1–T10 catalogue still contains untested cases. Snapshot-pressure delivery, persistence error reporting, host-list presentation and discovery lifecycle now have source corrections with maintainer build/Vita checks pending. Prioritize the ordinary build/Search-reopen/connect smoke before choosing another concrete API case. Remote self-unpair stays blocked by the missing supported upstream client operation. Deferred trust/error/compatibility and shutdown/stress checks remain release work, without claiming hardware acceptance.
 
 **Done when:** the API inventory is checked against source and runtime behavior, required missing client functionality is implemented, and remaining unsupported cases are explicitly documented.
 

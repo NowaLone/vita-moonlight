@@ -158,6 +158,16 @@ recipes for common UI changes live in [`docs/UI.md`](docs/UI.md). Read it before
 - Layout and appearance belong in `cxml/vita_moonlight_ui.xml`; code fills content, state and events. Choose a row template by mode; never show/hide a checkbox on a shared row template (Apps uses `template_list_item_generic`).
 - Disable buttons only with `set_button_enabled()`. Return Main to its idle status only with `Main::ShowIdleStatus()`; a direct `SetStatus("Select a PC to connect.")` draws over the rows.
 - `ListView::DeleteCell()` takes a cell count: pass the full existing count (`Main`, `Search`, `Apps` all do). `existing - 1` leaves a stale duplicate row.
+- Main/Search use dynamic page-owned host snapshots and per-refresh widget row tokens with page
+  userdata; never bind callbacks to vector element addresses. Remove old cells before swapping
+  backing data, reject obsolete tokens and preserve Main deletion selection by host identity.
+  Search resolves a selection against the full saved list by address/port, not display name.
+  Source checks pass; >8-PC PAF scrolling/selection still needs maintainer build/Vita validation.
+- Default-construct PAF vectors and then resize; do not use the installed SDK's sized vector
+  constructor for row storage. It reads _capacity before initialization and caused the Main
+  startup null-write regression. On system build 6af2e3639c69 the maintainer log reaches one-PC
+  Main refresh and Search/paired Connect/four Apps without that crash; cold-start timing and
+  broader list/selection acceptance remain separate. See docs/MAIN_STARTUP_CRASH.md.
 - In a `style_plane`, the style `color` and its `planeobj` `color` multiply, alpha included: keep the style at `1, 1, 1, 1` and put the real value in the `planeobj`.
 - The PAF coordinate system is center-origin on a 960×544 screen: `(0,0)` is screen center and positive Y points upward. Anchor/align values, `adjust`, the visible-edge inset of buttons and the speech-balloon placement rule are in `docs/UI.md` sections 2 and 5.4.
 - Saved-host Delete uses `SceMessageDialog` for confirmation and removes the selected persistent records through the HostService → backend → legacy device store path.
@@ -198,6 +208,11 @@ recipes for common UI changes live in [`docs/UI.md`](docs/UI.md). Read it before
   do not cover the PIN-entry page with a generic WAIT dialog. A new conflicting operation starts only
   after the previous operation releases its local resources. Host-side pending pairing may still return 409.
 - Asynchronous backend callbacks must not mutate PAF UI directly from worker threads.
+- Discovery Start/Stop are serialized main-thread lifecycle calls; the backend owns the native
+  scan worker. Do not wrap SearchHosts in another PAF job or duplicate its running state in the
+  service. Start failures return synchronously to the caller's native error dialog, without a
+  second queued failure; found/finished events still use main-thread dispatch. Stop also reaps
+  naturally finished workers, and restart joins the old worker before replacing its UID.
 - `LegacyMoonlightAdapter` is the compatibility boundary between the service/backend layer and the legacy Moonlight code.
 - Pairing events use semantic `MoonlightPairingResult` values at the Moonlight API boundary. Only `MOONLIGHT_PAIRING_ERROR_INCORRECT_PIN` means the cryptographic PIN check failed; transport, protocol, security, and local/internal failures remain distinguishable.
 - `MOONLIGHT_EVENT_PAIRING_FINISHED` reports pairing success independently of host-persistence errors. A persistence failure may be logged, but it must not be presented as a failed pairing operation.
@@ -294,7 +309,13 @@ Subsequent HTTPS requests verify the complete paired leaf certificate. Old recor
 `server.pem` require pairing again. An unreadable/malformed pin or changed server certificate
 fails closed: remove that saved PC locally and add/pair it again to establish new trust.
 Local deletion removes its server pin as part of the host directory; it does not revoke the
-Vita identity on Sunshine. A pin persistence error is logged separately from pairing success;
+Vita identity on Sunshine. Host metadata writes return failure on open, write or flush/close
+errors through Add/MarkPaired/SetHostId. Search uses its existing native save-error dialog;
+successful connection/pairing log metadata failures separately without becoming protocol failures.
+Normalization logs failed rewrites and keeps usable in-memory records. This is checked error
+reporting, not atomic persistence: failed writes can leave partial files and in-memory updates.
+Build/Vita storage-failure and restart validation of this source change is pending.
+A pin persistence error is logged separately from pairing success;
 trust then lasts only for the current connection and pairing is needed after restart.
 The implementation requires the OpenSSL libcurl backend. On 2026-10-20 the maintainer confirmed
 normal PIN pairing, Apps, application restart, reconnect without another PIN and stream launch/stop.

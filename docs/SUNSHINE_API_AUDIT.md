@@ -6,15 +6,38 @@ Audit date: **2026-10-18**. Local baseline: `master`,
 This continues [the preliminary audit](../ROADMAP.md#gamestream-client-api-coverage-and-follow-up-2026-10-15)
 and the findings in [REPOSITORY_ANALYSIS.md](../REPOSITORY_ANALYSIS.md). It is a **source-level audit**,
 not a new Vita/Sunshine interoperability test. The original inventory changed no runtime code or
-storage; dated source follow-ups below describe later implementation changes (latest: 2026-10-20). `PROGRESS.md` was absent. The supplied PRD was read as technical context;
+storage; dated source follow-ups below describe later implementation changes (latest: 2026-10-22). `PROGRESS.md` was absent. The supplied PRD was read as technical context;
 current source and Git state determine the findings below.
 
 **Current decision, 2026-10-21 (local edf0b58):** the required normal client flow has effective
 implementations and scoped Vita evidence. Further routine stop/reconnect test variants are not
 the next development task. See [the consolidated decision and backlog](#6-completion-and-next-work)
 for implemented paths, concrete code gaps, blocked self-unpair and deferred verification.
-Next isolated implementation: preserve pairing/stream lifecycle delivery when the application
-event ring is full. No new endpoint or runtime code is added by this consolidation.
+Later source follow-ups isolate snapshot bursts from ordered lifecycle delivery (F5),
+propagate host metadata write failures (L8), remove Main/Search's eight-PC presentation limit
+and simplify discovery lifecycle/start errors (A01); broader Vita validation remains pending.
+The scoped 6af2e36 Search/connect/Apps runtime result below does not close all remaining cases.
+These corrections add no protocol endpoint.
+
+**Startup regression takes priority, 2026-10-22:** the maintainer's new core shows a Main null
+write consistent with the installed PAF sized-vector constructor reading uninitialized capacity.
+That constructor was introduced for row state in `02541bc`. Main now constructs empty then
+resizes; the test normalizer that hid this SDK behavior is removed. All 127 non-build checks pass.
+See [dump/source evidence](MAIN_STARTUP_CRASH.md). A later maintainer system-profile log identifies
+`6af2e3639c69` and reaches one-PC Main refresh, two discovery cycles, paired Connect and four
+Apps cells without the previous crash. Initial cold-start timing, natural timeout vs explicit
+Stop, >8 hosts and stream/error paths are not separately verified by it.
+Do not treat earlier passing host-list source checks as device/allocator validation.
+
+**Ordinary stream follow-up, 2026-10-22:** the next fragment after the 6af2e36 Main/Search run
+shows same-app encrypted-RTSP resume/setup=0, StreamPage, 411 decoded frames and audio packets,
+then deliberate double PS → owner stop=0/audio drain/release=0/three unmaps=0/deferred release.
+ENet interrupted/control-failed:4 occurs during requested teardown and matches local common-c's
+ConnectionInterrupted/EINTR path. First video/audio packets arrive at 500/5400 ms; the maintainer
+explicitly confirms image and audible sound for this attempt. This fragment has no independent launch marker
+or exact Sunshine release. USER_RW free changes 33836→33068 KiB; newlib used 95704→99000 bytes.
+One cycle neither diagnoses a leak nor establishes full memory return. No runtime change;
+[full scoped record](MAIN_STARTUP_CRASH.md#subsequent-ordinary-stream-startstop-log--2026-10-22).
 
 ## User runtime follow-up — 2026-10-20
 
@@ -462,8 +485,14 @@ local and referenced upstream branches were read, not that the scenario ran. Tes
 - **Semantics:** resolve service records/target/IPv4 address and advertised GameStream HTTP port;
   discovery results are temporary, not proof of availability or pairing.
 - **Current:** L5 active query/sniffer, 10-second scan, maximum 16 entries, name/address/port
-  deduplication. Main/Search expose at most eight; HostDiscoveryService keeps `m_running` true
-  after natural completion until Stop.
+  deduplication. Main/Search now read dynamic service-sized snapshots and expose all available
+  entries, including saved PCs beyond eight. Search's saved-record lookup covers all saved PCs
+  by address/port; row tokens avoid pointers into vectors. Source checks pass; PAF/Vita acceptance
+  remains open. The service's stale m_running cache/extra PAF start job are now removed: the
+  backend owns the native worker/state, Start returns actual errors to Search's existing native
+  dialog once, and Stop reaps workers after natural completion too. Restart joins the prior UID
+  before replacement. HOST_SCAN_STARTED marks the attempt before worker startup; found/finished
+  remain queued. Synchronous start errors do not also enqueue HOST_SCAN_FAILED.
 - **Upstream / Sunshine:** SD publishes mapped HTTP port; V discovery is a reference for client
   discovery, N/B only for presenting results.
 - **Verified / runtime:** source; T1 must verify repeated scans, >8 hosts, packet ordering and
@@ -1962,6 +1991,46 @@ host-side cleanup and broader T7/T8 acceptance remain open. No runtime-code chan
 build/device run accompanies this evidence record. Next inspect/prepare active-stream
 application-shutdown validation.
 
+**Snapshot-pressure event delivery source correction, 2026-10-21 — build/Vita pending:**
+QueueEvent's common 16-slot ring allowed repeated HOSTS_CHANGED notifications to crowd out
+pairing/stream/closure. Logging the drop and retaining only Connect/Apps job results did not
+restore those events. The correction extracts a small allocation-free queue into app/event_queue.c:
+
+- Only HOSTS_CHANGED and SETTINGS_CHANGED are snapshot invalidations: readers fetch complete
+  state. Each owns one latest-value slot outside the unchanged 16-slot ordered FIFO. Scan
+  start/finish/failure, pairing, stream and connection events are never coalesced or deduplicated.
+- Sequence order merges the latest snapshots with ordered events. Peek moves the head to an
+  owned pending slot before releasing the PAF mutex. Repeated peek while PrepareCompletion
+  returns false sees the same payload; producers can update snapshots/fill the ring without
+  changing it. Acknowledge precedes page dispatch so a callback's new notification cannot be
+  erased by acknowledgement of the old event. Reset clears pending and queued work on init/shutdown.
+- Address strings are bounded/copied/rebound at both storage moves; PIN/server-error arrays
+  remain value-owned. The dispatcher also copies the address to its delivery stack before unlock.
+  Existing Connect/Apps fallback and native-dialog/main-thread delivery remain intact. No
+  protocol, service admission, page navigation, CXML, credentials, stream cleanup or test mode changes.
+
+The bound is explicit: 16 queued ordered events, two snapshots and one extracted pending head.
+More than 16 simultaneous queued ordered events is rejected and logged without overwriting
+accepted work; producers never wait while holding backend/main-thread resources. This source
+fix protects the sequential workflow from discovery/settings pressure; it does not promise
+unbounded delivery under a critical-only storm or fix wider callback/session/shutdown races.
+No additional per-event success/heartbeat logs or dynamic allocations are introduced.
+
+Reference comparison: [BHBB jobs/UI synchronization](https://github.com/Ibrahim778/BetterHomebrewBrowser/blob/master/src/pages/app_browser.cpp)
+locks PAF UI access; [Moonlight Qt termination marshalling](https://github.com/moonlight-stream/moonlight-qt/blob/master/app/streaming/session.cpp)
+sends a main-loop event. The retained queue is project-specific; neither reference supplies
+this queue or justifies doing PAF work from the streaming callback. Protocol sources remain unchanged.
+
+All 100 non-build Python checks pass, including 12 new checks interpreting the actual queue C
+and ProcessEventTask source with modeled C values/pointers, mutexes and serial interleavings.
+Coverage includes 400 snapshot updates around lifecycle events, failure/scan ordering, pending
+completion stability, address/PIN/error copying, no replay/reset/wrap, callback-produced updates,
+Connect fallback and explicit ordered-only overload. These are not C/C++ compilation, ABI,
+real concurrency, native-dialog or Vita evidence. Maintainer smoke: discovery → pairing success/
+error → Apps → launch → double-PS stop → restart; confirm normal list refresh, WAIT/PIN completion
+and resource release. No new hardware test trigger is required. Next independent implementation
+is honest host persistence error propagation; F5's broader runtime/race matrix remains open.
+
 **Regression risks / tests:** queue saturation, old-session events affecting a new session, host
 switch and page close during jobs; T7/T8. This is consistent with the existing repository analysis;
 it does not justify a broad architecture rewrite during this audit.
@@ -2298,8 +2367,9 @@ checkbox is closed solely by this consolidation.
 
 - **Discover/connect/serverinfo and pairing preparation (A01/A02/A04):** real mDNS/IPv4 and
   HTTP bootstrap/HTTPS paired status exist. LAN discovery/manual selection work in the scoped
-  user flow; complete scan/custom-port/wider-host coverage remains separate. Main/Search still
-  expose at most eight hosts, so broad discovery support remains partial.
+  user flow; complete scan/custom-port/wider-host coverage remains separate. Main/Search's
+  eight-host cap is now removed in source; >8-PC PAF acceptance remains pending. Discovery
+  still has its 16-entry backend bound, so broad discovery support remains partial.
 - **Pairing, actionable errors and server trust (A05/A06/A22):** five-phase proof/final HTTPS
   challenge, host server.pem pinning and exact-leaf verification are implemented. Normal pairing,
   persisted trust/reconnect, wrong-PIN rejection, genuine 409 presentation, active-wait cancellation,
@@ -2330,33 +2400,59 @@ proven leak or leak-free guarantee. Earlier quality/audio-warning observations r
 
 ### 6.3 Concrete local gaps — implementation backlog
 
-1. **Next: lifecycle delivery under event-ring overflow (F5 / architecture finding 3).**
-   MoonlightApp::QueueEvent logs and returns at capacity 16, regardless of event kind.
-   GetCompletedJobEvent retains only Connect/Applications results. Pairing has no retained
-   completion; Launch relies on a delivered STREAM_STARTED/FAILED/STOPPED to close WAIT.
-   Dropped STREAM_STOPPED can also prevent Stream-page detach/deferred release; a dropped
-   pairing result can leave the PIN page waiting despite backend completion. This is a
-   source-confirmed conditional failure, not a diagnosed cause of any supplied Vita log.
-   The actual overflow branch was interpreted for seven lifecycle kinds at counts 15/16/17:
-   21 serial cases confirm type-independent drop at full capacity. No PAF/thread saturation test.
-   Minimal follow-up: bounded operation/session-owned completion retention and main-thread
-   acknowledgement/order, with redundant discovery updates coalesced where appropriate.
-   Increasing capacity alone cannot guarantee delivery. Preserve payload ownership, sequential
-   foreground flow and existing native dialogs; no general event-bus rewrite is needed.
-   Acceptance: a >16 discovery burst must not lose pairing/stream success/failure/stop/closure;
-   completions arrive once in order, WAIT/PIN exits appropriately, retained results cannot replay
-   after their owner releases them and normal discovery still refreshes rows. Specify the bounded-
-   overload policy explicitly; broader old-session callback races remain a separate F5 concern.
-2. **Host persistence errors (L8 / architecture finding 4).** save_device_info returns void;
-   fopen failure only logs, and store callers can return 0. Writes/fclose are not checked either.
-   Minimum: checked status through host-store callers, honest save-error reporting, preserved
-   protocol pairing success and unchanged storage format/global identity. Treat metadata and
-   server-pin persistence separately; successful PIN proof is not a failed pairing when saving fails.
-3. **Host/discovery limits and state (A01).** Main/Search arrays and callback/selection contexts
-   remain eight-wide; discovery holds 16 and persistent storage is dynamic. DiscoveryService's
-   m_running does not clear on natural completion and DiscoveryJob ignores SearchHosts' return.
-   These are existing local gaps, not missing Sunshine endpoints. Separate scalable host storage
-   from service completion/error handling, preserving PAF templates and selection identity.
+1. **Snapshot-pressure event delivery: source-addressed; build/Vita pending (F5).**
+   The original 16-slot shared ring dropped every event when full; Connect/Apps retained worker
+   results but pairing/stream completion had no fallback. The correction in F5 separates two
+   replaceable snapshots from the ordered FIFO and retains the extracted completion until its
+   service is ready. Bursts now preserve pairing/stream/closure, copied payloads and order in
+   source checks. An ordered-only burst exceeding 16 queued events is still rejected/logged;
+   this bounded policy relies on the sequential foreground workflow, not an arbitrary lossless
+   event bus. Broader stale-session routing remains separate. Do not mark Vita behavior fixed
+   until the maintainer's ordinary smoke test passes.
+2. **Host persistence errors: source-addressed; build/Vita pending (L8 / architecture finding 4).**
+   The baseline void writer and unconditional store success matched
+   [xyzz's writer](https://github.com/xyzz/vita-moonlight/blob/984603bd6f93f752593048fe494b5ffca14514e1/src/device.c#L231-L265),
+   re-read for this correction. Now save_device_info returns 0/-1, checking fopen, sticky ferror
+   after writes and fclose's buffered flush. Every opened file closes even after a write error;
+   failures log path/stage/errno. Add/MarkPaired/SetHostId return the status and UUID-saved logs
+   require success. Search's existing native "Unable to save PC" dialog receives Add failures.
+   Successful connection/pairing still complete normally with separately logged persistence
+   failure; pin persistence remains separate. Normalization logs failed rewrites, retaining usable
+   in-memory hosts. Global identity, exact record resolution, paths and INI fields are unchanged.
+   Eight new source checks inject open/every-field-write/close/directory failures, exercise new/
+   existing records and successful pairing despite metadata failure. Previous source fails 24
+   cases across six tests; all 108 current Python checks pass. No actual filesystem, native-dialog,
+   compilation or device proof. Existing memory mutations remain on failure; non-atomic truncating
+   writes may leave partial files. Atomic replacement, rollback and power-loss durability are not
+   addressed. Maintainer build/save/restart smoke and controlled storage-failure tests remain open.
+3. **Host presentation and discovery service: source-addressed; build/Vita pending (A01).**
+   Main/Search now read dynamically sized snapshots. Count/copy uses the existing service API;
+   discovery's total-count return triggers a resize/retry on growth. Old cells are removed before
+   vector swaps; fresh tokens in widget names resolve through page-only userdata, following
+   [BHBB EntryCB/factory](https://github.com/Ibrahim778/BetterHomebrewBrowser/blob/9e615e9186bf7ca5fb985dc06c1a5e06c47f24f5/src/pages/app_browser.cpp#L410-L416).
+   Main remaps selected flags by UUID/MAC/address-port, rejecting stronger identity conflicts;
+   Search canonicalizes against the complete saved snapshot by address/port, never a same-name
+   fallback. PAF row templates, modal workflow, initial Main refresh, storage and protocols remain.
+   Nine new actual-source checks cover 40 saved/16 discovered hosts, growth/shrink/empty/error,
+   old row tokens, selection/reorder/Select All/deletion and lookup past eight. All 117 non-build
+   checks pass; no build, allocator, real concurrent snapshot or PAF/Vita proof. More rows still
+   consume finite Vita memory; discovery retains its 16-host backend bound. Maintainer >8-PC
+   scrolling/selection/Delete/navigation acceptance is pending.
+   **Discovery lifecycle follow-up, 2026-10-22:** the backend already owns the scan worker.
+   Removing the redundant PAF DiscoveryJob and service m_running flag removes the stale natural-
+   completion cache and queued-start-after-Stop path. Lifecycle calls are serialized on the main
+   thread; network polling stays in the native worker. Search receives start errors synchronously
+   through its existing native dialog, with no second queued HOST_SCAN_FAILED. Repeated Start
+   during an active scan is a no-op. Stop also reaps naturally finished workers; restart joins the
+   old UID before replacement because FINISHED precedes thread return. CreateThread errors keep
+   their exact result. The pinned V check_host.c native-worker polling/terminal-state pattern was
+   re-read; no SDL GUI, repeated-thread array or new protocol was copied.
+   Nine new source tests cover natural completion/restart, early Stop, finish-before-return,
+   exact start errors with one caller error, cancellation/cleanup and a transient wait timeout.
+   All 126 non-build checks pass; three fail with the previous native start code. No compiler/ABI,
+   real kernel/socket/PAF or Vita proof. Existing volatile state, socket-init error coverage and
+   permanent wait-error handling remain separate concerns; the inherited Stop wait loop is not
+   given a new timing guarantee. Next: maintainer build and ordinary Search reopen/connect smoke.
 4. **Narrow error/compatibility limits (A03/A06/A23).** Some local pairing failures still classify
    as protocol errors, capabilities remain fixed and version bounds are bypassed. Address a
    concrete required case with its own source/host evidence; no speculative codec/timeout expansion.
@@ -2398,8 +2494,16 @@ TLS weakening, delayed retry or host workaround is proposed to reduce testing sc
   GameStream and admin scopes are distinct. Dated follow-ups preserve actual Vita evidence.
 - **Current scoped client path: implemented and exercised as listed, with explicit limits.**
   This does not close local persistence/event/discovery defects or external self-unpair.
-- **Next code gate: implement/test reliable lifecycle delivery under queue saturation as one
-  isolated change.** This turn consolidates documentation only; no runtime fix is claimed.
+- **Queue source gate: snapshot-pressure correction and 100 non-build checks complete;
+  maintainer build/Vita gate open.** No arbitrary critical-storm/race guarantee.
+- **Persistence source gate: checked write/close status through host store; 108 non-build checks
+  complete; maintainer build/Vita gate open.** No atomic-write/durability guarantee.
+- **Host presentation source gate: dynamic snapshots/token callbacks and 117 non-build checks
+  complete; maintainer build/Vita gate open.** Backend discovery capacity is still 16.
+- **Discovery source gate: direct lifecycle/status, exact start errors and native reaping;
+  126 non-build checks complete; maintainer build/Vita gate open.** Network polling stays threaded.
+- **Next priority: maintainer build and Search completion/reopen → connect → Apps smoke.**
+  Further narrow API changes require a concrete case; no speculative endpoint or test expansion.
 - **Release/compatibility gate: open.** Deferred error/security/version/shutdown/stress tests,
   broader shared-state ownership and the separate build/license requirements remain pending.
 

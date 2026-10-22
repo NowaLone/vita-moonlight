@@ -6,8 +6,9 @@ Source-level audit date: 2026-10-16
 [the consolidated API decision](docs/SUNSHINE_API_AUDIT.md#6-completion-and-next-work) and
 ROADMAP's current work decision for implementation priorities. XML parsing/cache invalidation,
 Apps storage, TLS pinning and several transport/foreground ownership fixes have since landed;
-their scoped evidence is in the API audit. Next implementation is reliable pairing/stream
-completion delivery on event-ring overflow, before more routine teardown test variants.
+their scoped evidence is in the API audit. Snapshot-pressure event loss now has the source
+correction below; its build/Vita checks remain pending. Next implementation is host persistence
+error propagation, before more routine teardown test variants.
 
 ## Scope
 
@@ -110,7 +111,46 @@ the maintainer reports the requested >8 check OK. Normal two-PC list switching a
 are subsequently user-confirmed without a new log, as is the empty-list message without
 repeated requests or a hang. The 64/65 boundary test is unverified and explicitly deferred
 by the maintainer (2026-10-20). In-page refresh and concurrent host/cache checks remain pending; see `docs/UI.md` and the API audit.
-Main/Search eight-host limits and their canonicalization issue remain open. No build/hardware run by the agent.
+Main/Search still had their separate limit at that stage. No build/hardware run by the agent.
+
+**Source follow-up, 2026-10-21:** Main/Search now use dynamic PAF vectors sized by service count,
+with discovery copy retry when its returned total exceeds the queried capacity. Refresh removes
+all old cells before publishing new data. Page-only callback userdata and fresh widget row tokens
+avoid addresses inside vectors and reject obsolete rows. Main's selection follows host identity
+after reorder; checkbox pointers are cleared with the old rows. Search canonicalization scans all
+saved records by address/port and fails explicitly if no match exists, avoiding a different same-name
+record. This follows local BHBB `9e615e9` AppBrowser EntryCB/factory widget-ID resolution, without
+copying its app/database architecture. Main's initial-refresh task and CXML templates are unchanged.
+Nine new source checks simulate 40 saved/16 discovered PCs, count/copy growth, shrink/empty/read
+failure, identity conflict/reorder, Select/Clear All, deletion past row eight and obsolete tokens;
+all 117 non-build Python checks pass. Maintainer build/PAF scrolling/selection/navigation remain
+pending. This does not remove discovery's 16-host backend bound or establish atomic/concurrent
+host-store snapshots. DiscoveryService's natural-completion/error state remained the next gap.
+
+**Main startup regression, 2026-10-22:** the new row-vector sized constructor in `02541bc`
+exposed an installed PAF SDK defect: growth reads uninitialized capacity before allocation/fill.
+The supplied core has one requested row, erroneous growth and a null-write register footprint;
+local system VELF segments corroborate the symbol mapping. Main now default-constructs then
+resizes; the earlier host-list mock no longer silently converts sized construction into ideal
+allocation. All 127 non-build checks pass, with hardware cold-start acceptance still pending.
+See [the evidence and mapping limits](docs/MAIN_STARTUP_CRASH.md). InitialRefreshTask is unchanged.
+
+**Discovery source follow-up, 2026-10-22:** the backend already owns a native 10-second scan
+worker, so the service's second queued DiscoveryJob and unrelated m_running cache are removed.
+Lifecycle calls delegate directly; no network polling is moved onto PAF. Start errors now reach
+Search's existing native dialog synchronously, with no duplicate queued HOST_SCAN_FAILED.
+Repeated Start during a scan is idempotent. Stop always reaps backend resources, even after
+natural completion; restart uses that join before replacing the old UID. Thread-create failure
+preserves its exact negative result. The pinned xyzz
+[check_host.c](https://github.com/xyzz/vita-moonlight/blob/984603bd6f93f752593048fe494b5ffca14514e1/src/check_host.c)
+was re-read: it also keeps polling/terminal status inside the native worker. Its GUI/status and
+multi-thread array are not copied; this project retains its own backend boundary.
+Nine new source checks simulate service/API/native calls, natural completion/restart, finish
+before thread return, cancellation, start failures and cleanup. All 126 non-build checks pass;
+three fail with the previous native start function. No real kernel scheduling, socket I/O, PAF,
+compiler/ABI or Vita validation. Existing volatile/shared-state risks, socket-init error coverage
+and Stop's retry-on-wait-error behavior are not solved. Maintainer build/ordinary Search reopen
+and startup-failure acceptance are pending.
 
 ### 2. Backend/stream state is shared across threads without a real synchronization model
 
@@ -151,7 +191,7 @@ void *m_event_userdata;
 
 Pages replace it on construction and manually restore another page's callback in destructors. This creates lifecycle coupling between `Main`, `Search`, `Pairing`, and `Apps`.
 
-The app-level event ring has capacity 16. If it fills, `QueueEvent()` drops the event.
+At the audit baseline the app-level event ring had capacity 16 and dropped any event when full.
 The 2026-10-21 source follow-up logs overflow and retains Connect/app-list job results in
 ConnectionService, allowing completion delivery when the ring empties even if their event
 was lost. Other events still have no such fallback; overflow/lifecycle stress is unverified.
@@ -178,15 +218,45 @@ The actual overflow branch was interpreted at counts 15/16/17 for seven lifecycl
 Keep this as a concrete next source correction, with bounded completion ownership/order checks,
 not a broad event-bus rewrite or another protocol endpoint.
 
+**Source follow-up, 2026-10-21:** app/event_queue.c keeps HOSTS_CHANGED/SETTINGS_CHANGED in
+two coalesced snapshot slots outside the 16-slot ordered FIFO. Scan boundaries/errors and all
+pairing/stream/closure events stay ordered. An extracted head has its own immutable payload until
+PrepareCompletion accepts it; acknowledgement occurs before invoking the current page callback.
+This prevents a discovery/settings burst from displacing lifecycle delivery or overwriting a
+completion waiting for the worker. Address, PIN and server-error data are copied by value, with
+address pointers rebound to owned storage. Existing PAF mutex/main-thread dispatch remain.
+No allocation or blocking producer path; 100 non-build source checks pass, including 12 queue/
+dispatch cases with modeled pointers/struct copies/interleavings. No compiler/ABI/PAF/real-thread
+or Vita proof. The ordered-only overload policy remains bounded: a seventeenth queued ordered
+event is rejected/logged without overwriting accepted entries; that workload exceeds the assumed
+sequential workflow and remains a separate limit, not an unlimited-delivery guarantee.
+
 ### 4. Persistence APIs can report success even when the file was not saved
 
-`save_device_info()` returns `void`. If `fopen()` fails it only logs and returns.
+At the audit baseline, `save_device_info()` returned `void`; `fopen()` failure only logged,
+and neither write errors nor `fclose()` failures were checked.
 
-Callers such as `legacy_device_store_add_host()`, `legacy_device_store_mark_paired()`, and `legacy_device_store_set_host_id()` can therefore return success after an unsuccessful write.
+Callers such as `legacy_device_store_add_host()`, `legacy_device_store_mark_paired()`, and
+`legacy_device_store_set_host_id()` could therefore return success after an unsuccessful write.
 
-That can produce a host that appears correct for the current process but disappears or loses identity/pairing metadata after restart.
+That could produce a host that appeared correct for the current process but disappeared or lost
+identity/pairing metadata after restart.
 
-Recommended fix: make `save_device_info()` return an error and propagate it through the device-store API. Pairing protocol success can still remain distinct from persistence success in the UI, but storage failure must be observable.
+**Source follow-up, 2026-10-21:** `save_device_info()` now returns 0/-1 after checking open,
+the stream error indicator and close (including its buffered flush). Every opened file is closed
+even after write failure. Add/MarkPaired/SetHostId propagate the result; the latter logs saved
+UUID only on success. Search already forwards Add failure to a native error dialog. Connection/
+pairing protocol success stays separate and existing API diagnostics now receive actual metadata
+write failures. Startup normalization logs failed rewrites without discarding usable records.
+The same unchecked writer exists in [xyzz's pinned source](https://github.com/xyzz/vita-moonlight/blob/984603bd6f93f752593048fe494b5ffca14514e1/src/device.c#L231-L265);
+no protocol or storage-layout change was copied in.
+
+Eight new actual-source checks inject open, each write and close errors, cover new/existing
+store records and successful-pairing completion despite metadata failure; all 108 Python checks
+pass. This is not actual filesystem, compiler/ABI or Vita evidence. Existing in-memory updates
+remain after failure, and `fopen("w")` can leave a truncated/partial file: atomic replacement,
+rollback, power-loss durability and host-store synchronization are separate unsolved concerns.
+Maintainer build, ordinary save/restart smoke and controlled storage-failure checks remain pending.
 
 ### 5. Release builds are currently compiled with debug/no-optimization flags
 
@@ -206,11 +276,17 @@ Before a public/release build, add an appropriate top-level license and preserve
 
 ### Async service state can drift from backend state
 
-`HostDiscoveryService::m_running` is set when the PAF job is successfully enqueued, but it is not cleared when discovery naturally finishes or fails. A later `Start()` can therefore return success without starting a new scan.
+At the audit baseline, `HostDiscoveryService::m_running` was set when the PAF job was enqueued,
+but not cleared when discovery naturally finished or failed. A later Start could return success
+without a new scan. The 2026-10-22 discovery follow-up above removes that duplicate flag/job,
+delegates lifecycle to the existing backend worker and returns start errors directly. Its source
+checks pass; build/Vita acceptance remains pending.
 
 The same general pattern appears in jobs whose `Run()` result is ignored because the backend is expected to emit an event. That works on the normal path, but invalid-state returns that do not emit an event can leave a page waiting indefinitely.
 
-A service should own its operation state and reconcile it from backend completion, not only from enqueue success.
+Use one owner for operation state and reconcile it from actual work/completion, not merely enqueue
+success. Discovery's worker lifecycle is already owned by the backend; duplicating its state in
+the service is unnecessary. Other jobs/shared-state findings remain separate.
 
 ### AppUtil lifecycle is incomplete
 

@@ -9,10 +9,58 @@ The server-trust checks interpret the actual X509 comparison expression with moc
 results and check enrollment/rollback ordering. They do not execute OpenSSL, TLS or file I/O.
 C grammar checks are not compilation or type checking.
 
+`test_host_persistence.py` interprets the actual metadata writer, three host-store mutations and
+the successful-pairing completion fragment. Eight checks inject fopen failure, each of eight
+fprintf failures (sticky ferror), buffered close failure and directory failure; verify a single
+close of every opened file, unchanged INI fields, new/existing record status propagation and
+pairing success despite failed metadata save. The three fprintf macros are expanded from their
+source definitions; char arrays, struct pointers, directory calls and stdio are mocked. The
+previous source fails 24 cases across six of these tests; all 108 current Python tests pass.
+No compiler/ABI, actual filesystem/flush, concurrency, native-dialog or Vita behavior is tested.
+Atomic replacement, memory rollback and power-loss durability are outside this correction.
+
+`test_host_lists.py` interprets the shared host-snapshot/identity helpers, actual Main/Search
+refresh/token-lookup functions, Main Select/Clear All/count/delete and Search's canonical lookup
+fragment. Nine checks model 40 saved/16 discovered hosts, discovery growth between count/copy,
+shrink/empty/error preservation, conflicting UUID/MAC and port, selection following a moved UUID,
+obsolete tokens, Select/Clear All and deletion past eight, and lookup after eight despite duplicate
+names. Callback bindings are source-checked. PAF vectors, allocation, service reads, widgets and
+action-bar exit are modeled; C++ template/member syntax is normalized for the serial interpreter.
+All 117 Python checks pass. No compiler/ABI, allocator, real threading/snapshot consistency, PAF
+scrolling/focus, native dialogs or Vita run is established. Backend discovery still holds at most 16.
+
+Main startup crash follow-up (2026-10-22): the original host-list normalizer replaced the actual
+PAF sized vector constructor with idealized allocation, hiding its uninitialized-capacity defect.
+That translation is removed; the tests model the corrected empty-construction/resize path and
+reject reintroducing the unsafe row count constructor. All 127 checks pass. Allocation remains
+mocked: this is not a test of the installed C++ SDK or PAF malloc. Dump/disassembly evidence and
+the required maintainer cold-start retest are in [MAIN_STARTUP_CRASH.md](../docs/MAIN_STARTUP_CRASH.md).
+
+`test_discovery_lifecycle.py` interprets the actual service Start/Stop, API bridge, native scan
+worker/start/stop/shutdown and Search's immediate error branch. Nine checks model duplicate Start,
+natural completion/restart, FINISHED before thread return, exact create/start errors with one
+caller error, Stop before native worker entry/after completion, interrupted-scan cleanup and a
+transient wait timeout. The previous native start code fails three cases while the current service/
+API remain in place. All 126 non-build checks pass. C++ method calls are normalized; globals and
+function-local scope, kernel/network calls and serial worker steps are mocked. No compiler/ABI,
+real threads, PAF, sockets, blocked-I/O latency, permanent wait errors or Vita proof is provided.
+
 The foreground checks interpret the source terminal-event predicate across all event/operation
 combinations and the retained-result classification (including a successful empty app list).
 They do not execute PAF dialogs, threads, event-ring delivery or the complete state machine;
 dialog handoffs and overlap prevention still require maintainer build/Vita validation.
+
+`test_event_queue.py` interprets the actual event_queue.c functions/header and the production
+MoonlightApp::ProcessEventTask body. Twelve new checks cover 400 snapshot updates interleaved
+with pairing/start/stop/close; ordered scan/error events; latest-snapshot merge order; owned
+address/PIN/server-error payloads; producer updates while the head waits for worker completion;
+ack-before-callback and no replay; ring reuse/reset; null/truncated addresses; Connect's existing
+fallback; and explicit ordered-only overload without overwriting accepted events. The capacity
+is 16 ordered entries plus two snapshot slots and one pending head; this does not promise delivery
+for arbitrary critical-only storms. C struct assignment, pointer identity, fixed arrays, string
+copies, sizeof and serial scheduling/mutex calls are modeled. C grammar parsing is not compilation,
+type/ABI checking, real threading, PAF/native-dialog execution or hardware validation. Run the
+maintainer's ordinary discovery/pair/Apps/launch/stop/restart smoke sequence after building.
 
 The adapter lifecycle checks interpret actual Start/Stop/Disconnect and ForwardEvent method
 bodies with mocked API calls. They exercise callbacks before and after API return, immediate
