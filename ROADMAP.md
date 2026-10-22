@@ -4,6 +4,37 @@ This roadmap captures the agreed next steps for Vita Moonlight PAF. It is ordere
 
 ## Current API work decision (2026-10-21)
 
+- [x] **Pairing error provenance source correction (2026-10-22).** Local RNG/crypto and parser/
+  response allocation failures now preserve explicit internal/OOM results; PIN/security are typed
+  instead of inferred from log text. All five pairing responses retain server status/reason,
+  including 409. Verification rejects every non-success; temporary pin rollback, cancellation and
+  pairing success independent of persistence remain. Ten new non-build checks bring the suite to
+  137 passing checks. See [scope and limits](docs/SUNSHINE_API_AUDIT.md#69-pairing-error-provenance-source-correction--2026-10-22).
+  No page/protocol/storage/dependency change, agent build or hardware run.
+- [x] **Logged pairing smoke on system build 5db31a9d5274 (2026-10-22).** Host 192.168.1.154:
+  wrong PIN returns legacy=-13/result=-1001 with one logged native dialog lifecycle. Two further
+  Search selections/Connect attempts each return protocol=-1003/server_status=409 with the host
+  reason and one dialog lifecycle; a later selection completes all five phases, saves paired=true
+  and retrieves/inserts one app. This demonstrates recovery on this host, without a client retry
+  loop in the trace. Exact Sunshine release, elapsed pending-session duration and visual dialog
+  appearance are not separately supplied. Rare local/crypto/storage faults remain source-modeled.
+  See [the scoped record](docs/SUNSHINE_API_AUDIT.md#610-pairing-smoke-on-5db31a9--maintainer-log-2026-10-22).
+  No agent build/device run. Next independent work: record the toolchain/dependency revisions
+  for the reproducible-build procedure in §2; existing broader acceptance gates remain open.
+
+**API source recheck, 2026-10-22 (local c27e788):** reviewed the remaining partial entries against
+current API/stream/legacy/adapter/services and newly resolved Sunshine, Moonlight Qt/common-c,
+xyzz, NetStream and BHBB snapshots. No additional required ordinary-client endpoint was found.
+The concrete implementation selected by that recheck was **pairing error provenance (A06)**: local RNG/EVP/parser
+errors collapse into PROTOCOL/SECURITY, and response-buffer realloc failure is called NETWORK.
+Preserve typed local/OOM results at their origin before mapping to the public pairing enum;
+keep PIN/409/cancellation/trust behavior. See [source chains and minimal fix](docs/SUNSHINE_API_AUDIT.md#68-source-recheck-and-next-minimal-fix--2026-10-22).
+That recheck changed documentation only; the separate correction above is now source-complete.
+All 127 existing non-build checks passed at the recheck; ten additional
+mocked actual-classifier source cases confirm the category gap. No build, new device/host test,
+endpoint, Sunshine patch or dependency update. Self-unpair remains blocked by the absent client
+route; fixed media/list limits and deferred release tests remain explicitly scoped.
+
 **Priority regression, 2026-10-22:** the supplied Main-startup core localizes a null write to
 the dynamic row-vector count constructor introduced in `02541bc`. The installed PAF constructor
 reads its capacity before initialization; one requested row becomes a roughly 495 MiB allocation.
@@ -70,7 +101,7 @@ shutdown validation are deferred while concrete source gaps are addressed.
   polling stays in the existing backend worker, with unchanged scan duration/capacity/protocol.
   All 126 non-build checks pass; nine new actual-source lifecycle checks use serial kernel/network
   mocks. Three checks fail against the previous native start code. No build or hardware run.
-- [ ] **Next priority: maintainer build/Vita smoke of the accumulated source fixes**, including
+- [ ] **Remaining maintainer build/Vita coverage of the accumulated source fixes**, including
   Search → wait for scan completion → Back → Search again, immediate Back/reopen and normal
   discovery → connect → Apps. Runtime start-error presentation and worker cleanup remain pending.
   Choose further narrow API work from a concrete required case; do not add more automatic
