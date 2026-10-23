@@ -41,6 +41,25 @@ previous source fails 24 cases across six of these tests; that source gate had 1
 No compiler/ABI, actual filesystem/flush, concurrency, native-dialog or Vita behavior is tested.
 Atomic replacement, memory rollback and power-loss durability are outside this correction.
 
+Host-store simplification (2026-10-23): the same interpreter follows the shared metadata,
+append and save helpers. Three additional checks cover new/existing records, absent metadata,
+default/custom ports, UUID replacement versus pairing's fill-only rule, storage-directory
+selection, preserved paired/address-preference state, append failure and rejected input.
+All 150 non-build checks pass. These remain serial source checks with mocked allocation,
+directory and file operations; maintainer build/Vita persistence validation is pending.
+
+`test_ps_button_state.py` interprets the shared PS reset and the existing tap-timing fragment.
+Two checks cover clearing stale pending input without releasing the overlay guard/PS lock,
+reset call sites, delayed single tap, double tap at the window boundary, and hold suppression.
+Time and stream-stop calls are serial mocks; controller-bit masking is replaced by a no-op.
+This does not execute the full input loop, ShellUtil, real concurrency or Vita Quick Actions.
+
+`test_ime_cleanup.py` interprets Main's result/cleanup prefix across read errors, Cancel, Enter,
+unknown buttons and present/absent poll registration. It requires one Term and conditional
+Unregister before outcome handling, with both state flags cleared. The check passes before
+and after the cleanup refactor. It mocks the dialog and call list, excludes address processing,
+and does not validate native IME/module behavior or PAF. The combined source gate is 153 checks.
+
 `test_host_lists.py` interprets the shared host-snapshot/identity helpers, actual Main/Search
 refresh/token-lookup functions, Main Select/Clear All/count/delete and Search's canonical lookup
 fragment. Nine checks model 40 saved/16 discovered hosts, discovery growth between count/copy,

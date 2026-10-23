@@ -440,9 +440,10 @@ Rows are 80 px tall and 960 px wide. The first row's top edge is at y = 96 and d
 - Blending is plain encoded-space `result = background * (1 - a) + colour * a`; there is no gamma step.
 - `planeobj` colours are 0..1 (`(14, 27, 119)` is `0.055, 0.106, 0.467`).
 - A 1 px plane works as a line. An RGBA PNG through `<texturetable>` and `<plane texture="...">` works
-  (`bg.png`, `header_line.png`).
-- The system `_common_texture_ruled_line` is almost invisible in this app (1-2 levels of change), although it is
-  strong in PS4 Link. Do not rely on it for a visible line.
+  (`bg.png`). Header separators now use the system `_common_texture_ruled_line` **[code, 2026-10-23]**.
+- The earlier near-invisible system-line observation (1-2 RGB levels) predates the native-height
+  correction. The supplied common RCO contains a 4 px-high image with transparent outer rows;
+  both header separator planes now retain that height. Appearance remains **[open]** on Vita.
 
 ### 2.4 Text
 
@@ -535,6 +536,10 @@ shutdown, stress/alternating-host and normal binary-profile checks remain **[ope
 No recurring main-thread heartbeat or changed PIN timeout is introduced.
 
 Add PC is an inline control on Main; there is no Add PC page.
+IME result handling shares one cleanup sequence for success and read failure: read the result,
+terminate the dialog, clear the open state and unregister its poll before handling the outcome
+**[code, 2026-10-23]**. Abort-on-destruction, module ownership and retry behavior are unchanged;
+source checks model the ordering, while maintainer build/Vita validation remains **[open]**.
 
 ## 4. Building blocks
 
@@ -556,7 +561,7 @@ Add PC is an inline control on Main; there is no Add PC page.
 | `template_list_view_generic` | `list_view_generic` (960 x 448) | Search, Apps | list that runs to the bottom of the screen |
 | `template_list_view_main` | `list_view_main` (960 x 384) | Main | list that ends where the bar starts (y = 480) |
 | `template_list_item_generic` | `list_item_generic`, `image_button_list_item` | Apps | single-label row |
-| `template_host_list_item` | `list_item_host`, `image_button_host`, `text_host_title`, `text_host_desc` | Main, Search | saved/found PC row: title and description |
+| `template_host_list_item` | `list_item_host`, `image_button_host`, `text_host_title`, `text_host_desc` | Main, Search | saved/found PC row: PC icon, title and description |
 | `template_host_list_item_select` | `list_item_host_select`, `image_button_host_select`, `text_host_select_title`, `text_host_select_desc`, `checkbox_host_select` | Main (selection mode) | same row with a checkbox |
 | `template_flow_bar` | `plane_flow_bar` + three edge planes | Pairing | opaque PS4 Link style bottom bar (no buttons) |
 
@@ -597,6 +602,7 @@ waiting to acquire the frame mutex.
 See [STREAM_DIAGNOSTICS_PLAN.md](STREAM_DIAGNOSTICS_PLAN.md) for metric definitions and remaining work.
 
 Buttons and lists: `style_image_button_list_button` (list row button with the empty 102 x 70 icon slot),
+`style_image_button_host` / `style_image_button_host_select` (PC rows with the fixed 80 x 80 `tex_pc` image slot),
 `style_button_option_top` / `style_button_option_bottom` (popup buttons), `style_list_view_generic`,
 `style_list_view_item_generic`.
 
@@ -605,9 +611,28 @@ Currently unused leftovers (safe to remove when touching nearby): `style_plane_f
 
 ### 4.4 Textures
 
-`_bg_texture` (`texture/bg.png`, page background), `_header_line_texture` (`texture/header_line.png`, 960 x 2 RGBA:
-20% black row over 18% white row, faded in from x ~ 40 and out to ~ 900). Add a texture by copying the file into
+`_bg_texture` (`texture/bg.png`, page background). Add a texture by copying the file into
 `cxml/texture/`, adding a `<texture src id type="texture/png">` entry, and rebuilding the RCO (`build_cxml.sh`).
+
+Header separators use `_common_texture_ruled_line` from the already-loaded common PAF resource;
+the former project PNG and `_header_line_texture` definition are removed **[code, 2026-10-23]**.
+The maintainer-supplied `common_resource.rco` (SHA-256
+`6ee58e58d1e78fecd99ea93e585c81efde3e940e3e0ca5cec4e64ba7cacdc806`)
+defines this texture as a 328 x 4 GIM with `div_mode="3x1"`, `div_ratio_h="0.49"`.
+Only rows 1/2 contain visible pixels; maximum alpha is 90/255 for black and 18/255 for white
+**[code, extracted resource]**. Search and Main/Apps use 960 x 4 planes. Search's top edge is
+y = 94 (`pos="0, -94"`), and the shared title separator is centred at y = 96, so both target
+the visible dark/light pair at y = 95/96 without reducing the source height. These are layout
+values, not proof of PAF filtering/division or final pixels. Rebuilt RCO/Vita appearance checks
+remain **[open]**; the common RCO and extracted GIM/PNG are not bundled in the project.
+
+`tex_pc` (`texture/pc.png`, 80 x 80 RGBA) is the original Sony Music PC-source icon,
+extracted from the maintainer-supplied `musicbrowser_plugin.rco` and converted from GIM
+to PNG with its original dimensions and transparency. It is bundled in this application's
+RCO and bound to the native ImageButton `image_obj` in both host-row styles; loading the
+Music plugin is unnecessary. Main and Search share the ordinary template; Main deletion
+uses the selection template **[code, 2026-10-23]**. Build and Vita appearance/focus/touch
+validation of the icon and selection spacing remain **[open]**.
 
 ### 4.5 Code helpers (`include/common.h`)
 
@@ -839,17 +864,23 @@ checks verify source artwork; the revised shape still needs maintainer RCO rebui
 |---|---|---|
 | Flow page header (`style_text_header`) | 26 px regular, text origin x = 64, cap centre y = 61.5 | PS4 Link search page **[shot]** |
 | List screen header | same style, text origin x = 80 | PS4 Link "Which feature..." **[shot]** |
-| Flow header line | rows y = 95 (dark) / 96 (light), fades in x 40-260, out 700-900 | `header_line.png` **[shot]** |
+| Header separator | system `_common_texture_ruled_line`, 960 x 4 plane targeting visible rows y = 95/96 | source geometry **[code, 2026-10-23]**; Vita appearance **[open]** |
 | Paragraph (`style_text_paragraph`) | 26 px, line pitch 40, x = 64, first line centre y = 108, wrap width about 790 | PS4 Link pairing page **[shot]** |
 
-On list screens the dark/light pair at y = 95 / 96 is the first row's top edge, so the shared title bar does not draw
-that line itself.
+The PS4 Link reference has a dark/light pair at y = 95/96 **[shot]**. Search and the shared
+Main/Apps title bar now explicitly draw the native separator at that boundary **[code]**;
+the first list row can also contribute its own edge. Final combined appearance needs a Vita check.
 
 ### 5.2 List rows (PS4 Link "Which feature...") **[shot]**
 
 Title 28 px regular, cap centre 25 px below the row top; description 22 px at 85% white, cap centre 58.5 px below the
-row top. PS4 Link text starts at x = 220 because of its icon column; this app has no icons and starts at x = 175.
-`pos` for the texts is `175, -9` (title) and `175, -45` (description).
+row top. PS4 Link text starts at x = 220 because of its icon column. Main/Search PC rows
+now use the Music `tex_pc` icon in an 80 x 80 image slot centred at row x = 120
+(`planeobj pos="-360, 0"` within the centred 840 px button) **[code, 2026-10-23]**.
+Ordinary row text retains x = 175: `pos="175, -9"` (title) and `pos="175, -45"`
+(description), width 700. Selection rows shift the icon centre to x = 200 and text to
+x = 255 with width 620, preserving the right text edge at x = 875. These icon/selection
+values are source layout choices, not screenshot matches or hardware verification **[open]**.
 
 ### 5.3 Bottom bars
 
@@ -890,8 +921,10 @@ separately (**[open]**).
 
 ### 5.5 Selection mode on Main
 
-Popup -> Delete -> multi-selection: every row shows a checkbox (`checkbox_host_select`, 58 x 58 at `pos="92, 0"` in
-the empty icon slot) that mirrors the row; activating the row toggles it; the bottom selection bar offers Cancel, Select
+Popup -> Delete -> multi-selection: every row shows a checkbox (`checkbox_host_select`, 58 x 58 at `pos="92, 0"`)
+that mirrors the row. The checkbox retains its position; the PC image slot spans row x = 160-240,
+followed by text at x = 255 **[code, 2026-10-23; Vita validation open]**.
+Activating the row toggles it; the bottom selection bar offers Cancel, Select
 All / Clear all and Delete; Delete is disabled until something is selected and asks for confirmation through
 `SceMessageDialog`. There is no Copy or clipboard action and no `SceClipboard` dependency; do not restore it unless
 asked.
@@ -938,7 +971,8 @@ Do not introduce a settings file or a custom settings screen.
 
 - `DeleteCell(0, 0, existing - 1)` leaves a stale row.
 - A `style_plane` colour set in both the style and the `planeobj` is squared.
-- `_common_texture_ruled_line` is nearly invisible in this app.
+- `_common_texture_ruled_line` has a 4 px source height with transparent outer rows; do not
+  compress it to the former 2 px project-line height without checking the rendered result.
 - `SetActivate()` does not dim a button; `Widget::SetColor()` on a disabled button was rejected in favour of the native
   disabled state.
 - Showing and hiding a checkbox on a shared row template misbehaves; use the select template.
