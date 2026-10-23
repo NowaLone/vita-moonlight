@@ -536,6 +536,31 @@ shutdown, stress/alternating-host and normal binary-profile checks remain **[ope
 No recurring main-thread heartbeat or changed PIN timeout is introduced.
 
 Add PC is an inline control on Main; there is no Add PC page.
+
+**Confirmed remote Quit, 2026-10-23 [code; basic flow accepted on Vita by maintainer]:**
+when fresh host state rejects launching a different application, ConnectionService closes its
+PAF busy slot and offers a native SceMessageDialog **Yes/No** confirmation. It warns that quitting
+loses unsaved progress and ends other streaming sessions. No preserves the host session. Yes is
+acted on only after a successful dialog result and termination, then the existing stream worker
+shows the normal busy window while it quits the confirmed app and starts the selected app.
+Apps activation and Back are blocked while the message or operation is owned. Initialization/
+result failures never authorize Quit; shutdown clears pending approval. There is no custom CXML
+popup, inline message or separate Quit button. Apps retains framebuffer-release handling; the
+service now owns all asynchronous launch errors and the confirmation.
+
+The worker rechecks the authenticated active ID; an already idle host launches normally, the
+selected active app resumes, and a different unconfirmed ID needs a new confirmation. A matching
+approved ID permits paired HTTPS `/cancel`; valid XML `cancel=1` and refreshed idle host state
+are required before launching. Sunshine's host-wide endpoint cannot atomically enforce the ID
+comparison, so a change between the last snapshot and `/cancel` remains a protocol race. Ordinary
+double-PS stop, local cancellation and disconnect never call `/cancel`.
+
+**Maintainer acceptance [hw, user-reported, 2026-10-23]:** after the implementation, the
+maintainer reports “я проверил всё ок”. This accepts the requested confirmation/Quit-and-launch
+flow on the tested Vita. No screenshot, per-case log, installed profile/revision or Sunshine
+version was supplied; individual fault/error handoffs, host-state races and broader regression
+coverage remain **[open]**. No agent build or device run.
+
 IME result handling shares one cleanup sequence for success and read failure: read the result,
 terminate the dialog, clear the open state and unregister its poll before handling the outcome
 **[code, 2026-10-23]**. Abort-on-destruction, module ownership and retry behavior are unchanged;
