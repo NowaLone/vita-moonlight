@@ -200,8 +200,6 @@ static void onSettingsButton(int32_t type, paf::ui::Handler *self, paf::ui::Even
     Main *main = (Main *)userdata;
     if (OptionMenu::Instance() != NULL) return;
     new OptionMenu(
-        g_plugin,
-        main ? main->root : NULL,
         onOptionMenu,
         NULL,
         main != NULL && main->HasHosts());
@@ -225,7 +223,6 @@ Main::Main()
            paf::Plugin::TransitionType_None),
       m_next_host_token(0),
       m_host_count(0),
-      m_selected_index(-1),
       m_connecting(false),
       m_initial_refresh_attempts(0),
       m_initial_refresh_stable_count(0),
@@ -583,7 +580,6 @@ void Main::SelectHost(int index)
 {
     if (m_connecting || index < 0 || index >= m_host_count) return;
 
-    m_selected_index = index;
     m_connecting = true;
 
     paf::ui::ListView *list = static_cast<paf::ui::ListView *>(
@@ -1160,16 +1156,6 @@ void Main::OnMoonlightEvent(const MoonlightEvent *event, void *userdata)
         break;
 
     case MOONLIGHT_EVENT_CONNECTION_FAILED:
-        main->m_connecting = false;
-        main->ShowIdleStatus();
-
-        {
-            paf::ui::ListView *list = static_cast<paf::ui::ListView *>(
-                main->root->FindChild("list_view_main"));
-            if (list) list->SetActivate(true);
-        }
-        break;
-
     case MOONLIGHT_EVENT_CONNECTION_CLOSED:
         main->m_connecting = false;
         main->ShowIdleStatus();

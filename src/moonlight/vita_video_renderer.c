@@ -53,8 +53,6 @@ static int s_frame_pacer = 1;
 static int s_vblank_wait = 0;
 static int s_center_region = 0;
 static int s_ref_frame_invalidation = 0;
-static unsigned int s_requested_width = 960;
-static unsigned int s_requested_height = 544;
 static uint64_t s_last_present_time;
 static uint32_t s_stats_generation;
 
@@ -99,6 +97,7 @@ static void vita_video_calculate_output_size(
 {
     uint64_t source_is_narrower;
     uint64_t screen_is_narrower;
+    int scale_to_width;
 
     if (source_width == 0 || source_height == 0) {
         s_frame_width = VITA_SCREEN_WIDTH;
@@ -117,36 +116,23 @@ static void vita_video_calculate_output_size(
         return;
     }
 
-    if (source_is_narrower > screen_is_narrower) {
-        /* The source is narrower than the Vita screen. */
-        if (s_center_region) {
-            s_frame_width = VITA_SCREEN_WIDTH;
-            s_frame_height = align_decoder_resolution(
-                divide_round_up(
-                    (uint64_t)VITA_SCREEN_WIDTH * source_height,
-                    source_width));
-        } else {
-            s_frame_width = align_decoder_resolution(
-                divide_round_up(
-                    (uint64_t)VITA_SCREEN_HEIGHT * source_width,
-                    source_height));
-            s_frame_height = VITA_SCREEN_HEIGHT;
-        }
+    /* A narrow source fits at screen height and covers at screen width.
+     * A wide source makes the opposite choice. */
+    scale_to_width = s_center_region
+        ? source_is_narrower > screen_is_narrower
+        : source_is_narrower < screen_is_narrower;
+    if (scale_to_width) {
+        s_frame_width = VITA_SCREEN_WIDTH;
+        s_frame_height = align_decoder_resolution(
+            divide_round_up(
+                (uint64_t)VITA_SCREEN_WIDTH * source_height,
+                source_width));
     } else {
-        /* The source is wider than the Vita screen. */
-        if (s_center_region) {
-            s_frame_width = align_decoder_resolution(
-                divide_round_up(
-                    (uint64_t)VITA_SCREEN_HEIGHT * source_width,
-                    source_height));
-            s_frame_height = VITA_SCREEN_HEIGHT;
-        } else {
-            s_frame_width = VITA_SCREEN_WIDTH;
-            s_frame_height = align_decoder_resolution(
-                divide_round_up(
-                    (uint64_t)VITA_SCREEN_WIDTH * source_height,
-                    source_width));
-        }
+        s_frame_width = align_decoder_resolution(
+            divide_round_up(
+                (uint64_t)VITA_SCREEN_HEIGHT * source_width,
+                source_height));
+        s_frame_height = VITA_SCREEN_HEIGHT;
     }
 }
 
@@ -170,23 +156,6 @@ void moonlight_video_set_stream_options(
 int moonlight_video_center_region(void)
 {
     return s_center_region;
-}
-
-int moonlight_video_ref_frame_invalidation(void)
-{
-    return s_ref_frame_invalidation;
-}
-
-void moonlight_video_get_requested_size(
-    unsigned int *width,
-    unsigned int *height)
-{
-    if (width) {
-        *width = s_requested_width;
-    }
-    if (height) {
-        *height = s_requested_height;
-    }
 }
 
 static int vita_video_pacer_should_drop(void)
@@ -236,11 +205,9 @@ static int vita_video_setup(
     }
 
     moonlight_log_memory_budget("video-before-setup");
-    s_requested_width = (unsigned int)width;
-    s_requested_height = (unsigned int)height;
     vita_video_calculate_output_size(
-        s_requested_width,
-        s_requested_height);
+        (unsigned int)width,
+        (unsigned int)height);
 
     s_decoder_buffer_size = 128 * 1024 + 64;
     s_decoder_buffer = (char *)malloc(s_decoder_buffer_size);
@@ -563,7 +530,7 @@ static void vita_video_cleanup(void)
         s_decoded_frames);
 }
 
-static void vita_video_release_frame_buffers_internal(void)
+void moonlight_video_release_frame_buffers(void)
 {
     int frame_index;
 
@@ -597,11 +564,6 @@ static void vita_video_release_frame_buffers_internal(void)
 
     vita_debug_log("[Video] deferred frame buffers released");
     moonlight_log_memory_budget("video-framebuffers-released");
-}
-
-void moonlight_video_release_frame_buffers(void)
-{
-    vita_video_release_frame_buffers_internal();
 }
 
 unsigned int moonlight_video_get_frame_pool_generation(void)
@@ -775,16 +737,19 @@ static int vita_video_submit(PDECODE_UNIT decode_unit)
              * required. Triple buffering keeps this buffer out of PAF's
              * current presentation while the decoder reuses it.
              */
-            for (row = 0; row < VITA_SCREEN_HEIGHT; ++row) {
-                unsigned char *destination =
-                    buffer + (size_t)row * VITA_SCREEN_WIDTH * 4u;
-                const unsigned char *source =
-                    buffer +
-                    ((size_t)(row + crop_y) * s_frame_width + crop_x) * 4u;
-                memmove(
-                    destination,
-                    source,
-                    (size_t)VITA_SCREEN_WIDTH * 4u);
+            if (s_frame_width != VITA_SCREEN_WIDTH ||
+                s_frame_height != VITA_SCREEN_HEIGHT) {
+                for (row = 0; row < VITA_SCREEN_HEIGHT; ++row) {
+                    unsigned char *destination =
+                        buffer + (size_t)row * VITA_SCREEN_WIDTH * 4u;
+                    const unsigned char *source =
+                        buffer +
+                        ((size_t)(row + crop_y) * s_frame_width + crop_x) * 4u;
+                    memmove(
+                        destination,
+                        source,
+                        (size_t)VITA_SCREEN_WIDTH * 4u);
+                }
             }
 
             if (generation) {

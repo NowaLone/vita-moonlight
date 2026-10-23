@@ -55,7 +55,6 @@ int legacy_gamestream_init(
     unsigned short http_port,
     const char *client_directory,
     const char *server_certificate_path,
-    int log_level,
     bool unsupported);
 
 int legacy_gamestream_pair(
@@ -77,17 +76,6 @@ int legacy_gamestream_set_certificate_path(LegacyGameStreamServer *server, const
 int legacy_gamestream_request(
     LegacyGameStreamServer *server, const char *endpoint, const char *query,
     long timeout_seconds, char **body, size_t *length);
-
-int legacy_gamestream_launch(
-    LegacyGameStreamServer *server,
-    int app_id,
-    char *session_url,
-    size_t session_url_size);
-
-int legacy_gamestream_get_server_mac(
-    LegacyGameStreamServer *server,
-    char *mac,
-    unsigned int size);
 
 void legacy_gamestream_shutdown(LegacyGameStreamServer *server);
 

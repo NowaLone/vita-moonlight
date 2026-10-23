@@ -28,19 +28,13 @@ static wchar_t s_about_description[256];
 
 static void build_about_description()
 {
-    const char *prefix = "Settings are stored by the Vita AppSettings service.\nBuild commit: ";
-    const char *commit = MOONLIGHT_GIT_COMMIT;
+    const char *text = "Settings are stored by the Vita AppSettings service.\nBuild commit: "
+        MOONLIGHT_GIT_COMMIT;
     size_t i = 0;
 
-    while (prefix[i] && i + 1 < sizeof(s_about_description) / sizeof(s_about_description[0])) {
-        s_about_description[i] = (wchar_t)(unsigned char)prefix[i];
+    while (text[i] && i + 1 < sizeof(s_about_description) / sizeof(s_about_description[0])) {
+        s_about_description[i] = (wchar_t)(unsigned char)text[i];
         ++i;
-    }
-
-    size_t j = 0;
-    while (commit[j] &&
-           i + 1 < sizeof(s_about_description) / sizeof(s_about_description[0])) {
-        s_about_description[i++] = (wchar_t)(unsigned char)commit[j++];
     }
 
     s_about_description[i] = L'\0';
@@ -269,17 +263,6 @@ int moonlight_settings_get_value(MoonlightSettingKey key, int *out_value)
     if (!name) return -1;
 
     s_settings->GetInt(name, out_value, 0);
-    return 0;
-}
-
-int moonlight_settings_set_value(MoonlightSettingKey key, int value)
-{
-    if (!s_initialized || !s_settings) return -1;
-
-    const char *name = key_name(key);
-    if (!name) return -1;
-
-    s_settings->SetInt(name, value);
     return 0;
 }
 

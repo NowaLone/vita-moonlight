@@ -100,25 +100,24 @@ static int run_on_worker(int (*function)(void *), void *argument)
     call.result = LEGACY_GAMESTREAM_FAILED;
 
     if (pthread_attr_init(&attr) != 0) {
-        return function(argument);
+        return LEGACY_GAMESTREAM_INTERNAL_ERROR;
     }
 
     if (pthread_attr_setstacksize(&attr, GAMESTREAM_WORKER_STACK) != 0) {
         pthread_attr_destroy(&attr);
-        return function(argument);
+        return LEGACY_GAMESTREAM_INTERNAL_ERROR;
     }
 
     create_result = pthread_create(&thread, &attr, worker_entry, &call);
     pthread_attr_destroy(&attr);
     if (create_result != 0) {
         vita_debug_log("[GameStream] worker create failed: %d", create_result);
-        return function(argument);
+        return LEGACY_GAMESTREAM_INTERNAL_ERROR;
     }
 
     pthread_join(thread, NULL);
     return call.result;
 }
-
 
 typedef struct HttpBuffer {
     char *memory;
@@ -1891,7 +1890,6 @@ typedef struct InitArgs {
     unsigned short http_port;
     const char *client_directory;
     const char *server_certificate_path;
-    int log_level;
     bool unsupported;
 } InitArgs;
 
@@ -1903,7 +1901,6 @@ int legacy_gamestream_init(
     unsigned short http_port,
     const char *client_directory,
     const char *server_certificate_path,
-    int log_level,
     bool unsupported)
 {
     InitArgs args;
@@ -1916,7 +1913,6 @@ int legacy_gamestream_init(
     args.http_port = http_port;
     args.client_directory = client_directory;
     args.server_certificate_path = server_certificate_path;
-    args.log_level = log_level;
     args.unsupported = unsupported;
     int result = run_on_worker(init_worker, &args);
     if (result != LEGACY_GAMESTREAM_OK) legacy_gamestream_shutdown(server);
@@ -1930,13 +1926,11 @@ static int init_worker(void *argument)
     const char *address = args->address;
     unsigned short http_port = args->http_port;
     const char *client_directory = args->client_directory;
-    int log_level = args->log_level;
     bool unsupported = args->unsupported;
     CURL *curl;
     unsigned char random_seed[0x40];
     char *certificate_path;
     char *key_path;
-    (void)log_level;
 
     if (!server || !address || !address[0] || !client_directory || !client_directory[0]) {
         set_error("Invalid GameStream initialization arguments");
@@ -2080,33 +2074,6 @@ int legacy_gamestream_pair(LegacyGameStreamServer *server, const char *pin,
     int result = run_on_worker(pair_worker, &args);
     pthread_mutex_unlock(&s_pair_mutex);
     return result;
-}
-
-int legacy_gamestream_get_server_mac(
-    LegacyGameStreamServer *server,
-    char *mac,
-    unsigned int size)
-{
-    if (!server || !mac || size == 0) {
-        return LEGACY_GAMESTREAM_INVALID;
-    }
-
-    if (!server->mac[0]) {
-        int result = load_server_info(server, true, NULL);
-        if (result != LEGACY_GAMESTREAM_OK) {
-            return result;
-        }
-    }
-
-    if (!server->mac[0]) {
-        set_error("Server MAC address is unavailable");
-        return LEGACY_GAMESTREAM_INVALID;
-    }
-
-    strncpy(mac, server->mac, size - 1);
-    mac[size - 1] = '\0';
-
-    return LEGACY_GAMESTREAM_OK;
 }
 
 void legacy_gamestream_shutdown(LegacyGameStreamServer *server)

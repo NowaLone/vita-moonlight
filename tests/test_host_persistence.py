@@ -4,8 +4,12 @@ No compilation, real file I/O, Vita storage, threading or durability validation.
 """
 import re
 import unittest
+from itertools import product
+from unittest.mock import patch
 
 from pycparser import c_ast, c_parser
+import test_adapter_lifecycle as runtime
+import test_event_queue as event_runtime
 from test_adapter_lifecycle import Returned, execute
 from test_xml_source import ROOT, strip_directives
 
@@ -284,6 +288,58 @@ class HostPersistence(unittest.TestCase):
                 result, calls, _, directories = self.store(name, existing=True, **arguments)
                 self.assertEqual((result, calls, directories), (-1, [], []))
 
+    def test_existing_device_append_preserves_metadata_and_fill_only_identity(self):
+        source = (ROOT / 'src/backend/legacy/device.c').read_text()
+        start = source.index('device_info_t* append_device(')
+        prefix = source[start:source.index('  // FIXME: need mutex', start)]
+        append = parse_body(prefix + '  return NULL;\n}')
+        merge = parse_body(function(source, 'merge_device_info'))
+        harness = event_runtime.EventQueue()
+        harness.base_expression, harness.base_execute = runtime.expression, runtime.execute
+
+        def snapshot(info):
+            return {key: value.text() if isinstance(value, event_runtime.Buffer) else value
+                    for key, value in info.items()}
+
+        def invoke(body, **arguments):
+            values = dict(NULL=0, true=1, false=0, **arguments)
+            values.update(strncpy=event_runtime.EventQueue.strncpy,
+                          strcmp=lambda left, right: (left.text() > right.text()) -
+                          (left.text() < right.text()),
+                          find_device_by_identity=lambda info: stored,
+                          vita_debug_log=lambda *args: None,
+                          merge_device_info=lambda destination, source: invoke(
+                              merge, destination=destination, source=source))
+            with patch.object(runtime, 'expression', harness.expression), \
+                    patch.object(runtime, 'execute', harness.execute):
+                return run(body, values)
+
+        for metadata, old_paired, paired, port, prefer, identity in product(
+                ('empty', 'same', 'new'), (0, 1), (0, 1), (0, 48000), (0, 1), ('', 'old')):
+            with self.subTest(metadata=metadata, paired=paired, port=port,
+                              old_paired=old_paired, prefer=prefer, identity=identity):
+                stored, incoming = record(), record()
+                stored.update(paired=old_paired, host_id=CString(identity), storage_name=CString(identity))
+                incoming.update(paired=paired, port=port, prefer_external=prefer)
+                for field in ('name', 'internal', 'external', 'mac'):
+                    incoming[field] = CString('' if metadata == 'empty' else (
+                        str(stored[field]) if metadata == 'same' else 'new-' + field))
+                expected = {key: str(value) if isinstance(value, CString) else value
+                            for key, value in stored.items()}
+                for field, value in incoming.items():
+                    if isinstance(value, CString):
+                        incoming[field] = event_runtime.Buffer(str(value), 18 if field == 'mac' else (
+                            33 if field == 'host_id' else 256))
+                        if value.text and (field not in ('host_id', 'storage_name') or not expected[field]):
+                            expected[field] = value.text
+                expected.update(paired=old_paired or paired, port=port or 47989, prefer_external=prefer)
+                for field, value in stored.items():
+                    if isinstance(value, CString):
+                        stored[field] = event_runtime.Buffer(str(value), 18 if field == 'mac' else (
+                            33 if field == 'host_id' else 256))
+                self.assertIs(invoke(append, info=incoming), stored)
+                self.assertEqual(snapshot(stored), expected)
+
     def test_metadata_failure_does_not_convert_proven_pairing_into_failure(self):
         for status in (0, -1):
             events, logs = [], []
@@ -298,6 +354,39 @@ class HostPersistence(unittest.TestCase):
             self.assertEqual(values['s_connection_state'], 2)
             self.assertEqual(events, [(11, 0, 1, -1, '192.0.2.1')])
             self.assertEqual(len(logs), int(status != 0))
+
+    def test_new_device_terminates_full_length_strings_in_uninitialized_storage(self):
+        source = (ROOT / 'src/backend/legacy/device.c').read_text()
+        start = source.index('  device_info_t *p = &known_devices.devices[known_devices.count];')
+        tail = source[start:source.index('\n}', start) + 2]
+        tail = tail.replace('known_devices.count++;', 'known_devices.count = known_devices.count + 1;')
+        append = parse_body('device_info_t *append_new(device_info_t *info) {\n' + tail)
+        harness = event_runtime.EventQueue()
+        harness.base_expression, harness.base_execute = runtime.expression, runtime.execute
+        for length in (0, 1, 254, 255):
+            with self.subTest(length=length):
+                incoming, destination = record(), record()
+                for field in ('name', 'internal', 'external'):
+                    incoming[field] = CString('x' * length)
+                for field, value in incoming.items():
+                    if isinstance(value, CString):
+                        size = 18 if field == 'mac' else (33 if field == 'host_id' else 256)
+                        incoming[field] = event_runtime.Buffer(str(value), size)
+                        destination[field] = event_runtime.Buffer('!' * size, size)
+                devices = dict(devices=[destination], count=0)
+                values = dict(info=incoming, known_devices=devices,
+                              strncpy=event_runtime.EventQueue.strncpy,
+                              ensure_host_identity=lambda info: None,
+                              vita_debug_log=lambda *args: None)
+                with patch.object(runtime, 'expression', harness.expression), \
+                        patch.object(runtime, 'execute', harness.execute):
+                    self.assertIs(run(append, values), destination)
+                self.assertEqual(devices['count'], 1)
+                for field, value in incoming.items():
+                    with self.subTest(field=field):
+                        actual = destination[field]
+                        self.assertEqual(actual.text() if isinstance(actual, event_runtime.Buffer) else actual,
+                                         value.text() if isinstance(value, event_runtime.Buffer) else value)
 
 
 if __name__ == '__main__':

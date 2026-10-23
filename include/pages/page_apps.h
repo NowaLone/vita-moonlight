@@ -20,7 +20,6 @@ public:
 
     Apps();
     virtual ~Apps();
-    virtual Type GetType() { return Type_Apps; }
 
     void RestoreEventCallback();
     paf::ui::ListItem *CreateListItem(paf::ui::listview::ItemFactory::CreateParam &param);
@@ -35,7 +34,6 @@ private:
 
     paf::vector<MoonlightApplication> m_apps;
     int m_app_count;
-    int m_selected_index;
     bool m_launching;
     paf::ui::ListView *m_list;
 

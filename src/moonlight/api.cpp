@@ -80,7 +80,7 @@ static void invalidate_applications()
 {
     s_applications_valid = false;
     s_application_count = 0;
-    memset(s_applications, 0, sizeof(s_applications));
+    /* Readers require validity and copy only the current count. */
 }
 
 static void emit(MoonlightEventType type,
@@ -224,11 +224,8 @@ static void on_stream_event(
         s_stream_pending = false;
         s_stream_active = true;
         s_connection_state = MOONLIGHT_CONNECTION_STREAMING;
-    } else if (type == MOONLIGHT_EVENT_STREAM_STOPPED) {
-        s_stream_pending = false;
-        s_stream_active = false;
-        s_connection_state = MOONLIGHT_CONNECTION_PAIRED;
-    } else if (type == MOONLIGHT_EVENT_STREAM_FAILED) {
+    } else if (type == MOONLIGHT_EVENT_STREAM_STOPPED ||
+               type == MOONLIGHT_EVENT_STREAM_FAILED) {
         s_stream_pending = false;
         s_stream_active = false;
         s_connection_state = MOONLIGHT_CONNECTION_PAIRED;
@@ -250,7 +247,6 @@ static void on_stream_event(
         s_stream_application_id = -1;
     }
 }
-
 
 static void *disconnect_cleanup_worker(void *)
 {
@@ -347,40 +343,11 @@ void moonlight_api_shutdown(void)
     pthread_mutex_unlock(&s_host_control_mutex);
 }
 
-int moonlight_api_open_settings(void)
-{
-    if (moonlight_settings_init() != 0) return -1;
-    return moonlight_settings_open();
-}
-
-int moonlight_api_get_settings(MoonlightSettings *out)
-{
-    if (moonlight_settings_init() != 0) return -1;
-    return moonlight_settings_get_all(out);
-}
-
-int moonlight_api_get_setting_value(MoonlightSettingKey key, int *out_value)
-{
-    if (moonlight_settings_init() != 0) return -1;
-    return moonlight_settings_get_value(key, out_value);
-}
-
-int moonlight_api_set_setting_value(MoonlightSettingKey key, int value)
-{
-    if (moonlight_settings_init() != 0) return -1;
-    return moonlight_settings_set_value(key, value);
-}
-
 int moonlight_api_set_event_callback(MoonlightEventCallback callback, void *userdata)
 {
     s_callback = callback;
     s_userdata = userdata;
     return 0;
-}
-
-int moonlight_api_get_hosts(MoonlightHost *out, int capacity)
-{
-    return legacy_device_store_get_hosts(out, capacity);
 }
 
 int moonlight_api_get_discovered_hosts(MoonlightHost *out, int capacity)
@@ -447,7 +414,6 @@ int moonlight_api_connect_host(const MoonlightHost *host)
         host->port,
         client_directory,
         server_certificate_path,
-        0,
         true);
 
     if (result == LEGACY_GAMESTREAM_OK && s_server.unique_id[0]) {
@@ -647,15 +613,6 @@ int moonlight_api_get_applications(MoonlightApplication *out, int capacity)
     return s_application_count;
 }
 
-extern "C" int moonlight_launch_request(
-    void *curl,
-    const char *address,
-    unsigned short https_port,
-    const char *unique_path,
-    int app_id,
-    char *session_url,
-    size_t session_url_size);
-
 int moonlight_api_start_application(int application_id, int quit_application_id)
 {
     HostControlRequest request(false);
@@ -731,9 +688,6 @@ int moonlight_api_start_application(int application_id, int quit_application_id)
     if (result != 0) {
         s_stream_pending = false;
         s_stream_application_id = -1;
-    }
-
-    if (result != 0) {
         vita_debug_log(
             "[GameStream] stream failed for app %d: %d",
             application_id,

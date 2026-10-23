@@ -463,19 +463,19 @@ Rows are 80 px tall and 960 px wide. The first row's top edge is at y = 96 and d
   `image_button_host_select`); code picks the id by mode.
 - No XML comments inside elements: none exist in the project and they have not been tested with `psp2cxml-tool`.
   Put explanations in docs and commit messages.
-- `cxml/locale/en.xml` contains raw `&` and `<->` in some attributes. The project's tool accepts them; a strict XML
-  parser does not.
+- Escape reserved XML characters in locale attributes (`&amp;`, `&lt;`). All current
+  resource XML files pass strict parsing; decoded labels retain their literal symbols.
 
 ## 3. Pages
 
 | Class (`page::Type`) | XML page | Purpose | Back mechanism |
 |---|---|---|---|
-| `Main` (`Type_Main`) | `page_main` | saved-PC list, inline Add PC / Search PCs, selection mode | none (bottom of the stack) |
-| `Search` (`Type_Search`) | `page_search_pcs` | LAN discovery list; static text only when empty | corner button `btn_close_search` |
-| `Pairing` (`Type_Pairing`) | `page_pairing` | shows the PIN, pairs as soon as it opens | bar button `btn_close_pairing` |
-| `Apps` (`Type_Apps`) | `page_apps` | application list of the connected PC | corner button `btn_close_apps` |
-| `Stream` (`Type_Stream`) | `page_stream` | full-screen video plane, black background, optional statistics overlay; no chrome | none (closed by stream events) |
-| `OptionMenu` (`Type_OptionMenu`) | `page_settings_bubble` | speech-balloon overlay: Delete, Settings | dismiss button over the whole screen |
+| `Main` | `page_main` | saved-PC list, inline Add PC / Search PCs, selection mode | none (bottom of the stack) |
+| `Search` | `page_search_pcs` | LAN discovery list; static text only when empty | corner button `btn_close_search` |
+| `Pairing` | `page_pairing` | shows the PIN, pairs as soon as it opens | bar button `btn_close_pairing` |
+| `Apps` | `page_apps` | application list of the connected PC | corner button `btn_close_apps` |
+| `Stream` | `page_stream` | full-screen video plane, black background, optional statistics overlay; no chrome | none (closed by stream events) |
+| `OptionMenu` | `page_settings_bubble` | speech-balloon overlay: Delete, Settings | dismiss button over the whole screen |
 
 Navigation **[code]**: Main -> `OptionMenu` -> (Settings = the system AppSettings plugin | Delete = selection mode on
 Main). Main -> Search -> connect -> Pairing (unpaired host) or Apps (paired host). Main -> Add PC (inline button,
@@ -518,6 +518,13 @@ use the generic fallback. The maintainer confirms the duplicate-session reason w
 Error 409 is visible in the Vita dialog on 2026-10-20 **[hw, user-reported]**; the
 supplied log independently confirms server_status=409. Other codes and long/Unicode
 message clipping/layout remain **[open]**. The OK → parent PC page behavior is unchanged.
+
+Pairing error preparation **[code, 2026-10-23]**: `ShowPairingError()` formats the
+message and delegates parameter initialization to `ShowSystemError()`. The latter
+clears the user-message structure and calls the VitaSDK `sceMsgDialogParamInit()`,
+which clears the complete parameter structure before setting its native metadata.
+The redundant earlier clears were removed; messages, buttons and dialog lifecycle
+are unchanged. Native regression validation remains with the maintainer.
 
 Pairing page destruction now requests local cancellation through PairingService
 **[code, 2026-10-20]**. A new connection also cancels any prior pairing before enqueue.
@@ -578,6 +585,30 @@ source checks model the ordering, while maintainer build/Vita validation remains
 - `page_stream` is opened with `graphics_flag = 0x80` and a higher draw priority (`Base` special-cases its id).
 - Do not add a second page stack.
 
+Unused `Id()`/`Root()` accessors were removed in the 2026-10-23 simplification
+follow-up **[code]**. Existing page identity, scene ownership and navigation remain.
+
+The repeat audit removes the unused `CloseType()`/`Type`/`GetType()` family, free
+`page::Find()` alias and `Stream::Instance()` getter **[code, 2026-10-23]**. Pages
+still use `Base::Find()`/`IsOpen()` by CXML ID and the same stack/virtual destructor.
+These project classes are not native PAF interfaces or exported module APIs.
+
+OptionMenu's three native event callbacks share `CloseAndNotify()` **[code,
+2026-10-23 repeat audit]**: copy the callback/userdata, delete the menu, then
+notify the parent. Null userdata and null callbacks remain tolerated. The ignored
+constructor plugin/parent arguments were removed; Base still opens the same CXML
+page. Popup geometry, focus, buttons and transition behavior are unchanged.
+
+Pairing has no page-local started flag **[code, 2026-10-23 repeat audit]**:
+private `StartPairing()` is called once by a valid constructor and still rejects
+an empty PIN. The service owns the real pairing operation/cancellation; terminal
+events retain their error/navigation handling without redundant flag writes.
+
+Main shares its identical CONNECTION_FAILED/CLOSED switch body **[code,
+2026-10-23 repeat audit]**: clear the local connection flag, restore empty-state
+visibility through `ShowIdleStatus()` and reactivate the host list. Native error
+ownership remains in ConnectionService.
+
 ### 4.2 Templates (`<templatetable>`)
 
 | Template | Child ids | Used by | Purpose |
@@ -597,7 +628,7 @@ Planes: `style_plane_selection_bar` (+ `_edge_dark`, `_edge_light`) for the Phot
 
 Text: `style_text_header` (26 regular, left), `style_text_paragraph` (26 regular, line pitch 40, wrapped),
 `style_text_row_title` (28 regular), `style_text_row_desc` (22, 85% white), `style_text_pin` (48 bold),
-`style_text_flow_note` (22, 85% white, wrapped), `style_text_main_status` (22, centred; page status text),
+`style_text_main_status` (22, centred; page status text),
 `style_text_stream_statistics` (18, yellow, left/top, unwrapped, 20 px line pitch; streaming diagnostics).
 
 The stream statistics overlay uses `plane_stream_statistics` (660 x 136, top-left offset 16/-12)
@@ -631,8 +662,16 @@ Buttons and lists: `style_image_button_list_button` (list row button with the em
 `style_button_option_top` / `style_button_option_bottom` (popup buttons), `style_list_view_generic`,
 `style_list_view_item_generic`.
 
-Currently unused leftovers (safe to remove when touching nearby): `style_plane_fill`, `style_text_title`,
-`style_text_body`, `style_button_option_single`.
+Repository simplification, 2026-10-23 **[code]**: removed the unreferenced fill/flow-note/title/body/
+single-option styles, unused Main/Apps selected-index fields and unused Pairing dialog title/button
+storage. Active templates, geometry, focus and native dialog messages are unchanged. XML reference/
+text-style checks pass; this does not establish RCO compilation or native rendering.
+
+Locale XML hygiene, 2026-10-23 **[code]**: escaped the ampersand in `msg_swap_xo`
+and the less-than sign in `msg_swap_shoulders` so `cxml/locale/en.xml` is well-formed
+XML. The decoded labels remain `Swap X & O for Moonlight` and
+`Swap R1/L1 <-> R2/L2`. All resource XML files now have a parsing check;
+RCO compilation and native label appearance remain maintainer validation.
 
 ### 4.4 Textures
 
@@ -885,6 +924,17 @@ checks verify source artwork; the revised shape still needs maintainer RCO rebui
 
 ### 5.1 Header and paragraph
 
+The supplied official Settings resources and ELF are now traced in
+[Settings UI research](SETTINGS_UI_RESEARCH.md) **[code, 2026-10-23]**. Its shared
+header uses a transparent 960 x 64 plane, a centred horizontal box with 32 px bold
+text, and a **local 960 x 2 separator** (`ID hash 0x69cb3790`), rather than
+`_common_texture_ruled_line`. Our common-resource separator and left-aligned
+26 px title remain the current implementation; they are not an exact copy of the
+Settings header. The same research confirms that the Wi-Fi sphere is a connection
+indicator (animated green while connecting, steady green when connected, dim
+otherwise), not a reachability indicator for every listed AP. No UI change or
+hardware verification follows from this reference investigation.
+
 | Item | Value | Source |
 |---|---|---|
 | Flow page header (`style_text_header`) | 26 px regular, text origin x = 64, cap centre y = 61.5 | PS4 Link search page **[shot]** |
@@ -957,8 +1007,8 @@ asked.
 ## 6. Recipes
 
 **Add a page.** Add `<page id="page_x">` to the XML (first child: a `plane texture="_bg_texture"` of size
-`960, 544`). Add a class deriving `page::Base` with `Base("page_x", "btn_close_x", open, close)`, a `Type_X` value and
-`GetType()`, and add the `.cpp` to `add_executable` in `CMakeLists.txt` (sources are listed explicitly). Own the event
+`960, 544`). Add a class deriving `page::Base` with `Base("page_x", "btn_close_x", open, close)`
+and add the `.cpp` to `add_executable` in `CMakeLists.txt` (sources are listed explicitly). Own the event
 callback and hand it back in the destructor. Open it with `new X(); if (!x->IsValid()) delete x;`. Add strings to
 `cxml/locale/en.xml`.
 
@@ -979,7 +1029,9 @@ add a `list` or `toggle_switch` entry (`id`, `title`, optional `hint`, `key`, `d
 `moonlight_settings_get_all()` (`src/moonlight/settings.cpp`), and a field in `MoonlightSettings` if the stream needs it.
 Do not introduce a settings file or a custom settings screen.
 
-**Show a status message.** `SetStatus(...)`. Return to idle with `Main::ShowIdleStatus()` on Main.
+**Page messages.** Keep only static empty-list labels and Pairing instructions/PIN.
+Use ConnectionService's native busy/error dialogs for foreground progress/errors;
+return Main to its empty-state policy through `Main::ShowIdleStatus()`.
 
 ## 7. Matching a reference screenshot
 
@@ -1001,6 +1053,6 @@ Do not introduce a settings file or a custom settings screen.
 - `SetActivate()` does not dim a button; `Widget::SetColor()` on a disabled button was rejected in favour of the native
   disabled state.
 - Showing and hiding a checkbox on a shared row template misbehaves; use the select template.
-- Transient status messages still overlap the rows; the idle hint must not (use `ShowIdleStatus()`).
+- Main's empty-state label must stay hidden over nonempty rows (use `ShowIdleStatus()`).
 - Do not restore host Copy / `SceClipboard`, and do not add long-press or per-item popup menus.
 - Hardware-only checks are tracked in `ROADMAP.md`; do not tick them without a Vita run.

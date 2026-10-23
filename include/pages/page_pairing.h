@@ -13,7 +13,6 @@ class Pairing : public Base {
 public:
     explicit Pairing(const char pin[5]);
     virtual ~Pairing();
-    virtual Type GetType() { return Type_Pairing; }
 
     void RestoreEventCallback();
 
@@ -28,13 +27,10 @@ private:
     void SetPin(const char pin[5]);
 
     char m_pin[5];
-    bool m_pairing_started;
     bool m_dialog_open;
     bool m_dialog_task_registered;
     SceMsgDialogParam m_dialog_param;
     SceMsgDialogUserMessageParam m_dialog_user;
-    SceMsgDialogButtonsParam m_dialog_buttons;
-    char m_dialog_title[128];
     char m_dialog_message[512];
 };
 
