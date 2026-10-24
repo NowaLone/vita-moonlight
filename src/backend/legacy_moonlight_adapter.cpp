@@ -6,6 +6,7 @@
 #include "moonlight/settings.h"
 #include "backend/legacy_device_store.h"
 #include "debug.h"
+#include "legacy/legacy_host_probe.h"
 
 LegacyMoonlightAdapter::LegacyMoonlightAdapter()
     : m_connection_state(MOONLIGHT_CONNECTION_DISCONNECTED),
@@ -24,7 +25,12 @@ int LegacyMoonlightAdapter::Initialize()
     m_connection_state = MOONLIGHT_CONNECTION_DISCONNECTED;
     m_has_current_host = false;
 
-    int result = legacy_device_store_init();
+    int result = moonlight_settings_init();
+    if (result != 0) {
+        return result;
+    }
+
+    result = legacy_device_store_init();
     if (result != 0) {
         return result;
     }
@@ -79,19 +85,29 @@ int LegacyMoonlightAdapter::GetHosts(MoonlightHost *out, int capacity)
     return legacy_device_store_get_hosts(out, capacity);
 }
 
-int LegacyMoonlightAdapter::GetDiscoveredHosts(MoonlightHost *out, int capacity)
+int LegacyMoonlightAdapter::ReadDiscovery(MoonlightDiscoverySnapshot *snapshot)
 {
-    return moonlight_api_get_discovered_hosts(out, capacity);
+    return moonlight_api_read_discovery(snapshot);
 }
 
-int LegacyMoonlightAdapter::SearchHosts()
+int LegacyMoonlightAdapter::SearchHosts(uint32_t *generation)
 {
-    return moonlight_api_search_hosts();
+    return moonlight_api_search_hosts(generation);
 }
 
 int LegacyMoonlightAdapter::StopHostSearch()
 {
     return moonlight_api_stop_host_search();
+}
+
+bool LegacyMoonlightAdapter::IsHostSearchIdle()
+{
+    return moonlight_api_host_search_idle() != 0;
+}
+
+void LegacyMoonlightAdapter::WaitForHostSearchIdle()
+{
+    moonlight_api_wait_host_search_idle();
 }
 
 int LegacyMoonlightAdapter::AddHost(const char *address, uint16_t port, const char *name)
@@ -102,6 +118,11 @@ int LegacyMoonlightAdapter::AddHost(const char *address, uint16_t port, const ch
 int LegacyMoonlightAdapter::DeleteHost(const MoonlightHost &host)
 {
     return legacy_device_store_delete_host(&host);
+}
+
+int LegacyMoonlightAdapter::ProbeHost(const MoonlightHost &host, const MoonlightCancellation *cancel)
+{
+    return legacy_host_probe(&host, cancel);
 }
 
 int LegacyMoonlightAdapter::ConnectHost(const MoonlightHost &host)

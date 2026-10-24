@@ -2,7 +2,32 @@
 
 This roadmap captures the agreed next steps for Vita Moonlight PAF. It is ordered by risk reduction and release readiness, not by a promise that every item must be completed before development continues. Keep individual changes small and verify device-specific behavior on real PS Vita hardware.
 
+## Main background discovery (source implementation, 2026-10-23)
+
+Search PC and its button are removed. Main combines saved rows with temporary discoveries;
+only saved PCs have TCP availability indicators and participate in Delete. One backend worker
+repeats mDNS queries five seconds after send completion, publishes locked generations/snapshots,
+pauses without a UI join and retains observations for 15 seconds of active healthy discovery.
+Selection persists/canonicalizes a captured host before ordinary connection; Apps/PIN return
+straight to Main. See [UI policy and pending acceptance](docs/UI.md#main-background-discovery--2026-10-23)
+and the earlier [official Wi-Fi evidence](docs/WIFI_BACKGROUND_SEARCH_RESEARCH.md).
+Non-build source checks cover the changed logic; no agent build/RCO/packaging/deployment.
+Maintainer validation remains open for focus/scroll, responsive search/cancellation, PC aging,
+repeated connect/pairing returns, Delete/IME/Settings and suspension/no discovery during stream.
+Historical Search runtime evidence below does not validate the replacement; no device gate is ticked.
+
 ## Current API work decision (2026-10-21)
+
+**Debug log regression correction, 2026-10-24:** the maintainer reports continued
+console output after disabling the switch and no startup output until Settings opens.
+Backend initialization now loads AppSettings before the host store/Main; the switch
+uses its callback's new value instead of rereading potentially stale storage, and
+Settings closure reapplies stored runtime values before its memory diagnostic/event.
+Four non-build checks cover initialization order/errors, stale-value toggles, missing
+callback arguments and closing apply/log/event order; the full gate passes 201 checks.
+Build and Vita validation remain pending: test both switch directions, connection
+after disabling and restart with each saved preference without opening Settings.
+Early bootstrap before AppSettings stays quiet.
 
 **Repeat Ponytail audit, 2026-10-23:** current-source pass from 07b1410 through
 166bf56 applies 12 independently committed simplifications (140 fewer production
@@ -544,17 +569,13 @@ cannot be inferred. Empty-storage and multiple-host cold starts remain unverifie
 full Main acceptance item open; no further InitialRefreshTask change is justified by this result.
 No build or hardware test was run by the agent for this documentation update.
 
-User explicitly reports that the initial-refresh completion line is absent. Source follow-up:
-the line remains in `Main::InitialRefreshTask`, but `src/common.cpp` initializes
-`s_debug_log_enabled` to zero on every process start. The persisted Debug log setting is applied
-by `moonlight_settings_apply_runtime` after lazy AppSettings initialization; the normal Main
-startup path does not initialize it. Initial-refresh diagnostics can therefore be suppressed
-even when Debug log was enabled in the previous process. A later RefreshHosts log can come from
-another refresh after settings become active; it does not establish when startup refresh finished.
-This explains a diagnostic visibility gap in current source, not a reproduced refresh failure.
-The earlier enable-Debug-log-and-restart instruction is insufficient to guarantee startup capture.
-Do not require the user to repeat this successful one-host test just to obtain that line, and do
-not change InitialRefreshTask or force logging on the basis of its absence. No runtime change was made.
+User explicitly reported that the initial-refresh completion line was absent. At that stage,
+`src/common.cpp` started logging disabled and AppSettings initialized lazily, so the saved
+preference could not enable initial-refresh diagnostics. This explained missing diagnostics,
+not a reproduced refresh failure; no InitialRefreshTask/runtime change was made for that report.
+The 2026-10-24 Debug log correction above supersedes the lazy-initialization behavior:
+saved logging preferences now load during backend startup, before Main. The successful
+one-host acceptance remains separate from empty/multiple-host coverage.
 
 ## Settings-open regression: verified resolved on tested Vita (2026-10-19)
 

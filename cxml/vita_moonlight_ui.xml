@@ -15,16 +15,11 @@
       </text>
 
       <plane style="_common_style_plane_transparent" id="plane_main_actions">
-        <layout_hint anchor="0, 1" align="0, 1" size="960, 72" pos="0, 0" />
-        <box style="_common_default_style_box" id="box_main_actions">
-          <layout_box layout_type="2" bottom_margin="0" top_margin="0" right_margin="40" left_margin="40" />
-          <button sound="_common_sound_button_enter" style="_common_default_style_button" label="msg_add_pc_placeholder" id="btn_add_pc">
-            <layout_hint size="500, 60" />
-          </button>
-          <button sound="_common_sound_button_enter" style="_common_default_style_button" label="msg_search_pcs" id="btn_search_pcs">
-            <layout_hint size="202, 60" />
-          </button>
-        </box>
+        <layout_hint anchor="1, 2" size="100, 62" pos="52, -64" />
+        <button sound="_common_sound_button_enter" style="style_button_header_action" texture="tex_add_pc" id="btn_add_pc">
+          <layout_hint size="100, 62" />
+          <focus_hint focus_shape="0" focus_size="88, 48" />
+        </button>
       </plane>
 
       <plane style="style_plane_selection_bar" id="plane_main_selection_actions">
@@ -50,24 +45,6 @@
       </plane>
 
       <corner_button style="_common_style_corner_bottom_right" id="settings_button" />
-    </page>
-
-    <page id="page_search_pcs">
-      <plane texture="_bg_texture" id="plane_search_bg">
-        <layout_hint size="960, 544" />
-      </plane>
-
-      <template_ref id="search_list_ref" template="template_list_view_generic" />
-
-      <plane texture="_common_texture_ruled_line" id="plane_search_header_line">
-        <layout_hint anchor="0, 2" align="0, 2" size="960, 4" pos="0, -94" />
-      </plane>
-
-      <text style="style_text_header" label="msg_no_pcs_found" id="text_search_status">
-        <layout_hint anchor="1, 2" align="1, 2" size="780, 0" pos="64, -47" adjust="0, 2" />
-      </text>
-
-      <corner_button style="_common_style_corner_bottom_left" id="btn_close_search" />
     </page>
 
     <page id="page_pairing">
@@ -163,6 +140,11 @@
   </pagetable>
 
   <styletable>
+    <style_button color="1, 1, 1, 1" bg_obj="plane_obj_header_action" glow_obj="plane_obj_header_action_glow" id="style_button_header_action">
+      <planeobj id="plane_obj_header_action" />
+      <planeobj texture0="_common_texture_button_glow" scale_mode_x="2" scale_mode_y="2" scale_value="86, 46" blend="2" id="plane_obj_header_action_glow" />
+    </style_button>
+
     <style_plane color="0, 0, 0, 1" planeobj="plane_obj_stream_black" id="style_plane_stream_black">
       <planeobj color="0, 0, 0, 1" id="plane_obj_stream_black" />
     </style_plane>
@@ -210,7 +192,7 @@
     </style_plane>
 
     <style_text textobj="header_obj" id="style_text_header">
-      <textobj font_size="26" bold="0" color="1, 1, 1, 1" align_y="1" ellipsis="1" id="header_obj" />
+      <textobj font_size="32" bold="1" color="1, 1, 1, 1" align_y="1" align_x="1" ellipsis="1" id="header_obj" />
     </style_text>
 
     <style_text textobj="paragraph_obj" id="style_text_paragraph">
@@ -247,15 +229,8 @@
       <planeobj texture0="_common_texture_list_glow_70px" blend="2" id="plane_obj1" />
     </style_image_button>
 
-    <style_image_button layout_type_x="0" layout_type_y="0" color="1, 1, 1, 1" glow_obj="plane_obj1" bg_obj="plane_obj2" image_obj="plane_obj3" id="style_image_button_host">
+    <style_image_button layout_type_x="0" layout_type_y="0" color="1, 1, 1, 1" glow_obj="plane_obj1" bg_obj="plane_obj2" id="style_image_button_host">
       <planeobj texture0="_common_texture_list_70px" id="plane_obj2" />
-      <planeobj texture0="tex_pc" scale_mode_y="3" scale_mode_x="3" size="80, 80" pos="-360, 0" id="plane_obj3" />
-      <planeobj texture0="_common_texture_list_glow_70px" blend="2" id="plane_obj1" />
-    </style_image_button>
-
-    <style_image_button layout_type_x="0" layout_type_y="0" color="1, 1, 1, 1" glow_obj="plane_obj1" bg_obj="plane_obj2" image_obj="plane_obj3" id="style_image_button_host_select">
-      <planeobj texture0="_common_texture_list_70px" id="plane_obj2" />
-      <planeobj texture0="tex_pc" scale_mode_y="3" scale_mode_x="3" size="80, 80" pos="-280, 0" id="plane_obj3" />
       <planeobj texture0="_common_texture_list_glow_70px" blend="2" id="plane_obj1" />
     </style_image_button>
 
@@ -275,7 +250,10 @@
 
   <texturetable>
     <texture src="texture/bg.png" id="_bg_texture" type="texture/png" />
+    <texture src="texture/host_available.png" id="tex_host_available" type="texture/png" />
+    <texture src="texture/host_unconfirmed.png" id="tex_host_unconfirmed" type="texture/png" />
     <texture src="texture/pc.png" id="tex_pc" type="texture/png" />
+    <texture src="texture/tx_man.png" id="tex_add_pc" type="texture/png" />
     <texture src="texture/controller_light_ds4.png" id="_controller_light_ds4" type="texture/png" />
     <texture src="texture/controller_light_left.png" id="_controller_light_left" type="texture/png" />
     <texture src="texture/controller_light_right.png" id="_controller_light_right" type="texture/png" />
@@ -322,9 +300,12 @@
       <template fast_open="1" id="template_top_title_bar">
         <plane style="_common_style_plane_transparent" id="plane_top">
           <layout_hint align="0, 2" size="960, 64" pos="0, 240" />
-          <text style="style_text_header" auto_scroll="1" id="text_top">
-            <layout_hint anchor="1, 2" align="1, 2" size="780, 0" pos="80, -15" adjust="0, 2" />
-          </text>
+          <box style="_common_default_style_box" id="box_top_title">
+            <layout_box space="0" align="0, 0" pos="0, 0" adjust="2, 2" layout_type="2" size="0, 0" />
+            <text style="style_text_header" id="text_top">
+              <layout_hint size="760, 0" align="0, 4" adjust="0, 2" pos="0, 0" />
+            </text>
+          </box>
           <plane texture="_common_texture_ruled_line" id="plane_top_separator">
             <layout_hint size="960, 4" pos="0, 0" anchor="0, 1" />
           </plane>
@@ -338,11 +319,36 @@
             <focus_hint focus_shape="3" />
             <layout_hint size="840, 80" />
           </image_button>
+          <plane texture="tex_pc" id="plane_host_pc">
+            <layout_hint anchor="2, 0" align="2, 0" size="80, 80" pos="-80, 0" />
+          </plane>
+          <plane texture="tex_host_unconfirmed" id="plane_host_availability">
+            <layout_hint anchor="1, 0" align="0, 0" size="27, 27" pos="178, 0" />
+          </plane>
           <text style="style_text_row_title" id="text_host_title">
-            <layout_hint anchor="1, 2" align="1, 2" size="700, 0" pos="175, -9" adjust="0, 2" />
+            <layout_hint anchor="1, 2" align="1, 2" size="572, 0" pos="208, -9" adjust="0, 2" />
           </text>
           <text style="style_text_row_desc" id="text_host_desc">
-            <layout_hint anchor="1, 2" align="1, 2" size="700, 0" pos="175, -45" adjust="0, 2" />
+            <layout_hint anchor="1, 2" align="1, 2" size="572, 0" pos="208, -45" adjust="0, 2" />
+          </text>
+        </list_item>
+      </template>
+
+      <template fast_open="1" id="template_host_list_item_discovered">
+        <list_item style="style_list_view_item_generic" id="list_item_host">
+          <layout_hint size="960, 80" />
+          <image_button sound="_common_sound_image_button" enable_long_press_text_auto_scroll="1" style="style_image_button_host" id="image_button_host">
+            <focus_hint focus_shape="3" />
+            <layout_hint size="840, 80" />
+          </image_button>
+          <plane texture="tex_pc" id="plane_host_pc">
+            <layout_hint anchor="2, 0" align="2, 0" size="80, 80" pos="-80, 0" />
+          </plane>
+          <text style="style_text_row_title" id="text_host_title">
+            <layout_hint anchor="1, 2" align="1, 2" size="572, 0" pos="208, -9" adjust="0, 2" />
+          </text>
+          <text style="style_text_row_desc" id="text_host_desc">
+            <layout_hint anchor="1, 2" align="1, 2" size="572, 0" pos="208, -45" adjust="0, 2" />
           </text>
         </list_item>
       </template>
@@ -350,15 +356,21 @@
       <template fast_open="1" id="template_host_list_item_select">
         <list_item style="style_list_view_item_generic" id="list_item_host_select">
           <layout_hint size="960, 80" />
-          <image_button sound="_common_sound_image_button" enable_long_press_text_auto_scroll="1" style="style_image_button_host_select" id="image_button_host_select">
+          <image_button sound="_common_sound_image_button" enable_long_press_text_auto_scroll="1" style="style_image_button_host" id="image_button_host_select">
             <focus_hint focus_shape="3" />
             <layout_hint size="840, 80" />
           </image_button>
+          <plane texture="tex_pc" id="plane_host_select_pc">
+            <layout_hint anchor="2, 0" align="2, 0" size="80, 80" pos="-80, 0" />
+          </plane>
+          <plane texture="tex_host_unconfirmed" id="plane_host_select_availability">
+            <layout_hint anchor="1, 0" align="0, 0" size="27, 27" pos="258, 0" />
+          </plane>
           <text style="style_text_row_title" id="text_host_select_title">
-            <layout_hint anchor="1, 2" align="1, 2" size="620, 0" pos="255, -9" adjust="0, 2" />
+            <layout_hint anchor="1, 2" align="1, 2" size="492, 0" pos="288, -9" adjust="0, 2" />
           </text>
           <text style="style_text_row_desc" id="text_host_select_desc">
-            <layout_hint anchor="1, 2" align="1, 2" size="620, 0" pos="255, -45" adjust="0, 2" />
+            <layout_hint anchor="1, 2" align="1, 2" size="492, 0" pos="288, -45" adjust="0, 2" />
           </text>
           <check_box style="_common_default_style_check_box" id="checkbox_host_select">
             <layout_hint anchor="1, 0" align="1, 0" size="58, 58" pos="92, 0" />

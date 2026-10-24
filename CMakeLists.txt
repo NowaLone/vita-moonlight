@@ -167,6 +167,7 @@ add_executable(${PROJECT_NAME}
   ${CMAKE_CURRENT_SOURCE_DIR}/src/backend/legacy/device.c
   ${CMAKE_CURRENT_SOURCE_DIR}/src/backend/legacy/config_compat.c
   ${CMAKE_CURRENT_SOURCE_DIR}/src/backend/legacy/legacy_host_discovery.c
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/backend/legacy/legacy_host_probe.c
   ${CMAKE_CURRENT_SOURCE_DIR}/src/backend/legacy/legacy_gamestream.c
   ${CMAKE_CURRENT_SOURCE_DIR}/src/backend/legacy/mdns/udp_sniffer_vita.c
   ${CMAKE_CURRENT_SOURCE_DIR}/third_party/inih/ini.c
@@ -193,7 +194,6 @@ add_executable(${PROJECT_NAME}
   ${CMAKE_CURRENT_SOURCE_DIR}/src/moonlight/settings.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pages/page.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pages/page_main.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/pages/page_search.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pages/page_pairing.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pages/page_apps.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/pages/page_stream.cpp

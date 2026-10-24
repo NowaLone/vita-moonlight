@@ -158,16 +158,23 @@ pitch and title origin x≈208. This matches the 27 px slot and -302 position in
 
 ## Consequences for Moonlight
 
-Main/Apps already have a comparable PAF plane/text/separator composition, but use
-26 px regular left-aligned text at x=80, without the centred adjusting box. Search
-has an independent separator and a conditional empty-list label at x=64, rather
-than a persistent title. Pairing and Stream deliberately lack this standard header.
-Keep these differences explicit; resource reuse alone does not make every page's
-header identical to Settings.
+At the research baseline, Main/Apps had a comparable PAF plane/text/separator
+composition, but used 26 px regular left-aligned text at x=80, without the centred
+adjusting box. Search had an independent separator and a conditional empty-list
+label at x=64, rather than a persistent title. Pairing and Stream lacked this
+standard header. Resource reuse alone did not make those headers identical to Settings.
 
 The previous replacement of the project's PNG with `_common_texture_ruled_line`
 reuses a native PAF resource, but does **not** reproduce the exact Settings header
-texture. No reversal or further appearance change is made by this investigation.
+texture. The investigation itself did not change appearance.
+
+**Requested implementation follow-up, 2026-10-23 [code]:** Main/Search/Apps now
+share the Settings-style plane/horizontal-box/centred-text composition, with a
+32 px bold title and a 760 px text slot. The maintainer explicitly chose
+`_common_texture_ruled_line` for the separator; its plane retains 960 x 4 geometry.
+Search's permanent localized title is separate from its conditional empty-list
+label. Pairing/Stream retain their existing layouts and corner-button navigation
+is unchanged. See UI.md section 5.1 for current details and pending Vita validation.
 
 The sphere artwork can be reused for a PC availability indicator, but availability
 is a separate product meaning. Saved-host `fill_host()` currently sets `online=0`;
@@ -178,3 +185,154 @@ observations and main-thread UI delivery, preserving the existing row/checkbox
 interaction. Do not derive availability from pairing or run network calls in the
 row factory. Artwork extraction, state-branch inspection and XML checks do not
 validate such a feature; no PC indicator has been implemented by this research.
+
+## Applying the indicator to PC rows: implementation assessment
+
+**Source investigation, 2026-10-23.** The proposal below was followed by the
+[trial implementation](#trial-implementation); hardware validation remains open. The useful meaning
+for the PC browser is recent reachability of the configured GameStream endpoint.
+It should not inherit Wi-Fi's connected/connecting meaning without an explicit
+product decision. Neither a stored `paired` flag nor `ConnectionService::State()`
+provides live availability for every row.
+
+### Existing mechanisms and their limits
+
+- `legacy_device_store.cpp::fill_host()` assigns `online=0` without a request.
+  `legacy_host_discovery.c::on_mdns_host()` assigns `online=1` on discovery; duplicate
+  entries return early. Its worker lasts 100 x 100 ms, not continuously, and the
+  published host array does not expire entries. The sniffer's `last_seen` is used
+  for table-slot replacement, not a per-PC reachability lifetime. Missing mDNS
+  does not establish that a saved/manual/remote PC is offline.
+- `ConnectionService::Connect()` reserves foreground ownership, opens native busy,
+  cancels abandoned pairing and queues `ConnectJob`. `moonlight_api_connect_host()`
+  replaces the current server, invalidates Apps and may persist host identity.
+  Main/Search open Apps or Pairing after success. Reusing Connect as a probe would
+  change application state; showing its row pulse would usually duplicate the
+  existing busy dialog before the list is covered by the next page.
+- `legacy_gamestream_init()` is not a stateless probe even with a temporary server
+  object: it loads/creates global client identity/credentials and initializes curl.
+  `legacy_gamestream_shutdown()` frees global `s_cert`/`s_private_key`, clears
+  `s_unique_id`, and calls `curl_global_cleanup()` (lines 2079..2106 at this review).
+  Its HTTP path also shares a mutex and global last-error state. A probe must not
+  borrow that init/shutdown pair or the active server's curl handle.
+- Existing `load_server_info()` already implements `/serverinfo` parsing and pin
+  verification through its transport, but is static, mutates a server snapshot,
+  and requests a 15-second timeout. `http_request()` sets a 10-second connect
+  timeout. These are foreground connection settings, not proposed probe settings.
+  `legacy_gamestream_refresh_server_info()` requires the current paired server.
+- The installed VitaSDK already exposes socket connect, resolver and epoll APIs;
+  no new networking dependency is necessary for a bounded TCP-port check. Their
+  use for this feature is not compiled or hardware-tested by this investigation.
+
+### Recommended minimum
+
+Start with two artwork states and a short, cancellable TCP connection attempt to
+the same `host.internal`/`host.port` route used by the current Connect path. Resolve
+hostnames outside the PAF thread. A successful handshake means **the configured
+port answers**, not authenticated Sunshine, successful pairing, an idle host app,
+or guaranteed streaming. A different service on that port can give a false positive.
+If the product requires confirmed Sunshine identity rather than port reachability,
+this minimum is insufficient: use the `/serverinfo` option below from the start.
+
+Green means a recent positive observation. Dim means no fresh confirmation,
+including unchecked, expired, failed and locally cancelled checks; do not claim
+that every dim PC is powered off. Keep the last protocol/transport outcome distinct
+internally from a local execution failure. Expire positive observations, keep them
+only in memory and never persist availability in `device.ini` or AppSettings.
+
+One backend-owned scan, exposed through existing HostService/backend boundaries,
+can publish a complete observation snapshot. Check on entry/return to the PC list;
+stop scheduling and cancel/reap outstanding work before admitting a conflicting
+foreground action, leaving the page, opening Settings or entering streaming.
+Deliver cleanup completion asynchronously; do not block PAF by joining a network
+worker on its main thread. Bound DNS/connect time and the scan's resource use. A future periodic refresh must
+run only while the list is active and must not enqueue overlapping scans. This
+initial entry/return refresh is a snapshot feature, not continuous monitoring.
+
+Results need stable identity and a scan generation: list indices, row tokens and
+discovery IDs are not persistent PC identity. Reject results for deleted/replaced
+hosts or obsolete scans. Use UUID/address+port matching consistent with the existing
+host-identity rules, without changing persistence formats or reassigning identities.
+Queue notifications through MoonlightApp; worker callbacks never touch PAF.
+`HOSTS_CHANGED` is coalesced as a snapshot invalidation, so the backend must retain
+all observations: its event `host_id` cannot carry the only copy of a per-PC delta.
+
+### UI integration
+
+Reuse the extracted green/dim PNG artwork (originally 30 x 30) in a 27 x 27
+noninteractive `plane` in both `template_host_list_item` and its selection variant.
+Keep the PC icon and checkbox. A proposed layout puts the normal dot at row
+x=178 and the title/address at x=208; selection adds the existing 80 px offset
+(dot x=258, text x=288). Text widths 667/587 retain the current right edge x=875.
+These are source-layout proposals, not measured Moonlight screenshots or Vita checks.
+
+Factories initialize the dot from the latest observation; main-thread updates
+change only existing generated cells (`ListView::GetListItem` is declared by the
+installed PAF SDK). Missing/not-yet-generated cells simply use the snapshot later.
+Do not keep stale widget pointers or rebuild the full list for every result:
+current `RefreshHosts()` deletes/reinserts cells and regenerates row tokens.
+Keep keyboard focus, scrolling and multi-selection stable. Source checks and a
+Vita run must confirm generated-cell lookup and texture switching behavior.
+
+Omit the connecting pulse in the first version: it adds little behind the existing
+modal busy dialog. If explicitly requested later, use native PAF loop effect 7 for
+the selected connection attempt and remove it on every terminal/cancellation path;
+do not invent a second animation timer or replace native foreground progress.
+
+### When `/serverinfo` is required
+
+A read-only probe should reuse existing parsing, URL/port and pinned-certificate
+rules while keeping per-request handles/results isolated from the active session.
+It must not initialize/persist a PC, generate credentials, pair, select an app or
+clear global curl/crypto state. Global client/transport ownership must first be
+made safe for this use; copying today's init/shutdown path is not that separation.
+Never turn a TLS-pin failure into success with a plaintext fallback. Unpaired
+discovery can establish service presence without establishing trust, and pairing
+remains a separate action. HTTP reachability does not mean that `currentgame` is
+zero; a busy Sunshine host can still answer and the existing remote-Quit flow
+owns launch conflicts. Keep network/state changes separate from the artwork change.
+
+
+### Trial implementation
+
+Implemented on 2026-10-23: the minimum TCP reachability variant, two static Wi-Fi
+spheres in Main/Search and selection rows, no connecting pulse. Current geometry,
+refresh/expiry policy and ownership are canonical in [UI.md §5.2](UI.md).
+HostService owns a dedicated one-worker PAF queue, and the adapter exposes a
+stateless native socket probe. Immutable per-job host snapshots isolate obsolete
+results. UUID plus exact address/port binds observations to rows; names and row
+indices do not carry identity. Cancelling a scan invalidates all of its positives.
+The active job is checked on the main thread; observations and expiration become
+a coalesced MoonlightApp event, not worker-to-widget calls.
+
+The trial requests native resolver timeout/retry 1/1 and checks cancellation when
+that call returns. TCP waits have a one-second process-clock deadline, checking
+cancellation every 10 ms. DNS timing and resolver cancellation latency are native
+acceptance items, not a claim established by Python mocks. No libcurl or GameStream
+session state is involved. Enqueue failure remains dim and preserves the previous
+successful job as Connect's cleanup barrier. Teardown waits for the queue before
+network termination. Background network activity runs only for a requested active
+list scan. Follow-up after the maintainer observed Main's dot dimming over time:
+active Main/Search now repeat unchanged scans at a 15-second start-to-start
+interval, waiting for the previous scan to finish. Pending replacements preserve
+fresh previous positives with their original 30-second expiry, avoiding a dark
+flash on every refresh. A failed check still turns dim immediately. Hidden lists
+and conflicting workflows cancel scheduling as before; long serial scans may
+still exhaust freshness. Periodic refresh needs maintainer build/Vita validation.
+
+Non-build checks interpret the actual probe/predicates with mocked Vita results:
+TCP immediate/pending success, refused/wrong/error readiness, SO_ERROR failures,
+creation/setup/poll failures and acquired-handle cleanup, timeout/cancellation,
+DNS success/failure/cancellation, identity replacement and the exact TTL boundary.
+Submission failure preserves the drain barrier; source wiring checks cancellation
+at foreground admission and waiting inside Connect's worker. Event checks cover
+coalescing and main-thread dispatch. These do not run native threads/networking.
+
+Maintainer acceptance: build CXML/application; compare Main/Search/selection dots
+with the official screenshot; scroll enough rows to force cell reuse; confirm
+selection/focus survive result changes; test answering/refused/silent ports,
+hostnames and DNS failure, active-list refresh across several minutes, disappearance
+when a PC stops answering, 30-second expiry and list return refresh; select a PC
+while a check is pending; leave/reopen Search, IME and Settings; stream/stop/return;
+exit during a pending check. A positive from an unrelated TCP service is an
+intentional limitation of this trial, not proof of authenticated Sunshine.

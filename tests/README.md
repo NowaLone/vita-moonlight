@@ -1,6 +1,6 @@
 # Focused checks
 
-Latest recorded source gate: **184 checks through 166bf56 (2026-10-23)**.
+Latest recorded source gate: **201 checks including Debug log settings (2026-10-24)**.
 See [the repeat Ponytail audit](../docs/PONYTAIL_REAUDIT_2026-10-23.md) for the latest
 baseline, per-change checks and native gates; [the earlier refactor audit](../docs/REFACTOR_AUDIT.md)
 records the preceding pass. Counts in the
@@ -11,6 +11,54 @@ cases are in the API audit and `runtime/README.md`; source checks do not replace
 Non-build checks (Python 3 and pycparser):
 
     PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -p 'test_*.py'
+
+`test_debug_settings.py` adds four checks interpreting actual startup/callback bodies:
+AppSettings before host initialization and error propagation; toggling both ways while stored
+values are stale; missing callback arguments/other settings; and closure applying saved runtime
+values before the memory diagnostic/event. The old source fails ten subcases. AppSettings,
+logging and initialization are serial mocks; native callback timing, persistence, plugin loading,
+compilation and Vita cold-start/switch behavior remain maintainer validation.
+
+Main background discovery replaces the former Search-specific lifecycle/list checks.
+`test_discovery_lifecycle.py` interprets the actual persistent worker, activation/stop, generation
+acceptance, locked value publication and aging with serial clock/kernel/socket mocks. It checks
+five-second completion-to-send deadlines (including simulated send latency), one worker across
+renewals/restarts, no catch-up, cancellation/stale observations, unchanged/value-copied snapshots,
+expiry refresh, error-frozen age/log deduplication, lease timeout and final cleanup. Connect's
+worker barrier and UI idle-poll wiring are also inspected.
+The pause-crash follow-up changes worker control mocks to require pthread creation before
+cancellable condition waiting, checks 64 KiB attributes and init/stack/create failure cleanup,
+retry and final join, and interprets the Connect job's worker-only idle polling without pthread
+condition waits on foreign PAF threads. The supplied core/local ELF establish the native failure
+separately (UI guide); the serial model cannot reproduce Vita pthread TLS/ABI itself.
+`test_host_lists.py` interprets actual Main eligibility, saved/discovered merging, identity,
+row-state/token preparation, incremental cell-edit planner, deletion and captured selection/
+canonicalization. It covers >8 rows, equal names, stronger conflicting identity/custom ports,
+retained tokens/selection, stale replaced tokens, temporary-to-saved, failed reads/save, discovery
+growth and no edits for unchanged rows. The linker follow-up also interprets the actual
+PAF token-buffer mutation branches (front/middle/end insertion/deletion, move, singleton/empty)
+and rejects reintroducing `std::vector` or sized PAF scratch constructors. These serial array
+checks do not verify native allocation or successful linking. Two checkbox regressions interpret
+actual row/Select All toggles, live-item updates and focus capture with token-only child lookup
+after widget renaming, including 12 PCs and missing/recreated virtualized items. They reproduced
+the old missing-checkmark/focus lookups and pass after correction; native PAF rendering and
+input remain maintainer validation. XML checks compare saved/temporary columns and require
+no temporary dot/Search resource. Return-to-Main routes and real installed PAF declarations are
+source-inspected. `test_event_queue.py` also executes discovery snapshot coalescing and rejection
+of stale/hidden-page delivery before subsequent connection events.
+These mocks do not execute C++/CXML, real pthread/mutex scheduling, native PAF focus/scroll,
+AppMgr suspension, sockets or Vita timing. Build/RCO and device acceptance remain pending.
+
+The PC availability trial adds six checks in `test_host_availability.py` and one
+in `test_event_queue.py`: actual TCP probe control flow with mocked native API
+results/cleanup, cancellation and timeout; DNS handling; exact 30-second expiry and
+UUID/address/port matching; failed submission preserving the previous drain barrier;
+foreground-worker/shutdown ordering; availability snapshot coalescing and main-thread
+delivery. The follow-up extends actual-predicate checks to the 15-second repeat
+boundary, unfinished scans never starting a repeat, and pending replacement reads
+preserving previous freshness without reading the worker's unfinished timestamp;
+negative results and cancellation override that fallback. They do not execute
+native threads, sockets, DNS, PAF, ABI or layout.
 
 The earlier simplification through bcbf30d added sixteen checks beyond the 167-check remote-Quit stage:
 
@@ -127,7 +175,8 @@ uncompiled/unrun by the agent. The combined non-build gate passes all 167 checks
 The maintainer reports successful basic Vita testing on 2026-10-23; no per-case log was
 supplied. This does not execute the C fixtures or close the fault/race validation gates.
 
-`test_host_lists.py` interprets the shared host-snapshot/identity helpers, actual Main/Search
+**Historical host-list gate (superseded by Main checks above):**
+`test_host_lists.py` interpreted the shared host-snapshot/identity helpers, actual Main/Search
 refresh/token-lookup functions, Main Select/Clear All/count/delete and Search's canonical lookup
 fragment. Nine checks model 40 saved/16 discovered hosts, discovery growth between count/copy,
 shrink/empty/error preservation, conflicting UUID/MAC and port, selection following a moved UUID,
@@ -144,7 +193,8 @@ reject reintroducing the unsafe row count constructor. All 127 checks pass. Allo
 mocked: this is not a test of the installed C++ SDK or PAF malloc. Dump/disassembly evidence and
 the required maintainer cold-start retest are in [MAIN_STARTUP_CRASH.md](../docs/MAIN_STARTUP_CRASH.md).
 
-`test_discovery_lifecycle.py` interprets the actual service Start/Stop, API bridge, native scan
+**Historical one-shot discovery gate (superseded by worker checks above):**
+`test_discovery_lifecycle.py` interpreted the actual service Start/Stop, API bridge, native scan
 worker/start/stop/shutdown and Search's immediate error branch. Nine checks model duplicate Start,
 natural completion/restart, FINISHED before thread return, exact create/start errors with one
 caller error, Stop before native worker entry/after completion, interrupted-scan cleanup and a

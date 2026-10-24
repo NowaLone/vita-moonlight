@@ -7,6 +7,12 @@ measured numbers behind every layout decision. Read this before changing anythin
 Companion documents: `AGENTS.md` (hard rules for agents), `ROADMAP.md` (plan and hardware checks), `README.md`
 (overview and build).
 
+**Main background discovery, 2026-10-23 [code; build/Vita pending]:** Main now owns the
+combined saved/temporary PC presentation. Search PC and its button, resources, strings and
+callback restoration branches are removed. The current behavior is specified in
+[Main background discovery](#main-background-discovery--2026-10-23). Dated Search evidence below
+belongs to the former interface; it does not verify the replacement.
+
 **Current-state review, 2026-10-22:** foreground progress uses PAF CommonGuiDialog
 `s_dialogTextSmallBusy`; errors/Delete confirmation use SceMessageDialog. The maintainer
 accepted the compact busy and pairing appearance; ordinary handoffs/stop have scoped logs.
@@ -88,6 +94,127 @@ log is scoped below; other hardware checks remain **[open]**. No agent build.
    when it is re-checked.
 7. **Small, reversible changes.** One visual decision per commit; put the measured numbers and their source in the
    commit message and in this guide.
+
+### Main background discovery — 2026-10-23
+
+The maintainer explicitly permits **non-modal discovery on active Main** as an exception to
+sequential foreground work. Connect/Apps/launch and PIN/error ownership remain unchanged.
+The [official Wi-Fi investigation](WIFI_BACKGROUND_SEARCH_RESEARCH.md) supports one page with
+saved/discovered rows and asynchronous scheduling. Its private AP APIs, fixed row counts,
+70 px geometry and local spinner are not copied. Focus/expiry choices below are Moonlight
+policies, not recovered Sony behavior.
+
+- Main keeps saved hosts in store order, then appends distinct temporary discoveries. There
+  are no section labels, search counts, progress strings or spinner. Add PC/native IME and
+  the Delete/Settings corner remain; the Search button and page are gone. Manual entry is now
+  the top-left PC-plus header button (see §5.1).
+- `template_host_list_item_discovered` has the same **80 px [code]** row and title/address/PC
+  icon coordinates as `template_host_list_item`, with no availability plane. Only saved hosts
+  enter `HostService::CheckAvailability`; their TCP freshness/15-second repeat/30-second expiry
+  are unchanged. A discovery is not a successful TCP check or an authenticated host.
+- A single backend pthread worker (64 KiB stack) is created on first activation and retained until final
+  application teardown. Inactive it sleeps on a condition variable with its socket closed.
+  While active it sends the existing mDNS query immediately and **5,000,000 µs [code] after
+  the previous send completes**, polling nonblocking packets between sends. Monotonic process
+  time schedules the next send; delayed cycles do not accumulate catch-up work. No per-query
+  thread/PAF job or timed worker recreation is used.
+- Results are retained between queries and activations. A temporary endpoint expires after
+  **15,000,000 µs [code] of active healthy polling since its last observation**. Pause, cancelled
+  generations and detected socket/send/receive failure do not advance this age; recovery
+  resumes it. Silent packet loss still ages results. Saved records never expire this way.
+  Query/receive failures close the socket and retry at the next five-second deadline; identical
+  repeated failure codes are logged once until recovery. No discovery error modal is opened.
+- The worker alone owns socket/parser state. A dedicated pthread mutex protects control,
+  generation/revision, observations and complete fixed-capacity publications (existing backend
+  limit **16 discoveries [code]**). `HostDiscoveryService` caches coherent value copies on the
+  main thread. `MoonlightApp::ProcessEventTask` polls those publications and queues a separate
+  coalesced `DISCOVERY_CHANGED` invalidation. Dispatch rejects cancelled generations and any
+  current page other than Main; Main also checks discovery eligibility before touching widgets.
+- Main's existing deferred initial list warm-up gates activation. Leaving Main, OptionMenu,
+  Delete mode, IME, Settings, foreground busy/error ownership and system UI overlay request
+  cancellation. AppMgr overlay state is read at **100 ms [code]**; an unavailable state blocks
+  discovery. Main renews a **250 ms [code]** backend lease while eligible. If PAF callbacks stop
+  during suspension, the worker checks that lease before further network work and closes its
+  socket when it next runs. This supplements explicit Stop without another lifecycle thread
+  or consuming system events owned by PAF. Native suspend/resume timing remains **[open]**.
+- `Stop()` invalidates service delivery immediately and only requests cancellation. UI never
+  joins/waits for the worker. Connect's existing job waits for socket cleanup before its usual
+  availability barrier/backend call. IME/Settings defer opening until a main-thread idle poll
+  confirms worker cleanup; no polling sleep or search modal is introduced. Final teardown,
+  after the PAF run loop, joins the dormant/finishing worker before network shutdown.
+- Identity uses real UUID, then real MAC when both sides provide them, then matching usable
+  internal/external route and port. Equal names do not merge discoveries. Current mDNS supplies
+  no UUID/MAC; no background authentication or speculative identity is added.
+- Main computes desired rows and applies only necessary `DeleteCell(..., 1)`, `MoveCell` and
+  `InsertCell(..., 1)` edits between `BlockSync`/`UnblockSync`. These methods, `GetListItem`,
+  `Widget::IsFocused` and `ListView::SetFocus` are declared by the installed PAF headers.
+  Unchanged rows keep tokens/widgets; metadata updates fill existing items. Availability
+  updates change only textures. Surviving native cells keep ownership of focus/viewport;
+  a removed/retemplated focused row selects the same PC if present, otherwise its nearest
+  remaining index (last row when the old index is beyond the end). This is the intended
+  source behavior; native focus/scroll effects of edits still require Vita validation.
+- Row callbacks use page userdata and tokens, not element addresses. Removed/retemplated
+  tokens are invalid before native edits; mode and saved-state transitions replace affected
+  templates. Selection checkboxes are resolved from currently generated items instead of
+  keeping pointers across virtualization. After `SetName()` they must be resolved by their
+  current row tokens, not original CXML IDs. Select/Clear All updates them without rebuilding.
+- Clicking a temporary row captures a value copy, stops discovery, saves it, reads the full
+  saved snapshot and resolves its exact address/port before ordinary Main connection. A save/
+  canonical-read failure opens the existing native error and never connects. Discovery alone
+  does not write storage or establish trust. Pairing/Apps return directly to Main, which
+  restores list activation and its callback. The completed successful PIN page remains removed.
+- Delete mode contains saved rows only; temporary rows return afterward. A deleted online PC
+  can reappear as temporary, without a dot. Delete is not a network blocklist.
+
+Non-build checks interpret the actual worker/control/expiry/publication, Main eligibility,
+merge/token/selection/canonical lookup and cell-edit logic, plus main-thread event dispatch.
+Serial clock/kernel/socket/vector/UI mocks do not prove real concurrency, native ABI, PAF
+rendering or device responsiveness. Build/RCO and Vita acceptance remain **[open]**: empty and
+>8-PC startup; appear/disappear/reappear; same names/duplicate endpoints; focus/scroll during
+insertion/removal/reordering; temporary-to-saved; repeated paired connection and PIN cancel/error;
+Delete/IME/OptionMenu/Settings; system overlay/suspend/resume; no queries during streaming.
+No agent application/resource compilation, packaging or deployment.
+
+**Linker follow-up, 2026-10-23 [maintainer build log; correction is source-only]:** the
+initial Main implementation instantiated `std::vector<uint32_t>` and the Vita link failed
+on undefined `std::__throw_length_error(char const*)`. The token scratch buffers now use
+empty-constructed `paf::vector<uint32_t>`. Cell deletion compacts forwards, insertion shifts
+backwards after `push_back`, and a move shifts the intervening tokens in place. No `insert`
+from the installed PAF vector (which moves the overlapping range forwards), exception stubs,
+linker flag changes or sized PAF constructors are added. The source check now interprets these
+actual mutation branches as well as the planner. Agent build/compilation remains prohibited;
+maintainer relink and native focus/scroll acceptance remain **[open]**.
+
+**Discovery pause crash, 2026-10-23 [dump/source; corrected runtime unverified]:** pressing
+`(...)` stops discovery before opening OptionMenu. In supplied
+`psp2core-1792782876-0x0000e63259-eboot.bin.psp2dmp` (gzip SHA-256
+`284c5ed67efc0fdd83411352754011eaca1c32ef72767905d470d4cfbfd6c3c6`), the
+faulting thread is **mlmdns**, data abort `0x30004`, PC `0x8125716e`, R6=0.
+The existing system ELF maps that PC (RX delta `0x4d000`) to
+`pte_osSemaphoreCancellablePend+0x16`, `ldr r7, [r6, #8]`, after loading a null
+pthread control pointer from thread-local storage. Stack return addresses map through
+`sem_timedwait` / `pthread_cond_wait` to `discovery_thread`'s inactive wait. Main is waiting,
+so this is a discovery-thread pause failure, not evidence against speech-balloon geometry.
+Core module RX/RW sizes `0x296508` / `0x73114` match the existing system VELF; normal differs.
+System debug ELF SHA-256 is `f26f558e805a5973d3491451afb79b594c640f6ca3e5f3f6f01b952eec912542`.
+The faulting code page is absent from the core: the relocation/source mapping is corroborated
+by sizes and stack, not a byte-for-byte installed executable or exact Git-revision proof.
+
+The worker had been created with `sceKernelCreateThread`, which did not establish the
+pthread runtime state consumed by the cancellable condition wait. It now uses checked
+`pthread_attr_init` / 64 KiB stack setup / `pthread_create`, with attribute cleanup on both
+create success/failure and `pthread_join` only at final teardown. POSIX setup errors remain
+negative at the background Start boundary. The Connect job's cleanup barrier also avoids
+`pthread_cond_wait`: PAF job threads are not guaranteed pthread state, so it uses the existing
+worker-only 10 ms native sleep/locked-idle polling pattern. UI Stop remains nonblocking;
+query cadence, retained snapshots, generation and OptionMenu resources are unchanged.
+
+The earlier serial kernel mocks did not model this pthread TLS requirement. Checks now
+require pthread creation before the worker condition wait, cover attribute/stack/create failure
+cleanup/retry and final join, and execute the foreign-thread-safe Connect barrier. These are
+source models, not native pthread/PAF execution. No agent build/compile/deployment; maintainer
+rebuild and repeated `(...)` open/dismiss, Delete, IME/Settings, connect and suspend/resume
+checks remain **[open]**. Raw dump, extracted memory and generated binaries stay out of Git.
 
 ### Sequential foreground workflow — maintainer direction, 2026-10-20
 
@@ -470,26 +597,22 @@ Rows are 80 px tall and 960 px wide. The first row's top edge is at y = 96 and d
 
 | Class (`page::Type`) | XML page | Purpose | Back mechanism |
 |---|---|---|---|
-| `Main` | `page_main` | saved-PC list, inline Add PC / Search PCs, selection mode | none (bottom of the stack) |
-| `Search` | `page_search_pcs` | LAN discovery list; static text only when empty | corner button `btn_close_search` |
+| `Main` | `page_main` | saved + temporary PCs, background discovery, inline Add PC, selection mode | none (bottom of the stack) |
 | `Pairing` | `page_pairing` | shows the PIN, pairs as soon as it opens | bar button `btn_close_pairing` |
 | `Apps` | `page_apps` | application list of the connected PC | corner button `btn_close_apps` |
 | `Stream` | `page_stream` | full-screen video plane, black background, optional statistics overlay; no chrome | none (closed by stream events) |
 | `OptionMenu` | `page_settings_bubble` | speech-balloon overlay: Delete, Settings | dismiss button over the whole screen |
 
-Navigation **[code]**: Main -> `OptionMenu` -> (Settings = the system AppSettings plugin | Delete = selection mode on
-Main). Main -> Search -> connect -> Pairing (unpaired host) or Apps (paired host). Main -> Add PC (inline button,
-`SceImeDialog`) -> connect -> Pairing or Apps. Pairing -> Apps. Apps -> Stream.
+Navigation **[code, 2026-10-23]**: Main -> OptionMenu -> Settings (native AppSettings) or
+Delete (saved-only selection on Main). Selecting a saved/discovered PC or using inline Add PC
+(native IME) -> connect -> Pairing or Apps -> Stream. Apps/Pairing cancel/error return to Main.
+Successful Pairing is removed from the Base stack only after Apps opens successfully; if Apps
+cannot open, Pairing stays with an error. Main callback restoration refreshes rows and reactivates
+the list. The new routes and background integration need maintainer build/Vita validation.
 
-Successful Pairing is removed from the existing Base stack only after Apps opens successfully;
-Apps then reclaims the event callback that Pairing's destructor temporarily returns to the parent.
-Back from Apps returns to Search when pairing began there, or to Main for a Main/manual connection,
-without revisiting the completed PIN page **[code]**. Search callback restoration clears the previous
-selection guard and restores empty-state visibility so another PC can be selected **[code]**. If Apps fails
-to open, Pairing stays available with an error **[code]**. User verified Search → successful Pairing →
-Apps → Back → Search and selecting a PC again on 2026-10-19 **[hw, tested Vita]**. The Main/manual path,
-already-paired path, Pairing cancel and stream-event regression checks remain **[open]**.
-Pairing failure coverage is recorded below.
+**Historical Search navigation evidence:** on 2026-10-19 the maintainer verified Search ->
+successful Pairing -> Apps -> Back -> Search and selecting a PC again. That evidence concerns
+the removed Search page, not the new Main return path. Earlier pairing error evidence follows.
 
 Pairing failure ends the current attempt **[code, 2026-10-20]**. After its native OK
 error dialog finishes, Pairing returns to the existing parent PC page. Dismissing an
@@ -613,12 +736,13 @@ ownership remains in ConnectionService.
 
 | Template | Child ids | Used by | Purpose |
 |---|---|---|---|
-| `template_top_title_bar` | `plane_top`, `text_top`, `plane_top_separator` | Main, Apps | left-aligned header (x = 80, `style_text_header`) over the system ruled-line separator |
-| `template_list_view_generic` | `list_view_generic` (960 x 448) | Search, Apps | list that runs to the bottom of the screen |
+| `template_top_title_bar` | `plane_top`, `box_top_title`, `text_top`, `plane_top_separator` | Main, Apps | Settings-style plane/box/text header, centred 32 px bold title over the system ruled-line separator |
+| `template_list_view_generic` | `list_view_generic` (960 x 448) | Apps | list that runs to the bottom of the screen |
 | `template_list_view_main` | `list_view_main` (960 x 384) | Main | list that ends where the bar starts (y = 480) |
 | `template_list_item_generic` | `list_item_generic`, `image_button_list_item` | Apps | single-label row |
-| `template_host_list_item` | `list_item_host`, `image_button_host`, `text_host_title`, `text_host_desc` | Main, Search | saved/found PC row: PC icon, title and description |
-| `template_host_list_item_select` | `list_item_host_select`, `image_button_host_select`, `text_host_select_title`, `text_host_select_desc`, `checkbox_host_select` | Main (selection mode) | same row with a checkbox |
+| `template_host_list_item` | `list_item_host`, `image_button_host`, `plane_host_pc`, `text_host_title`, `text_host_desc` | Main | saved PC row: availability dot, PC icon, title and description |
+| `template_host_list_item_discovered` | same scoped ids as the normal host row, without `plane_host_availability` | Main | temporary PC; same columns, no dot |
+| `template_host_list_item_select` | `list_item_host_select`, `image_button_host_select`, `plane_host_select_pc`, `text_host_select_title`, `text_host_select_desc`, `checkbox_host_select` | Main (selection mode) | same row with a checkbox |
 | `template_flow_bar` | `plane_flow_bar` + three edge planes | Pairing | opaque PS4 Link style bottom bar (no buttons) |
 
 ### 4.3 Styles (`<styletable>`)
@@ -626,9 +750,9 @@ ownership remains in ConnectionService.
 Planes: `style_plane_selection_bar` (+ `_edge_dark`, `_edge_light`) for the Photos style selection bar;
 `style_plane_flow_bar` (+ `_edge1/2/3`) for the PS4 Link bar; `style_plane_stream_black` for the stream backdrop.
 
-Text: `style_text_header` (26 regular, left), `style_text_paragraph` (26 regular, line pitch 40, wrapped),
+Text: `style_text_header` (32 bold, centred), `style_text_paragraph` (26 regular, line pitch 40, wrapped),
 `style_text_row_title` (28 regular), `style_text_row_desc` (22, 85% white), `style_text_pin` (48 bold),
-`style_text_main_status` (22, centred; page status text),
+`style_text_main_status` (22, centred; Main/Apps empty-list text),
 `style_text_stream_statistics` (18, yellow, left/top, unwrapped, 20 px line pitch; streaming diagnostics).
 
 The stream statistics overlay uses `plane_stream_statistics` (660 x 136, top-left offset 16/-12)
@@ -658,7 +782,7 @@ waiting to acquire the frame mutex.
 See [STREAM_DIAGNOSTICS_PLAN.md](STREAM_DIAGNOSTICS_PLAN.md) for metric definitions and remaining work.
 
 Buttons and lists: `style_image_button_list_button` (list row button with the empty 102 x 70 icon slot),
-`style_image_button_host` / `style_image_button_host_select` (PC rows with the fixed 80 x 80 `tex_pc` image slot),
+`style_image_button_host` (shared PC-row background/glow; `tex_pc` is a separate 80 x 80 plane),
 `style_button_option_top` / `style_button_option_bottom` (popup buttons), `style_list_view_generic`,
 `style_list_view_item_generic`.
 
@@ -684,19 +808,32 @@ The maintainer-supplied `common_resource.rco` (SHA-256
 `6ee58e58d1e78fecd99ea93e585c81efde3e940e3e0ca5cec4e64ba7cacdc806`)
 defines this texture as a 328 x 4 GIM with `div_mode="3x1"`, `div_ratio_h="0.49"`.
 Only rows 1/2 contain visible pixels; maximum alpha is 90/255 for black and 18/255 for white
-**[code, extracted resource]**. Search and Main/Apps use 960 x 4 planes. Search's top edge is
-y = 94 (`pos="0, -94"`), and the shared title separator is centred at y = 96, so both target
-the visible dark/light pair at y = 95/96 without reducing the source height. These are layout
+**[code, extracted resource]**. Main/Search/Apps share a single 960 x 4 separator plane
+in `template_top_title_bar`, centred at y = 96 (`anchor="0, 1"` inside the title plane),
+targeting the visible dark/light pair at y = 95/96 without reducing the source height. These are layout
 values, not proof of PAF filtering/division or final pixels. Rebuilt RCO/Vita appearance checks
 remain **[open]**; the common RCO and extracted GIM/PNG are not bundled in the project.
 
 `tex_pc` (`texture/pc.png`, 80 x 80 RGBA) is the original Sony Music PC-source icon,
 extracted from the maintainer-supplied `musicbrowser_plugin.rco` and converted from GIM
 to PNG with its original dimensions and transparency. It is bundled in this application's
-RCO and bound to the native ImageButton `image_obj` in both host-row styles; loading the
-Music plugin is unnecessary. Main and Search share the ordinary template; Main deletion
-uses the selection template **[code, 2026-10-23]**. Build and Vita appearance/focus/touch
-validation of the icon and selection spacing remain **[open]**.
+RCO and drawn by the row's separate `plane_host_pc` / `plane_host_select_pc`;
+loading the Music plugin is unnecessary. Main and Search share the ordinary template;
+Main deletion uses the selection template **[code, 2026-10-23]**. A shared ImageButton
+style owns only the background/glow, while CXML widget layout positions the icon.
+The original `image_obj` placement failed in the supplied screenshot (see §5.2).
+Build and Vita appearance/focus/touch validation of the corrected layout remain **[open]**.
+
+`tex_add_pc` (`texture/tx_man.png`, **100 x 62 RGBA [code, 2026-10-24]**) is the
+maintainer-supplied finished Add PC button artwork. Background, monitor and plus
+are baked into this one image, as the camera is in Photos' button. The supplied
+PNG is copied byte-for-byte; no redraw, crop, resize or conversion is applied.
+File SHA-256:
+`83fb42a9a4682f3d9c6bcaf3780410f90bbedefd22077caaa996c4d5c8896fb0`.
+Its alpha >= **200/255** bounds are **[7, 8, 93, 54)**, preserving Photos' visible
+**86 x 46** body inside the source canvas **[code, decoded pixels]**. This replaces
+the former reconstructed blank background and separate Wi-Fi cross assets; both
+unused PNGs and texture definitions are removed. `tex_pc` remains the PC-row icon.
 
 ### 4.5 Code helpers (`include/common.h`)
 
@@ -715,7 +852,8 @@ Only these `_common_*` names appear in the XML and are known to resolve: `_commo
 `_common_sound_button_back`, `_common_sound_button_enter`, `_common_sound_image_button`,
 `_common_style_corner_bottom_left`, `_common_style_corner_bottom_right`, `_common_style_plane_transparent`,
 `_common_texture_list_70px`, `_common_texture_list_glow_70px`, `_common_texture_option_menu_base_down`,
-`_common_texture_option_menu_button_{top,bottom,single}[_glow]`, `_common_texture_ruled_line`.
+`_common_texture_option_menu_button_{top,bottom,single}[_glow]`, `_common_texture_ruled_line`,
+`_common_texture_button_glow` (hash `0x9b7bed4b` in the supplied common resource) **[code]**.
 
 ### 4.7 Lists (`paf::ui::ListView`) **[code]** unless tagged
 
@@ -778,8 +916,10 @@ Only these `_common_*` names appear in the XML and are known to resolve: `_commo
 
 ### 4.8 Status text
 
-- Main/Apps show only static empty-list labels in the list area; Search uses its header text for the
-  empty state. Pairing keeps static instructions and the PIN. Progress/errors use native dialogs.
+- Main/Search/Apps show static empty-list labels in the list area, independently of their permanent
+  titles. Search's `text_search_status` uses the same 22 px centred style and y=220 placement as Apps;
+  `ShowEmptyState()`/`HideStatus()` affect that label only **[code, 2026-10-23]**.
+  Pairing keeps static instructions and the PIN. Progress/errors use native dialogs.
 - On Main every return to idle goes through `Main::ShowIdleStatus()`: it shows the localized
   `msg_no_pcs` only with no hosts, outside selection/connection. The label would otherwise overlap
   the rows **[shot]**. Apps controls its empty state in `ShowApps()`.
@@ -928,34 +1068,154 @@ The supplied official Settings resources and ELF are now traced in
 [Settings UI research](SETTINGS_UI_RESEARCH.md) **[code, 2026-10-23]**. Its shared
 header uses a transparent 960 x 64 plane, a centred horizontal box with 32 px bold
 text, and a **local 960 x 2 separator** (`ID hash 0x69cb3790`), rather than
-`_common_texture_ruled_line`. Our common-resource separator and left-aligned
-26 px title remain the current implementation; they are not an exact copy of the
-Settings header. The same research confirms that the Wi-Fi sphere is a connection
+`_common_texture_ruled_line`. Following the maintainer's request, Main/Search/Apps
+now share that plane/box/text composition with the common-resource separator instead
+of Sony's local texture **[code, 2026-10-23]**. The same research confirms that the Wi-Fi sphere is a connection
 indicator (animated green while connecting, steady green when connected, dim
-otherwise), not a reachability indicator for every listed AP. No UI change or
-hardware verification follows from this reference investigation.
+otherwise), not a reachability indicator for every listed AP.
+
+`template_top_title_bar` keeps the transparent 960 x 64 plane in y=32..96. Its
+centred horizontal `box_top_title` has `adjust="2, 2"`, zero spacing and a 760 px
+text slot (`align="0, 4"`, `adjust="0, 2"`), matching the decoded Settings layout.
+`style_text_header` binds a 32 px bold white text object with centred X/Y and ellipsis;
+the former title auto-scroll is removed. Main retains `Connect to a PC`, Apps retains
+`Applications`, and Search sets localized `msg_search_pcs` once in its constructor.
+Search no longer hides its title when hosts appear; only its separate empty-list
+label is hidden. Existing corner-button navigation and list geometry remain.
+Pairing's PS4 Link flow layout and Stream's full-screen video retain no standard
+header. Native AppSettings owns its own header. These are source changes; CXML/C++
+build, PAF box/text layout, clipping and rendered separator alignment need maintainer
+Vita validation **[open]**. No agent build or hardware test.
 
 | Item | Value | Source |
 |---|---|---|
-| Flow page header (`style_text_header`) | 26 px regular, text origin x = 64, cap centre y = 61.5 | PS4 Link search page **[shot]** |
-| List screen header | same style, text origin x = 80 | PS4 Link "Which feature..." **[shot]** |
+| Shared Main/Search/Apps header (`style_text_header`) | 32 px bold white, centred in a 760 px text slot within a horizontal box | decoded Settings resources and current CXML **[code]**; Vita appearance **[open]** |
+| Earlier flow/list header references | 26 px regular, text origin x = 64 / 80, cap centre y = 61.5 | PS4 Link search / "Which feature..." **[shot]**; superseded for the shared header |
 | Header separator | system `_common_texture_ruled_line`, 960 x 4 plane targeting visible rows y = 95/96 | source geometry **[code, 2026-10-23]**; Vita appearance **[open]** |
 | Paragraph (`style_text_paragraph`) | 26 px, line pitch 40, x = 64, first line centre y = 108, wrap width about 790 | PS4 Link pairing page **[shot]** |
 
-The PS4 Link reference has a dark/light pair at y = 95/96 **[shot]**. Search and the shared
-Main/Apps title bar now explicitly draw the native separator at that boundary **[code]**;
+The PS4 Link reference has a dark/light pair at y = 95/96 **[shot]**. The shared
+Main/Search/Apps title bar explicitly draws the native separator at that boundary **[code]**;
 the first list row can also contribute its own edge. Final combined appearance needs a Vita check.
+
+#### Main manual-entry header button — 2026-10-23
+
+The Photos camera button in `2026-10-09-193740.jpg` occupies approximately
+**x=9..95, y=41..87 [shot]**, centred at **(52, 64) [shot]**. The subsequently
+supplied `photocam_plugin.rco` (SHA-256
+`b754d14074a0244b0c51fc550cf8e78205647c44b89d2914d3d9787ceff9e3c5`)
+confirms the actual layout: templates `0x3040266a` / `0x6fe191e2` contain button
+`0x4a5c79cd` with **100 x 62**, `anchor="1, 2"`, `pos="52, -64"`, and a
+**88 x 48** focus frame, shape **0 [code, decoded resource]**. Its local style
+`0x802ab201` uses a background object and native `_common_texture_button_glow`
+with scale modes **2/2**, scale value **86 x 46**, blend **2 [code]**.
+The camera/play glyph is baked into Photos' local background textures. Moonlight
+now uses the maintainer's finished `tx_man.png` with PC-plus artwork baked into its
+background in the same way (see §4.4, updated 2026-10-24).
+
+The background's **100 x 62** source canvas must not be confused with its visible
+body. Both the original Photos camera texture and the supplied `tex_add_pc` have
+alpha >= **200/255** bounds **[7, 8, 93, 54)**, i.e. **86 x 46 [code, decoded pixels]**.
+At the resource's unscaled layout position, the canvas starts at screen **(2, 33)**;
+its solid body therefore occupies **[9, 41, 95, 87) [code]**, matching the screenshot
+measurement above **[shot]**. Lower-alpha shadow extends beyond that rectangle.
+Reducing the whole widget to **86 x 46** also reduced this body to about **74 x 34**;
+that was the cause of the maintainer's subsequent too-small report. The earlier
+standard PAF background was a different texture and did not establish Photos sizing.
+
+Main now matches the decoded Photos button geometry: **100 x 62** canvas centred at
+**(52, 64)**, **88 x 48** focus frame (shape **0**), and **86 x 46** glow with scale
+modes **2/2**, blend **2 [code]**. `btn_add_pc` binds `tex_add_pc` through
+its `texture` attribute; `style_button_header_action` leaves its background planeobj
+empty, exactly as Photos does. This replaces the previous style-level texture
+assignment. The supplied texture's alpha-body bounds, position and these layout/style
+parameters are source-compared; final PAF rendering is still **[open]**. The reference screenshot
+is in selection mode and the camera appears dimmed **[shot]**; this change follows
+the resource's white **1, 1, 1, 1 [code]** normal button color. State-dependent
+runtime dimming has not been measured.
+
+The supplied texture replaces the separate PC/cross child planes. No overlay,
+rotation or icon-specific sizing remains; the native button owns the complete
+artwork, touch, focus and the existing decide callback **[code, 2026-10-24]**.
+The icon has no text label. The previous bottom-wide button/box and unused prompt
+string are removed. Main's title and host-list/selection-bar geometry stay unchanged.
+
+`btn_add_pc` still opens the existing native Vita IME. In Delete selection mode,
+the button and its container remain visible; `set_button_enabled()` disables the
+button on entry and enables it on exit **[code, 2026-10-24]**. `OpenAddPc()` also
+rejects activation during selection. Existing discovery pause/resume is unchanged.
+Resource/XML source checks pass; RCO compilation, final background/icon
+appearance, focus navigation, touch activation and manual entry on Vita remain
+**[open]**. No agent build or hardware test.
 
 ### 5.2 List rows (PS4 Link "Which feature...") **[shot]**
 
 Title 28 px regular, cap centre 25 px below the row top; description 22 px at 85% white, cap centre 58.5 px below the
 row top. PS4 Link text starts at x = 220 because of its icon column. Main/Search PC rows
-now use the Music `tex_pc` icon in an 80 x 80 image slot centred at row x = 120
-(`planeobj pos="-360, 0"` within the centred 840 px button) **[code, 2026-10-23]**.
-Ordinary row text retains x = 175: `pos="175, -9"` (title) and `pos="175, -45"`
-(description), width 700. Selection rows shift the icon centre to x = 200 and text to
-x = 255 with width 620, preserving the right text edge at x = 875. These icon/selection
-values are source layout choices, not screenshot matches or hardware verification **[open]**.
+use the Music `tex_pc` icon in an 80 x 80 sibling `plane` at the right of both
+normal and selection rows, as requested by the maintainer: `anchor="2, 0"`,
+`align="2, 0"`, `pos="-80, 0"` **[code, 2026-10-23]**. Its right edge is x=880,
+centre x=840 and left edge x=800, leaving 20 px inside the button's x=900 edge.
+Title/address stop at x=780 to leave a 20 px gap before the icon. This placement
+is a requested source-layout change; its rendered appearance remains **[open]**.
+
+The maintainer's `2026-10-23-023359.jpg` shows the original icon centred at screen
+x≈480 and overlapping PC names **[shot]**. The original ImageButton `image_obj`
+`planeobj pos="-360, 0"` / `"-280, 0"` did not produce its intended position in
+that run. The correction uses widget layout for the icon, alongside the row's text
+and availability plane, avoiding ImageButton's internal image positioning.
+Both modes share the background/glow style; button ids, focus and selection callbacks
+are unchanged. Corrected appearance and touch/focus still require a rebuilt RCO/Vita
+check **[open]**; the supplied shot does not validate the correction.
+
+Main/Search PC rows now reuse the official Wi-Fi green/dim sphere artwork as a
+27×27 noninteractive plane **[code, trial implementation 2026-10-23; not hw]**.
+Normal rows: dot centre x=178, title/address x=208, width 572; selection rows add
+80 px to the dot/text start (dot x=258, text x=288, width 492). Both text blocks end
+at x=780; the PC icon occupies the same right-hand slot in either mode, and the
+checkbox remains on the left. Apps rows do not have this indicator. PNGs are byte-preserving
+30×30 exports of `wifi_settings_plugin.rco` texture IDs `fbd879ae` (green) and
+`9718c305` (dim), displayed smaller by CXML.
+
+Green means the configured `internal` IPv4/hostname + GameStream port accepted TCP
+within the last 30 seconds. It does not authenticate Sunshine or establish pairing,
+app idleness or streaming readiness. Dim means no fresh confirmation, including
+unchecked, failed, cancelled and expired results; it does not establish power-off.
+The stored/discovered `online` field is not used. Results stay in memory only.
+
+`HostService` owns one dedicated single-worker PAF job queue. Active Main/Search
+request a scan on entry/return or a changed UUID/address/port snapshot. While the
+list remains active, unchanged snapshots are checked again after 15 seconds from
+the previous scan's start, and only after that scan finishes **[code, 2026-10-23]**.
+The fresh previous positive remains visible while its replacement is pending,
+using its original timestamp and 30-second expiry; a new negative result turns it
+dim immediately. Long scans run serially, so an observation can still expire if
+its next check cannot finish within 30 seconds. Page call-list tasks only manage
+scan ownership; hidden lists, dialogs, Settings and streaming do not schedule repeats.
+The maintainer reported Main's dot becoming dim over time in the initial trial;
+source confirmed expiry without a repeat scan. This refresh correction still
+needs maintainer build/Vita validation.
+`MoonlightApp::ProcessEventTask` collects observations/expiry and delivers a
+coalesced `HOST_AVAILABILITY_CHANGED` snapshot event. Factories initialize new
+cells; event handlers change textures on generated cells without rebuilding the
+list or replacing row tokens. Focus, scrolling and selection are preserved by design.
+
+Leaving/hiding the list, IME, Delete confirmation, Settings and foreground busy
+cancel the owned scan. Foreground admission cancels any probe; Connect's existing
+worker waits for the last successfully queued scan before touching GameStream.
+The single-worker FIFO also drains older cancelled scans; failed submissions do
+not replace that barrier. Ordinary cancellation never joins on the PAF thread.
+Application teardown drains/deletes this queue before backend/network shutdown.
+
+`legacy_host_probe.c` uses an isolated nonblocking socket, a one-second monotonic
+connect budget and 10 ms cancellation polling. Numeric IPv4 bypasses DNS; native
+resolver timeout/retry parameters are 1/1, with cancellation checked on return
+(the native DNS call itself is not interrupted). No HTTP, credentials, server
+selection or curl/crypto initialization occurs. DNS timing/cancellation latency,
+PAF queue operation, scrolling texture changes and actual layout still require a
+maintainer build/Vita run. Source mocks do not verify native timing or ABI.
+See the [assessment and trial notes](SETTINGS_UI_RESEARCH.md#trial-implementation)
+for the design limits and acceptance cases.
 
 ### 5.3 Bottom bars
 
@@ -1004,6 +1264,21 @@ All / Clear all and Delete; Delete is disabled until something is selected and a
 `SceMessageDialog`. There is no Copy or clipboard action and no `SceClipboard` dependency; do not restore it unless
 asked.
 
+**Checkmark regression, 2026-10-24 [code]:** the factory renames row buttons and checkboxes
+to callback tokens. The incremental list update incorrectly still searched for
+`checkbox_host_select`, so selection changed in the model without reaching the live
+checkbox's `SetCheck()`. `UpdateHostItem()` now looks up `checkbox_token`; focus capture
+likewise looks up the row's `token` instead of its old button template ID. Factory lookups
+before renaming remain valid. Native CheckBox/style, events, deletion confirmation and
+selection persistence are unchanged; no widget pointers are retained across virtualization.
+
+Two non-build regression checks first fail against the previous source, then pass with the
+fix. They interpret actual row/Select All toggles, item updates and focus capture using
+strict token-only widget mocks, including a list of 12 PCs and a missing/recreated item.
+These establish source lookup/state behavior, not native PAF drawing or ABI. Maintainer
+build/Vita checkmarks, row/checkbox activation, Select/Clear All and focus remain **[open]**
+for this regression; no agent build or hardware run.
+
 ## 6. Recipes
 
 **Add a page.** Add `<page id="page_x">` to the XML (first child: a `plane texture="_bg_texture"` of size
@@ -1028,6 +1303,11 @@ add a `list` or `toggle_switch` entry (`id`, `title`, optional `hint`, `key`, `d
 `en.xml`, a `MoonlightSettingKey` value in `include/moonlight/types.h`, the key name in `key_name()` and the field in
 `moonlight_settings_get_all()` (`src/moonlight/settings.cpp`), and a field in `MoonlightSettings` if the stream needs it.
 Do not introduce a settings file or a custom settings screen.
+
+AppSettings loads before the host store/Main during backend startup **[code, 2026-10-24]**.
+Debug log defaults off and uses the switch callback's new value immediately; closing Settings
+reapplies stored runtime values before logging/notifying closure. Both switch directions and
+restart without opening Settings still need maintainer build/Vita validation **[open]**.
 
 **Page messages.** Keep only static empty-list labels and Pairing instructions/PIN.
 Use ConnectionService's native busy/error dialogs for foreground progress/errors;
