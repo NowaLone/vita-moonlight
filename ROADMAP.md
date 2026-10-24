@@ -8,11 +8,26 @@ This is the current task list. Dated implementation/evidence records below prese
 at each stage; their unchecked boxes and old "next" instructions are not additional active
 tasks. Source completion, reported device acceptance and remaining release coverage are separate.
 
-**Next independent task: reproducible setup (§2).**
+**Reproducible setup (§2): clean CI build and basic CI-package Vita smoke accepted.**
 
-- [ ] Record exact working VitaSDK, `vitasdk-paf-component` and `psp2cxml-tool` revisions,
-  dependency setup, environment variables and known warnings. The maintainer verifies a clean
-  build and its artifacts from that documented environment.
+- [x] Record the installed SDK component revisions, PAF/CXML source pins, target dependency
+  versions, setup/environment and known warnings in [BUILD_ENVIRONMENT.md](docs/BUILD_ENVIRONMENT.md),
+  with selected installed SDK fingerprints. No new build was run.
+- [x] Recover and verify the base SDK archive (`master-linux-v2.536`, SHA256 and 57 selected
+  installed inputs match). Record identities and rejected newer portlibs in
+  [build-archives.json](docs/build-archives.json); no installation or build was run.
+- [x] Establish a new build baseline from the pinned source recipes in a fresh CI environment.
+  The original local portlib archives remain unrecovered; this does not promise identical binaries.
+- [x] Add a manual GitHub Actions clean-build workflow using the recorded pins, with both
+  profiles and build-evidence artifacts. Static workflow/shell validation and isolated helper
+  checks are available; no build or CI dispatch by the agent.
+- [x] Complete a successful **Clean Vita build** run: [40052743854](https://github.com/NowaLone/vita-moonlight-paf/actions/runs/40052743854)
+  on `4076f15` passes 208 checks, rebuilds all six portlibs/PAF/CXML, compiles the RCO and
+  builds normal/system VPK/SELF/ELF. Six application files and build evidence were uploaded.
+  This is maintainer-run CI evidence; the agent did not build or dispatch CI.
+- [x] Basic CI-package Vita smoke: on 2026-10-24 the maintainer replied “всё ок” to the
+  requested startup/Settings/stream/reconnect check of the `4076f15` CI packages. This is
+  user-reported acceptance; no new log or separate per-profile results were supplied.
 
 **Recent source changes awaiting maintainer acceptance.** These are implemented, not feature
 requests to implement again; no later device result is recorded for these specific changes.
@@ -28,10 +43,9 @@ requests to implement again; no later device result is recorded for these specif
 - [ ] Compact stream statistics: readability, numerical accuracy and performance on Vita.
   Session counters/snapshots and the six-line overlay already exist in `master`. The DS4 RGB
   light-bar shape revision also awaits viewing; basic DS4/DualSense feedback already passed.
-- [ ] Dual-profile build invocation and installation of its resulting packages. Normal/system
-  profile streaming smoke tests already passed individually; the combined build procedure is
-  the remaining check. The latest simplification/resource changes also need maintainer regression
-  acceptance, without reopening every earlier successful feature test.
+- [x] Combined normal/system build passed CI on `4076f15`; the maintainer subsequently accepts
+  the requested basic CI-package Vita smoke (2026-10-24, “всё ок”). Earlier profile smoke results
+  remain recorded separately. This does not itemize every recent UI/statistics/fault case above.
 
 **Deferred device/release coverage, not the default next development task.**
 
@@ -836,16 +850,32 @@ corner Back button. The UI reference and measured values remain in `docs/UI.md`.
 
 ## 2. Make development builds reproducible
 
-**Priority: next, and can be worked on alongside device validation**
+**2026-10-24: pinned source setup and both profiles pass a clean CI build on `4076f15`.**
 
-- [ ] Record the exact supported VITASDK revision (it cannot be derived from the repository; it has to come from the maintainer's working environment).
-- [ ] Record the exact revisions of `vitasdk-paf-component` and `psp2cxml-tool`.
-- [ ] Document dependency setup and environment variables in a clean, repeatable setup procedure.
-- [ ] Validate a clean build with `bash build.sh`, including CXML-to-RCO compilation and VPK/SELF generation.
-- [ ] Document the expected toolchain and known build warnings; do not treat a build as verified unless it was actually run.
+The local SDK's `version_info.txt`, compiler/tool versions, PAF patched/installed-file comparison,
+CXML executable identity, library metadata and fingerprints are recorded in
+[BUILD_ENVIRONMENT.md](docs/BUILD_ENVIRONMENT.md). The later maintainer-supplied CI log establishes
+a clean setup/dependency/application build using the recorded source pins, separately from the
+existing installation. The maintainer also accepts the basic CI-package Vita smoke; exact
+old-library reproduction and broad runtime compatibility are not claimed.
+
+- [x] Record the installed SDK's build stamp and exact newlib/pthread/headers/toolchain revisions.
+- [x] Record exact PAF component, its patched ScePaf-RE base, and CXML-tool source revisions.
+- [x] Document dependency setup, environment variables and the procedure for a fresh checkout.
+- [x] Recover base SDK release/asset URL and verify the downloaded SHA256 and selected installed
+  inputs. PAF overrides are accounted for separately; no SDK installation was performed.
+- [x] Establish the new build baseline from pinned recipes and explicit OpenSSL source commit.
+  All six libraries build in run 40052743854; original installed archives remain unrecovered,
+  with basic Vita smoke subsequently accepted by the maintainer (2026-10-24).
+- [x] Validate a clean CI build with `bash build.sh`, including CXML-to-RCO compilation and
+  normal/system VPK/SELF/debug ELF generation (`4076f15`, maintainer-run CI).
+- [x] Document the inspected toolchain, warnings and actual CI result. The successful log
+  includes OpenSSL dependency-scanner, SDK signedness/wchar_t, CMake and jobserver warnings.
 - [x] Generate `build/vita_moonlight_paf.elf` automatically for crash-dump symbolization (2026-10-18). CMake copies the unstripped linked executable and preserves the extensionless input expected by VitaSDK's packaging helpers. Verified with `bash build.sh` (existing build directory), successful SELF/VPK generation, byte equality and `.debug_info`/`.debug_line`/`.symtab` inspection. The direct CMake debug-ELF target also regenerated a missing `.elf` with identical SHA-256. This does not verify the Settings crash fix or GUI symbolization on a matching dump; preserve the ELF from each installed VPK.
 
-**Done when:** a fresh environment can follow the instructions to build the project without undocumented manual fixes.
+**Build gate met:** the checked-in workflow creates a fresh environment and completes both
+profiles; the maintainer accepts the requested basic Vita smoke. Broader release/hardware
+coverage remains separate.
 
 ## Sunshine / GameStream client API coverage
 
@@ -1167,7 +1197,13 @@ Current independent work order: record exact toolchain/dependency revisions and 
 
 ## Working order
 
-Next independent source/documentation task: **pin the working toolchain/dependency revisions and document reproducible setup**. Keep remaining lifecycle/motion/security/error validation as milestone/release work, reprioritized by concrete regressions. Existing focused checks and scoped normal-flow evidence remain; do not start new routine stream tests merely to fill the audit. Avoid broad refactors or system integrations without a concrete need.
+Installed toolchain/dependency identities and setup are recorded in
+[BUILD_ENVIRONMENT.md](docs/BUILD_ENVIRONMENT.md); clean CI build passed on `4076f15`.
+The maintainer accepts the basic CI-package Vita smoke. Next independent work is
+licensing/attribution and release documentation. Keep remaining lifecycle/motion/security/error validation as
+milestone/release work, reprioritized by concrete regressions. Existing focused checks and scoped
+normal-flow evidence remain; do not start new routine stream tests merely to fill the audit.
+Avoid broad refactors or system integrations without a concrete need.
 
 ## Scope boundaries
 

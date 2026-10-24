@@ -1,6 +1,6 @@
 # Focused checks
 
-Latest recorded source gate: **206 checks including stream warnings (2026-10-24)**.
+Latest recorded source gate: **208 checks including CI setup trust gates (2026-10-24)**.
 See [the repeat Ponytail audit](../docs/PONYTAIL_REAUDIT_2026-10-23.md) for the latest
 baseline, per-change checks and native gates; [the earlier refactor audit](../docs/REFACTOR_AUDIT.md)
 records the preceding pass. Counts in the
@@ -11,6 +11,13 @@ cases are in the API audit and `runtime/README.md`; source checks do not replace
 Non-build checks (Python 3 and pycparser):
 
     PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -p 'test_*.py'
+
+`test_ci_setup.py` executes only the standalone checksum/OpenSSL-pin helper definitions,
+never the setup script's main body or build commands. It checks valid/corrupt/missing archive
+bytes (including paths with spaces), explicit full-commit replacement, invalid commits,
+missing/changed/duplicate source recipes, and failure stopping before the next step without
+rewriting a rejected recipe. These do not validate a real dependency or application build.
+Static workflow validation uses `actionlint`; `bash -n scripts/ci_setup.sh` checks shell syntax.
 
 `test_stream_warnings.py` adds five non-build checks interpreting the actual warning policy,
 receive-counter/status functions and PAF badge state transitions. They cover healthy low-bitrate
@@ -135,6 +142,11 @@ and normalized PAF update method: controller filtering, Off/stop/cancel/finished
 black RGB on restart, black turning the light off, stale generation, unchanged-color deduplication,
 missing widgets and no polling when disabled. It also checks capability/service wiring, update
 without a new video frame, CXML layering/settings/localization and reproducible mirrored PNG masks.
+Mask reproduction compares the complete IHDR and decompressed scanlines, checks chunk CRCs,
+unfiltered RGBA dimensions/length, white RGB and alpha geometry/mirroring. It deliberately
+regenerates with another zlib compression level: compressed PNG bytes are not a portable
+pixel identity check. This reproduces the old byte-comparison failure without a build; the
+2026-10-24 maintainer CI log stopped at that assertion before SDK/dependency setup.
 Mutexes, pointer/struct copies, color vectors and widgets are serial mocks. These checks do not
 compile CXML/C++, render PAF, run a host or verify real concurrency, Vita appearance/performance,
 AppSettings persistence or actual game-generated RGB. See docs/UI.md section 4.10.

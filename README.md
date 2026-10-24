@@ -201,6 +201,21 @@ revocation is performed in Sunshine's own client-management UI.
 
 ## Build
 
+The inspected SDK/component revisions, dependency versions, file fingerprints and setup
+procedure are recorded in [docs/BUILD_ENVIRONMENT.md](docs/BUILD_ENVIRONMENT.md).
+The base SDK archive is recovered and verified. On 2026-10-24 the maintainer's
+[clean CI run](https://github.com/NowaLone/vita-moonlight-paf/actions/runs/40052743854) rebuilt the
+pinned dependencies and both application profiles successfully at `4076f15` (208 source checks).
+The maintainer subsequently confirms the requested basic startup/Settings/stream/reconnect
+Vita smoke (“всё ок”, 2026-10-24); this establishes basic user-reported acceptance of the CI baseline.
+
+For a fresh GitHub Actions build, use **Actions → Clean Vita build → Run workflow** once
+[the workflow](.github/workflows/build.yml) is on the default branch. It is manual-only,
+uses no cache, rebuilds the pinned dependencies, and produces both application profiles.
+Download the packages/debug ELF and build-evidence artifacts from the completed run;
+evidence is also saved on failure. See [CI setup and limits](docs/BUILD_ENVIRONMENT.md#github-actions).
+The successful run was started by the maintainer; the agent did not run a build or dispatch CI.
+
 Requirements:
 
 - [VITASDK](https://github.com/vitasdk/vitasdk)
@@ -418,8 +433,12 @@ For streaming-related changes, verify at least connection setup, video/audio, in
 
 ## Development Roadmap
 
-The next independent development task is to record exact toolchain/dependency revisions and a
-reproducible setup procedure. Broader lifecycle/motion/security/error and release checks remain
+The current build environment and setup procedure are recorded in
+[docs/BUILD_ENVIRONMENT.md](docs/BUILD_ENVIRONMENT.md). Clean CI setup, dependency rebuild and
+both application-profile builds passed on `4076f15`; original local portlib binaries remain
+unrecovered, and no byte-identical reproduction is claimed. Basic CI-package Vita smoke is
+user-confirmed; licensing/attribution and release documentation are the next independent work.
+Broader lifecycle/motion/security/error and release checks remain
 open; ordinary API paths are not reopened merely because exhaustive validation is incomplete.
 The canonical plan and completion criteria are in [`ROADMAP.md`](ROADMAP.md).
 
