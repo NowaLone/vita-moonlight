@@ -54,8 +54,17 @@ requests to implement again; no later device result is recorded for these specif
   custom ports/encryption configurations, blocked-I/O cancellation and application shutdown.
   Use the API audit's scoped evidence/limits; ordinary pairing, Apps, stop/reconnect, Quick
   Actions, system-profile coexistence and confirmed remote Quit already have device evidence.
-- [ ] Licensing/attribution, installation/runtime/compatibility documentation, versioning and
-  release checklist, then a maintainer-run clean release build and Vita smoke test (§4).
+- [x] Record the licensing/attribution review and restore missing vendored license texts in
+  [LICENSING.md](docs/LICENSING.md) (2026-10-24). This is a review, not release clearance.
+- [ ] Resolve its GPL/old-OpenSSL, other artwork, PAF/mDNS permission and project-license questions;
+  finish distribution notices/source/relinking materials. Installation/runtime/compatibility
+  documentation, versioning and release checklist remain, followed by a maintainer-run clean
+  release build and Vita smoke test (§4).
+
+**Maintainer scope decision (2026-10-24):** Sony artwork permission work is omitted
+from the active plan; the provenance record remains. OpenSSL 3.x migration was a
+suggested licensing option, not an agreed implementation task. Keep the working
+pinned OpenSSL baseline while the licensing question remains recorded.
 
 **Blocked:** remote self-unpair needs a supported paired-client operation in Sunshine.
 Administrative login remains out of scope; local Delete is already implemented.
@@ -1187,7 +1196,12 @@ Current independent work order: record exact toolchain/dependency revisions and 
 
 ## 4. Prepare a release
 
-- [ ] Review licensing and attribution obligations for this project, Moonlight code, and vendored dependencies before choosing or adding a project license.
+- [x] Review licensing and attribution obligations before choosing a project license:
+  [LICENSING.md](docs/LICENSING.md), 2026-10-24. Restored inih/h264bitstream license texts and
+  collected pinned-library/SDK notices; source/build/resource review only.
+- [ ] Resolve the review's remaining compatibility/permission questions within the agreed
+  scope (Sony artwork permission work excluded), confirm and add the project
+  license, then include final notices and corresponding source/relinking materials with releases.
 - [ ] Document installation, runtime requirements, setup, and known compatibility limitations for the Vita and PC host.
 - [ ] Define versioning, release artifact naming, and a release checklist.
 - [ ] Perform a final clean build and smoke test on real hardware; verify core streaming and clean shutdown on the release candidate.
@@ -1200,7 +1214,11 @@ Current independent work order: record exact toolchain/dependency revisions and 
 Installed toolchain/dependency identities and setup are recorded in
 [BUILD_ENVIRONMENT.md](docs/BUILD_ENVIRONMENT.md); clean CI build passed on `4076f15`.
 The maintainer accepts the basic CI-package Vita smoke. Next independent work is
-licensing/attribution and release documentation. Keep remaining lifecycle/motion/security/error validation as
+resolution of the recorded [licensing questions](docs/LICENSING.md) and release documentation.
+The review itself is complete; license selection and redistribution clearance are not.
+OpenSSL migration is not an agreed next task; installation/release documentation can proceed
+independently of the remaining license decisions.
+Keep remaining lifecycle/motion/security/error validation as
 milestone/release work, reprioritized by concrete regressions. Existing focused checks and scoped
 normal-flow evidence remain; do not start new routine stream tests merely to fill the audit.
 Avoid broad refactors or system integrations without a concrete need.
