@@ -1,6 +1,6 @@
 # Focused checks
 
-Latest recorded source gate: **227 checks including LiveArea layout/launch checks (2026-10-26)**.
+Latest recorded source gate: **241 checks including tag-triggered publication and build-profile checks (2026-10-26)**.
 See [the repeat Ponytail audit](../docs/PONYTAIL_REAUDIT_2026-10-23.md) for the latest
 baseline, per-change checks and native gates; [the earlier refactor audit](../docs/REFACTOR_AUDIT.md)
 records the preceding pass. Counts in the
@@ -49,6 +49,19 @@ bytes (including paths with spaces), explicit full-commit replacement, invalid c
 missing/changed/duplicate source recipes, and failure stopping before the next step without
 rewriting a rejected recipe. These do not validate a real dependency or application build.
 Static workflow validation uses `actionlint`; `bash -n scripts/ci_setup.sh` checks shell syntax.
+
+`test_build_profiles.py` executes only extracted argument-parser definitions,
+checking the system default and explicit normal/system selection. It never runs
+the build script's main body or any compiler/resource/packaging command.
+`test_release.py` uses synthetic ZIP/SFO fixtures and mocked GitHub calls to
+check Vita version/tag validation, stable-version ordering, canonical tag pushes
+and exact remote tag-to-built-commit binding (lightweight and annotated),
+real-404 handling, VPK identity/profile/INI rejection, exact hashes, versioned
+payload URLs, CDATA changeinfo, complete asset sets, draft/upload/publish order,
+upload failure and a tag moved during upload. Tag refs are never changed.
+It performs no real application packaging, network request, Git ref/release change
+or publication. The workflow also passes `actionlint`; a maintainer-run clean
+build, actual publication and Vita HomebrewUpdate acceptance remain separate gates.
 
 `test_stream_warnings.py` adds five non-build checks interpreting the actual warning policy,
 receive-counter/status functions and PAF badge state transitions. They cover healthy low-bitrate

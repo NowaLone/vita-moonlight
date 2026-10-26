@@ -28,7 +28,13 @@ add_definitions(-DMOONLIGHT_GIT_COMMIT=\"${VITA_MOONLIGHT_GIT_COMMIT}\")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g3 -Wl,-q -Wall -O0 -fno-inline -fno-builtin -fshort-wchar")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g3 -fno-rtti -fno-exceptions -Wl,-q -Wall -O0 -fno-builtin -fshort-wchar -Wno-unused-function -Wno-sign-compare")
 
-option(MOONLIGHT_SYSTEM_APP "Experiment: launch alongside a suspended Vita game" OFF)
+option(MOONLIGHT_SYSTEM_APP "Launch alongside a suspended Vita game" ON)
+set(MOONLIGHT_APP_VERSION "01.00" CACHE STRING "Vita package version (NN.NN)")
+if(NOT MOONLIGHT_APP_VERSION MATCHES "^[0-9][0-9]\\.[0-9][0-9]$")
+  message(FATAL_ERROR "MOONLIGHT_APP_VERSION must use the Vita NN.NN format")
+endif()
+# Match VitaShell's existing fallback for our Title ID; keep this identity stable.
+set(MOONLIGHT_CONTENT_ID "EP9000-VLMP00001_00-0000000000000000")
 option(MOONLIGHT_HEAP_TRACE "Diagnostic: track newlib allocation call sites" OFF)
 option(MOONLIGHT_DISCONNECT_TEST "Test only: disconnect/reconnect once after opening Apps" OFF)
 option(MOONLIGHT_ACTIVE_DISCONNECT_TEST "Test only: disconnect/reconnect after a selected stream starts" OFF)
@@ -80,12 +86,12 @@ if(MOONLIGHT_SYSTEM_APP)
   message(STATUS "Moonlight launch profile: SYSTEM (gdc, ${MOONLIGHT_SYSTEM_MEMSIZE_KIB} KiB, boot attribute 0x08)")
 else()
   set(moonlight_category gd)
-  message(STATUS "Moonlight launch profile: NORMAL (gd). System experiment requires -DMOONLIGHT_SYSTEM_APP=ON")
+  message(STATUS "Moonlight launch profile: NORMAL (gd, explicitly selected)")
 endif()
 
 # Preserve the current SFO attribute bits while isolating the launch category.
 set(VITA_MKSFOEX_FLAGS
-    "${VITA_MKSFOEX_FLAGS} -d ATTRIBUTE=33472 -d ATTRIBUTE_MINOR=16 -s CATEGORY=${moonlight_category}"
+    "${VITA_MKSFOEX_FLAGS} -d ATTRIBUTE=33472 -d ATTRIBUTE_MINOR=16 -s CATEGORY=${moonlight_category} -s VERSION=${MOONLIGHT_APP_VERSION} -s CONTENT_ID=${MOONLIGHT_CONTENT_ID}"
 )
 
 # Match BHBB's native PAF authority. A controlled 3.60 test changing only this
@@ -345,9 +351,15 @@ else()
 endif()
 
 # sce_sys PNGs must stay 8-bit indexed. 24-bit assets fail VPK install with 0x8010113D.
+set(MOONLIGHT_UPDATE_FILES)
+if(MOONLIGHT_SYSTEM_APP)
+  set(MOONLIGHT_UPDATE_FILES FILE
+    ${CMAKE_CURRENT_SOURCE_DIR}/sce_sys/homebrew_update.ini sce_sys/homebrew_update.ini)
+endif()
 vita_create_vpk(vita_moonlight_paf.vpk "VLMP00001" ${PROJECT_NAME}.self
-  VERSION "01.00"
+  VERSION "${MOONLIGHT_APP_VERSION}"
   NAME "Moonlight"
+  ${MOONLIGHT_UPDATE_FILES}
   FILE ${RCO_FILE} vita_moonlight_ui.rco
   FILE ${CMAKE_CURRENT_SOURCE_DIR}/sce_sys/icon0.png sce_sys/icon0.png
   FILE ${CMAKE_CURRENT_SOURCE_DIR}/sce_sys/pic0.png sce_sys/pic0.png

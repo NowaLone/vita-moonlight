@@ -95,26 +95,27 @@ The CXML compiler can be supplied with `PSP2CXML_TOOL` or discovered in the fall
 
 ### Build
 
-Full build:
+Default system-profile build:
 
 ```bash
 bash build.sh
 ```
 
-By default the script builds both profiles in `build/normal/` and `build/system/`
-and publishes:
+The script builds only the system profile in `build/` and publishes:
 
 ```
-build/vita_moonlight_paf-normal.{vpk,self,elf}
 build/vita_moonlight_paf-system.{vpk,self,elf}
 ```
 
-An explicit `-DMOONLIGHT_SYSTEM_APP=OFF` or `ON` selects a single profile in the
-legacy `build/` directory, preserving generic output paths and adding the named
-copies. Heap tracing defaults OFF per script invocation; in a dual build an
-explicit tracing ON applies only to the system profile. CXML is compiled once
-and copied to both profile trees. Both VPKs share title ID `VLMP00001` and replace
-each other on installation. `dev-build-run.sh` explicitly selects a single profile.
+The optional normal profile requires `bash build.sh -DMOONLIGHT_SYSTEM_APP=OFF`;
+it uses the same directory and writes `-normal` copies. Both preserve the generic
+`build/vita_moonlight_paf.{vpk,self,elf}` paths. The script selects system on each
+invocation unless explicitly overridden; fresh direct CMake configuration also
+defaults to system, while existing direct-CMake cache options persist. Heap tracing
+and diagnostic test modes default OFF per script invocation. Both VPKs share title
+ID `VLMP00001` and replace each other on installation. CI/Release distribution is
+system-only; normal is a local opt-in build. See `docs/RELEASE.md` for canonical
+`NN.NN` APP_VER/SFO versions and tag-triggered publication.
 
 Manual CXML + build:
 
@@ -125,13 +126,8 @@ cmake -DCMAKE_BUILD_TYPE=Release ..
 make
 ```
 
-Development rebuild/deploy:
-
-```bash
-PSVITAIP=192.168.1.123 ./dev-build-run.sh
-```
-
-Or put the Vita IP in `psvitaip.txt`.
+The older `dev-build-run.sh` helper is absent from this checkout; deployment
+tooling is a separate local setup.
 
 The target application title ID is `VLMP00001`.
 

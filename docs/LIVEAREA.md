@@ -19,6 +19,8 @@ check without new evidence of a regression.
 
 For the toolbar's blue refresh action versus application binary updates from
 GitHub/NeoVitaDB, see [application update research](APP_UPDATE_RESEARCH.md).
+For the upper Help/manual action, packaged pages, languages and the separate
+online-manual route, see [manual research](#manual-research-2026-10-26).
 
 ## Behavior
 
@@ -258,6 +260,158 @@ no build, packaging, deployment or Vita calls.
    selection, and an absent app must show an error without launching a neighbour.
    Check PIN cancellation and Apps/connection failures for no delayed autolaunch,
    plus the existing remote-Quit Yes/No flow with another host app running.
+
+## Manual research (2026-10-26)
+
+Research against `master` at `d696bc8`; no application/resource changes, build,
+package, deployment or Vita execution. The existing upper Help action and a
+system application's `online-manual` action are two distinct shell paths.
+For Moonlight, retain the packaged offline manual as the primary help path.
+Online HTML is an optional alternative requiring a separate device check.
+
+### Packaged offline pages
+
+**[code]** `CMakeLists.txt` already packages `sce_sys/manual/001.png` through
+`003.png`. All three are 960×544, 8-bit indexed, non-interlaced PNGs. The current
+`template.xml` contains no manual element or `system-function-zone`; packaged
+manuals do not require an application callback, another PAF page or a dynamic
+frame update. The supplied Shell also references `/sce_sys/manual/001.png`
+when checking application resources. A local Sony SDK `minimal_autosave`
+sample packages sequential PNGs under the same directory, and the local
+NetStream reference ships six 960×544 indexed pages there.
+
+Sony documents the upper LiveArea Help action and the system viewer's page
+slider, previous/next navigation, single/double-page display, touch zoom and
+button controls. These belong to the viewer; Moonlight need not implement them.
+[Sony software-manual guide](https://manuals.playstation.net/document/en/psvita/basic/help.html).
+
+Use contiguous names starting at `001.png`, with one topic per page. Include
+every page in the explicit `vita_create_vpk()` file list; simply adding an image
+to the source directory does not package it. Prefer the existing 960×544 layout
+for a short application guide. It is a practical baseline, not an established
+maximum: the author of
+[Text to Vita Manual Converter](https://github.com/RawBOT/txt-to-vita-manual)
+reports tested taller/portrait PNG presets as well. PDF, Markdown, SVG or HTML
+can be authoring sources rendered to PNG; that does not make those formats
+native inputs to the packaged image viewer. No native PDF/local-HTML manual
+contract was established by this research.
+
+Keep the current indexed PNG export for this project. Do not extrapolate the
+icon/LiveArea installation restriction to a universal manual PNG restriction:
+the local SDK sample's `manual/001.png` is **RGB**, while its dimensions are also
+960×544. That is sample-asset evidence, not a fresh RGB installation test.
+
+The present artwork needs a content revision before serving as the application
+guide. Visual inspection shows:
+
+- `001.png`: NVIDIA custom-resolution instructions, rather than initial setup.
+- `002.png`: a wiki cover with two painted buttons. A PNG contains no link or
+  hit-area definitions; these cannot act as an interactive contents menu.
+- `003.png`: obsolete custom hex-keycode ranges. `vita.conf` still exists at
+  `ux0:data/moonlight/vita.conf`, but `vita_input_load_mapping()` accepts only
+  `cross`/`circle`/`square`/`triangle` mapped to `a`/`b`/`x`/`y` (for example,
+  `cross=a`); it does not parse the illustrated hex ranges. The Settings toggle
+  enables that optional mapping; application settings remain in SceAppSettings.
+
+Recommended content is a short set of pages derived from [Install and use](INSTALL.md):
+Sunshine/LAN setup; discovery/manual address and PIN pairing; Apps/stream launch;
+controller/touch/PS and stop/resume; native Settings; common connection/trust
+errors and diagnostics. This is a proposed content outline, not new verified
+instructions or a fixed page-count requirement. Keep editable text/layout
+sources alongside future artwork so the manual can follow application changes.
+Do not paint fake navigation controls: use headings and page numbers with the
+system viewer's real navigation.
+
+### Localized offline manuals
+
+An observed layout is a default sequence directly in `sce_sys/manual/`, with
+complete translated sequences in numeric system-language subdirectories:
+`sce_sys/manual/08/001.png` for Russian, `01/001.png` for US English and
+`18/001.png` for British English. Each sequence starts at `001.png` again; the
+directories use numeric language IDs rather than `ru`/`en` LiveArea XML tags.
+
+**[code, external]** Vita3K's
+[manual loader](https://github.com/Vita3K/Vita3K/blob/92bda548f3aa0691102471a72725587e00676383/vita3k/gui-qt/src/live_area_widget.cpp)
+selects a nonempty two-digit language directory, otherwise the root, and loads
+sequential pages until the first missing/unreadable image (up to 999). The local
+SDK `target/include/system_param.h` independently identifies language IDs
+1, 8 and 18. This supports a localization candidate; emulator behavior does
+not establish retail Shell fallback, gap handling or the maximum page count.
+Keep a full default manual and full translations, package every file explicitly,
+and check Russian/English plus an untranslated system language on Vita before
+claiming localization support. Do not rely on per-page fallback.
+
+### Online manual through the upper toolbar
+
+**[code]** The maintainer-supplied original Settings template contains
+`<func>online-manual<target>sceman:settings</target></func>` inside
+`system-function-zone`; the Browser template uses `sceman:browser`. Those
+are Sony guide destinations, not a mechanism established here for registering
+Moonlight's own content under `sceman:`.
+
+The supplied Shell provides stronger evidence than those examples alone:
+
+- Its system-function names include distinct `ONLINE_HELP` and `HELP` entries,
+  initialized at `0x811accdc`–`0x811accf8`.
+- The function-zone dispatch at `0x811a61ea` selects case 4 at `0x811a658a`.
+  That path uses the `ONLINE_HELP` entry, registers callback `0x811abddc` at
+  `0x811a66ce`–`0x811a66f4`, then copies the entry's target string to the owned
+  field at `+112` at `0x811a673c`–`0x811a6742`.
+- After its common admission check, that callback loads the target from `+112`
+  and calls `sceAppMgrLaunchAppByUri(0x20000, target)` at
+  `0x811abdfa`–`0x811abe00`. This callback has no `sceman:`-only comparison.
+
+**Inference from that static trace:** a project-hosted HTML guide can be a
+candidate for the upper online-manual button using a normal HTTPS target:
+
+```xml
+<system-function-zone>
+  <func>online-manual
+    <target>https://example.invalid/moonlight/manual/</target>
+  </func>
+</system-function-zone>
+```
+
+This is an illustrative fragment with an intentionally non-resolving URL,
+not an applied change. It belongs under `livearea`, before `gate`, as in the
+original templates. A real destination needs a static page usable by the Vita
+browser, with small assets and no required modern JavaScript. Toolbar admission
+for Moonlight's current `gd`/`gdc` categories, online/offline button coexistence,
+HTTPS compatibility, connectivity failure and return to suspended Moonlight
+remain device checks. A system build does not by itself change the category to
+`gda`. No category change, shell plugin, direct appmeta write or database edit
+is needed for the proposed XML experiment.
+
+A normal LiveArea frame can also open a website: the
+[VitaSDK sample](https://github.com/vitasdk/samples/blob/master/pretty_livearea/sce_sys/livearea/contents/template.xml)
+uses HTTPS frame targets. That is an alternative location for an online guide,
+not evidence about the upper button. Moonlight currently uses all seven app/PC
+frames; adding a guide there would require an explicit layout/content decision.
+
+### Evidence and remaining validation
+
+The original Settings XML is the same input recorded in
+[Settings research](SETTINGS_UI_RESEARCH.md#original-livearea-template-and-layout-rcos-2026-10-24).
+Read-only local inputs, not distributed with this repository:
+
+- Settings `template.xml`: SHA-256
+  `0ab64825369e3721328399abd6b782713792b2bd0618b28e4fe3b00cecca1414`.
+- Browser `sce_sys/livearea/contents/template.xml`: SHA-256
+  `8d073c27cb1548be7019303dc82f4f37e2aeeb3a1d6e40aa2b4ed6cced3a253e`.
+- `shell.self.elf`: SHA-256
+  `c98a5148326208f68b147a991a890fdf2de3d7b13e72f776ce1f840b3aa86089`;
+  instruction locations refer to `/tmp/livearea-shell-analysis/annotated.txt`.
+- SDK sample: `target/samples/sample_code/system/tutorial_basic_trc_compliant/`
+  `minimal_autosave/PSP2_Package/`; package manifest and PNG header read only.
+
+Source checks establish the current three-page package list and PNG structure;
+they do not confirm the upper button or viewer on a particular installed VPK.
+The earlier general LiveArea acceptance did not specifically test the manual.
+For a future manual revision, the maintainer should install the complete VPK,
+open Help before launching Moonlight, check every page/zoom/controller navigation,
+then check return to an idle suspended app. Localized or online variants need
+their separate checks above. No artwork, runtime behavior or release status was
+changed by this investigation.
 
 ## Evidence
 

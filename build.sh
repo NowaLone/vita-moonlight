@@ -1,21 +1,20 @@
 #!/bin/bash
-# Build both launch profiles by default, or one explicitly selected profile.
+# Build the system profile by default; normal requires an explicit selection.
 set -euo pipefail
 
 usage() {
     cat <<'EOF'
 Usage: ./build.sh [CMake arguments]
 
-Without an explicit MOONLIGHT_SYSTEM_APP argument, build both normal and system
-profiles in build/normal and build/system. Copy their VPK/SELF/debug ELF files
-to build/vita_moonlight_paf-{normal,system}.{vpk,self,elf}.
+Without an explicit MOONLIGHT_SYSTEM_APP argument, build the system profile
+in build/. Copy its VPK/SELF/debug ELF files to
+build/vita_moonlight_paf-system.{vpk,self,elf}.
 
-To build a single profile in the legacy build/ directory:
+To select the normal profile explicitly:
   ./build.sh -DMOONLIGHT_SYSTEM_APP=OFF
-  ./build.sh -DMOONLIGHT_SYSTEM_APP=ON
 
-Heap tracing defaults OFF for each invocation. In a dual-profile build,
--DMOONLIGHT_HEAP_TRACE=ON enables tracing only in the system profile.
+Heap tracing defaults OFF for each invocation. Enable it explicitly with
+-DMOONLIGHT_HEAP_TRACE=ON in the system profile.
 The idle disconnect/reconnect test defaults OFF per invocation; enable explicitly
 with -DMOONLIGHT_DISCONNECT_TEST=ON for a test package. The separate active-stream
 scenario uses -DMOONLIGHT_ACTIVE_DISCONNECT_TEST=ON instead; pending setup uses
@@ -23,12 +22,12 @@ scenario uses -DMOONLIGHT_ACTIVE_DISCONNECT_TEST=ON instead; pending setup uses
 Common-c startup uses -DMOONLIGHT_STARTUP_DISCONNECT_TEST=ON, stage 4 by default.
 Add -DMOONLIGHT_STARTUP_DISCONNECT_STAGE=10 to test cancellation after video setup.
 All five default OFF and are mutually exclusive.
-Other CMake arguments are forwarded to the selected profile(s).
+Other CMake arguments are forwarded to the selected profile.
 EOF
 }
 
 parse_arguments() {
-    BUILD_SELECTION=both
+    BUILD_SELECTION=system
     CMAKE_ARGS=()
     local definition value
     while (( $# )); do
@@ -61,54 +60,28 @@ parse_arguments() {
     done
 }
 
-build_profile() {
-    local profile="$1" build_dir="$2" mode=OFF
+build_selected_profile() {
+    local profile="$BUILD_SELECTION" mode=OFF extension
     [[ "$profile" == system ]] && mode=ON
     local -a profile_args=(-DMOONLIGHT_HEAP_TRACE=OFF -DMOONLIGHT_DISCONNECT_TEST=OFF
         -DMOONLIGHT_ACTIVE_DISCONNECT_TEST=OFF -DMOONLIGHT_PENDING_DISCONNECT_TEST=OFF
         -DMOONLIGHT_HTTP_DISCONNECT_TEST=OFF -DMOONLIGHT_STARTUP_DISCONNECT_TEST=OFF
         -DMOONLIGHT_STARTUP_DISCONNECT_STAGE=4 "${CMAKE_ARGS[@]}"
         "-DMOONLIGHT_SYSTEM_APP=$mode")
-    if [[ "$BUILD_SELECTION" == both && "$profile" == normal ]]; then
-        profile_args+=(-DMOONLIGHT_HEAP_TRACE=OFF)
-    fi
-
-    mkdir -p "$build_dir"
-    if [[ "$build_dir" != "$BUILD_ROOT" ]]; then
-        cp "$BUILD_ROOT/vita_moonlight_ui.rco" "$build_dir/vita_moonlight_ui.rco"
-    fi
-    echo "[*] Building $profile profile in $build_dir"
+    echo "[*] Building $profile profile in $BUILD_ROOT"
     (
-        cd "$build_dir"
+        cd "$BUILD_ROOT"
         cmake -DCMAKE_BUILD_TYPE=Release "${profile_args[@]}" "$PROJECT_DIR"
         make -j"$BUILD_JOBS"
     )
-}
-
-build_selected_profiles() {
-    local profile build_dir extension
-    local -a profiles=(normal system)
-    if [[ "$BUILD_SELECTION" != both ]]; then
-        profiles=("$BUILD_SELECTION")
-    fi
-    for profile in "${profiles[@]}"; do
-        build_dir="$BUILD_ROOT"
-        [[ "$BUILD_SELECTION" == both ]] && build_dir="$BUILD_ROOT/$profile"
-        build_profile "$profile" "$build_dir"
+    # Publish named results only after the selected profile finishes successfully.
+    for extension in vpk self elf; do
+        cp "$BUILD_ROOT/vita_moonlight_paf.$extension" \
+            "$BUILD_ROOT/vita_moonlight_paf-$profile.$extension"
     done
-
-    # Publish named results only after all requested profiles finish successfully.
-    for profile in "${profiles[@]}"; do
-        build_dir="$BUILD_ROOT"
-        [[ "$BUILD_SELECTION" == both ]] && build_dir="$BUILD_ROOT/$profile"
-        for extension in vpk self elf; do
-            cp "$build_dir/vita_moonlight_paf.$extension" \
-                "$BUILD_ROOT/vita_moonlight_paf-$profile.$extension"
-        done
-        echo "[+] $profile VPK: $BUILD_ROOT/vita_moonlight_paf-$profile.vpk"
-        echo "    Debug ELF: $BUILD_ROOT/vita_moonlight_paf-$profile.elf"
-        echo "    SELF: $BUILD_ROOT/vita_moonlight_paf-$profile.self"
-    done
+    echo "[+] $profile VPK: $BUILD_ROOT/vita_moonlight_paf-$profile.vpk"
+    echo "    Debug ELF: $BUILD_ROOT/vita_moonlight_paf-$profile.elf"
+    echo "    SELF: $BUILD_ROOT/vita_moonlight_paf-$profile.self"
 }
 
 parse_arguments "$@"
@@ -120,7 +93,7 @@ BUILD_JOBS="$(nproc 2>/dev/null || echo 1)"
 echo "[Vita Moonlight PAF UI] Build Script"
 echo "VITASDK: $VITASDK"
 echo "Project: $PROJECT_DIR"
-echo "Profiles: $BUILD_SELECTION"
+echo "Profile: $BUILD_SELECTION"
 
 if [[ ! -d "$VITASDK" ]]; then
     echo "ERROR: VITASDK not found at: $VITASDK" >&2
@@ -128,10 +101,9 @@ if [[ ! -d "$VITASDK" ]]; then
     exit 1
 fi
 
-# CXML is identical for both profiles; compile once and copy to each build tree.
 mkdir -p "$BUILD_ROOT"
 bash "$PROJECT_DIR/build_cxml.sh"
-build_selected_profiles
+build_selected_profile
 
-echo "[+] All requested profiles built successfully."
+echo "[+] Selected profile built successfully."
 echo "Install the selected VPK through VitaShell. Both profiles use title ID VLMP00001."

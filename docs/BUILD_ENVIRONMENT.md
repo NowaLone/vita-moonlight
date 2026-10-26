@@ -220,35 +220,41 @@ candidate won before PATH lookup. No general dump of environment variables is ne
    Source-rebuilt PAF archives and host tools can differ in binary metadata. Record
    their new hashes and validate the new environment instead of silently replacing
    the baseline. Source checks do not compile the application or validate Vita ABI.
-5. The maintainer runs `bash build.sh` from the fresh checkout. This compiles CXML once,
-   then normal/system profiles in separate trees; the script resets diagnostic test
-   modes and heap tracing OFF by default. Both packages use `VLMP00001` and replace
-   each other when installed. Keep matching debug ELF files with each VPK/SELF.
-   For outputs, single-profile options and system memory budgets see [README](../README.md#build).
+5. The maintainer runs `bash build.sh` from the fresh checkout. This compiles CXML and
+   the system profile in `build/`; the script resets diagnostic test modes and heap
+   tracing OFF by default. A normal local build requires the explicit option
+   `-DMOONLIGHT_SYSTEM_APP=OFF`. Both use `VLMP00001` and replace each other when
+   installed. Keep the matching debug ELF with each VPK/SELF. For outputs and
+   system memory budgets see [README](../README.md#build).
 6. Record project revision, environment/fingerprint differences, full build result and
-   warnings, then install each full VPK and record the Vita smoke result/profile.
+   warnings, then install the full VPK and record the Vita smoke result/profile.
    Only after this succeeds is a clean-environment reproduction established.
 
 ## GitHub Actions
 
 [Clean Vita build](../.github/workflows/build.yml) implements the candidate setup through
-[scripts/ci_setup.sh](../scripts/ci_setup.sh). After the workflow reaches the default branch,
-the maintainer starts it under **Actions → Clean Vita build → Run workflow**. There are no
-push/PR/scheduled triggers, dependency caches, deployment or Release publication. The job has
-read-only repository permissions; checkout and artifact actions use full commit pins.
+[scripts/ci_setup.sh](../scripts/ci_setup.sh). A push of a version tag such as `v1.01`
+starts the system build and automatic GitHub Release publication. The tag must
+contain this workflow; it selects APP_VER/SFO version `01.01`. Both lightweight
+and annotated tags are resolved to the exact checked-out commit. There are no
+manual/branch-push/PR/scheduled triggers, dependency caches or Vita deployment.
+Publication writes GitHub Releases through the workflow token and never creates
+or rewrites tags.
+Checkout and artifact actions use full commit pins. See [RELEASE.md](RELEASE.md) for
+the publication checks and shell-plugin feed.
 
 The `ubuntu-22.04` runner installs host prerequisites and a Python virtual environment with
 CMake 3.31.10/pycparser 2.22, then runs the source checks. CI uses the published PyPI CMake
 3.31.10 wheel; the inspected Fedora host has 3.31.11. Setup verifies the SDK SHA256 before
 extraction, rebuilds the six portlibs from the recorded recipe commit, adds the explicit OpenSSL
 source pin, verifies the PAF patch and RE base, and builds the pinned host CXML tool. The
-application's existing `build.sh` then builds normal/system profiles. A pre-existing dependency
+application's `build.sh` then builds the system profile only. A pre-existing dependency
 directory is rejected to prevent cache reuse or replacement of a working SDK.
 
 Two artifacts are retained for 14 days (subject to repository retention policy):
 
-- `vita-moonlight-paf-<commit>`: both VPKs, SELF files and their matching unstripped debug ELF files,
-  uploaded only after a successful build and checks that all six outputs exist and are nonempty.
+- `vita-moonlight-paf-<commit>`: the system VPK/SELF and matching unstripped debug ELF,
+  with the release metadata/checksums, uploaded only after a successful build and output checks.
 - `vita-build-evidence-<commit>-<attempt>`: setup/source/build logs, source pins, the modified
   OpenSSL recipe, rebuilt portlib package archives, package/application checksums, environment
   versions and the rebuilt SDK's selected file hashes. Upload is attempted even on failure.

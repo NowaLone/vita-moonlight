@@ -4,6 +4,39 @@ Research date: 2026-10-25. Project source inspected at `f54dda4` on
 `codex/livearea-dynamic-frames`. This records feasibility and implementation
 choices; it does not implement an updater or authorize installing a shell plugin.
 
+**Implementation follow-up, 2026-10-26:** the maintainer selected system-only
+releases; normal remains an explicit local build and omits the update INI.
+The system VPK now source-packages `sce_sys/homebrew_update.ini`, using the
+Latest GitHub release's `VLMP00001-ver.xml`. A version-tag push now makes Actions
+derive the Vita version, build system and automatically publish its complete
+VPK/feed/source/evidence assets; no manual workflow launch remains.
+SFO APP_VER/VERSION and XML share `NN.NN`; Content ID is explicitly the existing
+VitaShell fallback `EP9000-VLMP00001_00-0000000000000000`. Minimal toolbar support
+does not need the optional client library: the plugin scans the packaged INI.
+See [the current release procedure](RELEASE.md). The investigation and proposed
+two-profile/NeoVitaDB options below are historical context, not the current
+release policy. No build, Actions run, plugin installation or Vita update has
+been performed by the agent. Maintainer hardware evidence follows below.
+
+**Maintainer validation, 2026-10-26:** on firmware **3.60**, the maintainer
+reports that the system-profile LiveArea update from **v1.00 to v1.01** worked
+after replacing zm2283145's plugin with **BMK-Studio HomebrewUpdate**. This
+accepts the existing INI, GitHub Latest XML/changeinfo and
+`vita_moonlight_paf-system.vpk` filename for this tested path; no release-asset
+rename or client library was needed. The installed plugin version/hash and
+separate Settings/client-identity retention results were not supplied with that
+plugin report. A later general release-smoke reply accepts Settings/saved-PC
+retention and reconnect without a new PIN; its installed tag/hash and method
+were not specified. See [the scoped release evidence](RELEASE.md#recorded-release-evidence-2026-10-26).
+Neither report establishes other firmware, daemon coexistence or a security audit.
+
+The preceding zm2283145 session log on 3.60 showed
+`livearea_shell_unsupported` with SceShell NID `0x0552F692`, failed method
+patches and partial HTTP hooks. It eventually discovered `01.01` and redirected
+the XML request to `127.0.0.1:13379`, where it timed out with `0x80431068`
+(`NW-5603-4`). The timeout's internal server cause was not isolated; the log
+does confirm that this firmware did not pass the plugin's required hook gates.
+
 ## Finding
 
 GitHub Releases can host Moonlight PAF updates. NeoVitaDB can index those releases
@@ -75,7 +108,9 @@ origin or assumed safe without separate evidence.
 was published on 2026-08-28 with a plugin and developer client. The inspected
 public source tree contains only README.md. Its claimed LiveArea integration
 and broader firmware support therefore cannot be verified from implementation
-source. It is an available binary alternative, not an audited project dependency.
+source. It is the maintainer-tested option for the 3.60 update path above,
+not an audited project dependency. Use one update plugin at a time; both
+implementations use the same local port and intercept Shell update requests.
 
 ## NeoVitaDB distribution and updates
 

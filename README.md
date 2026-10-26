@@ -4,6 +4,10 @@ Native PS Vita Moonlight frontend built with Sony's PAF framework.
 
 The project provides a system-style PAF UI on top of the real Moonlight/GameStream stack used by Vita Moonlight. It is no longer just a UI shell: host discovery, persistence, pairing, application listing, streaming, video/audio output, and Vita input paths are implemented.
 
+For VPK/profile selection, Sunshine pairing, controls, updates and troubleshooting,
+see [Install and use](docs/INSTALL.md). Maintainers use the
+[release procedure](docs/RELEASE.md) for versioning, artifacts and validation.
+
 ## Architecture
 
 The project is intentionally split into a frontend/service/backend stack:
@@ -209,9 +213,13 @@ pinned dependencies and both application profiles successfully at `4076f15` (208
 The maintainer subsequently confirms the requested basic startup/Settings/stream/reconnect
 Vita smoke (“всё ок”, 2026-10-24); this establishes basic user-reported acceptance of the CI baseline.
 
-For a fresh GitHub Actions build, use **Actions → Clean Vita build → Run workflow** once
-[the workflow](.github/workflows/build.yml) is on the default branch. It is manual-only,
-uses no cache, rebuilds the pinned dependencies, and produces both application profiles.
+Pushing a version tag such as `v1.01` starts
+[Clean Vita build](.github/workflows/build.yml), builds the system profile and
+automatically publishes its complete GitHub Release. The tag selects Vita version
+`01.01`; both lightweight and annotated tags are supported. There is no manual,
+branch-push or PR trigger. Each run rebuilds the pinned dependencies without caches.
+Version/tag rules and release checks are in
+[the release procedure](docs/RELEASE.md).
 Download the packages/debug ELF and build-evidence artifacts from the completed run;
 evidence is also saved on failure. See [CI setup and limits](docs/BUILD_ENVIRONMENT.md#github-actions).
 The successful run was started by the maintainer; the agent did not run a build or dispatch CI.
@@ -229,33 +237,31 @@ Typical setup:
 export VITASDK=/usr/local/vitasdk
 ```
 
-Build both application profiles:
+Build the default system profile:
 
 ```bash
 bash build.sh
 ```
 
-This builds the ordinary profile in `build/normal/` and the system profile in
-`build/system/`, with separate CMake caches and object files. CXML is compiled
-once and copied to both trees. The resulting packages are published as
-`build/vita_moonlight_paf-normal.vpk` and `build/vita_moonlight_paf-system.vpk`.
-Matching debug ELF and SELF files have the same profile suffixes. Both packages
-use title ID `VLMP00001`: installing one replaces the other.
+This compiles CXML and the system profile in `build/`, producing
+`build/vita_moonlight_paf-system.vpk` and matching debug ELF/SELF files.
+Generic `build/vita_moonlight_paf.{vpk,self,elf}` paths are also retained.
+System is the distributed profile; CI and Releases do not publish normal packages.
 
-To build only one profile, explicitly select it (maintainer commands):
+The ordinary profile is an optional local build, selected explicitly (maintainer command):
 
 ```bash
 bash build.sh -DMOONLIGHT_SYSTEM_APP=OFF
-bash build.sh -DMOONLIGHT_SYSTEM_APP=ON
 ```
 
-Single-profile builds use the legacy `build/` directory and also publish the
-profile-suffixed files. Script selection follows explicit command-line arguments;
-without a profile argument it always builds both, regardless of an old cache.
-Other CMake arguments are forwarded to both selected builds. Heap tracing is
-explicitly OFF by default for each script invocation; passing
-`-DMOONLIGHT_HEAP_TRACE=ON` in a dual build enables it only for the system profile.
-Direct CMake configuration retains its ordinary default/cached profile behavior.
+It uses the same `build/` directory and produces the `-normal` copies instead.
+Both profiles use title ID `VLMP00001`: installing one replaces the other.
+Without a profile argument, the script selects system even if an old cache selected
+normal; other CMake arguments are forwarded to that one build. Heap tracing and
+diagnostic test modes default OFF for each script invocation. Enable heap tracing
+explicitly with `-DMOONLIGHT_HEAP_TRACE=ON` in system mode.
+Fresh direct CMake configurations also default to system; existing CMake cache
+options persist unless explicitly overridden.
 CMake prints the selected `Moonlight launch profile`. With Debug log enabled,
 Settings logs `[Launch]` with the profile and source revision.
 
@@ -330,8 +336,8 @@ fix and one reconnect on the tested device; broader compatibility remains open.
 The user also verified streaming/reconnect, Settings, Quick Actions and returning
 to the suspended game with heap tracing OFF and the same budgets. The ordinary
 profile also passed the user's launch, Settings, stream and reconnect smoke test
-after the shared pthread-bootstrap fix. Direct CMake configuration defaults to
-ordinary launch; `build.sh` builds both profiles by default. The 64 MiB budget
+after the shared pthread-bootstrap fix. Fresh direct CMake configurations and
+`build.sh` now default to the system profile. The 64 MiB budget
 applies only when system mode is enabled.
 An optional diagnostic build records allocation call sites (maintainer command):
 
@@ -351,27 +357,24 @@ results describe coverage limits. Tracked bytes are not a replacement for `malli
 Disable the diagnostic with `-DMOONLIGHT_HEAP_TRACE=OFF` after collecting the log.
 
 CMake cache options persist for manual configurations; the script explicitly
-selects profiles and defaults tracing OFF. To build only the ordinary profile:
+selects one profile and defaults tracing OFF. To build the ordinary profile explicitly:
 
 ```bash
 bash build.sh -DMOONLIGHT_SYSTEM_APP=OFF -DMOONLIGHT_HEAP_TRACE=OFF
 ```
 
-Default dual-profile outputs:
+Default system-profile outputs:
 
 ```
-build/vita_moonlight_paf-normal.elf
-build/vita_moonlight_paf-normal.self
-build/vita_moonlight_paf-normal.vpk
 build/vita_moonlight_paf-system.elf
 build/vita_moonlight_paf-system.self
 build/vita_moonlight_paf-system.vpk
 ```
 
-Each build tree contains an unstripped `vita_moonlight_paf.elf` with debug symbols
+The build tree contains an unstripped `vita_moonlight_paf.elf` with debug symbols
 for tools such as Vita Crash Dump GUI. The script copies it to the matching
 profile-suffixed name above. Keep the ELF with its corresponding VPK when collecting
-a crash dump. Explicit single-profile/manual builds also retain the original
+a crash dump. Script/manual builds also retain the original
 `build/vita_moonlight_paf.{elf,self,vpk}` paths. The extensionless executable in
 each build tree remains an internal input to VitaSDK packaging helpers.
 
@@ -442,6 +445,13 @@ This is basic user-reported Vita acceptance; no package hash, runtime log or
 per-profile results were supplied. Separate cold/resumed delivery, fresh welcome
 defaults, short/empty lists and fault cases remain in the LiveArea guide.
 
+The subsequent 2026-10-26 reply “всё ок” accepts the requested published-system-VPK
+check: installation over the current app, Settings/saved-PC retention, connection
+without another PIN, streaming and return to a suspended Vita game. Both v1.00
+and v1.01 CI runs/releases succeeded. Download identities and the distinction
+between that reply and the separate BMK update result are recorded in
+[release evidence](docs/RELEASE.md#recorded-release-evidence-2026-10-26).
+
 Non-build Python checks (Python 3 + pycparser) cover selected parser, pairing/trust,
 host-store/list, event, lifecycle, input, video-size and LiveArea logic with mocked
 platform/library calls. See [tests/README.md](tests/README.md) for the command,
@@ -475,7 +485,11 @@ The current build environment and setup procedure are recorded in
 [docs/BUILD_ENVIRONMENT.md](docs/BUILD_ENVIRONMENT.md). Clean CI setup, dependency rebuild and
 both application-profile builds passed on `4076f15`; original local portlib binaries remain
 unrecovered, and no byte-identical reproduction is claimed. Basic CI-package Vita smoke is
-user-confirmed; licensing/attribution and release documentation are the next independent work.
+user-confirmed. [Installation](docs/INSTALL.md) and the
+[release/versioning checklist](docs/RELEASE.md) are documented; remaining license
+decisions, distribution materials and broader release/device coverage remain open.
+System v1.00/v1.01 releases are published and the requested basic release-VPK
+smoke is user-accepted; see the scoped evidence above.
 Broader lifecycle/motion/security/error and release checks remain
 open; ordinary API paths are not reopened merely because exhaustive validation is incomplete.
 The canonical plan and completion criteria are in [`ROADMAP.md`](ROADMAP.md).

@@ -70,9 +70,31 @@ requests to implement again; no later device result is recorded for these specif
 - [x] Record the licensing/attribution review and restore missing vendored license texts in
   [LICENSING.md](docs/LICENSING.md) (2026-10-24). This is a review, not release clearance.
 - [ ] Resolve its GPL/old-OpenSSL, other artwork, PAF/mDNS permission and project-license questions;
-  finish distribution notices/source/relinking materials. Installation/runtime/compatibility
-  documentation, versioning and release checklist remain, followed by a maintainer-run clean
+  finish distribution notices/source/relinking materials, followed by a maintainer-run clean
   release build and Vita smoke test (§4).
+- [x] Document [installation/runtime/setup/limits](docs/INSTALL.md) and
+  [versioning/artifact naming/release checklist](docs/RELEASE.md), 2026-10-26.
+  Documentation/source checks only; no release version bump, build, tag or publication.
+- [x] Add source support for system-only releases through **Clean Vita build**:
+  version-tag push (`v1.01` → `01.01`), automatic publication, stable Content ID,
+  HomebrewUpdate INI/XML/changeinfo and checksummed source/evidence downloads.
+  System is the local default; normal requires explicit `MOONLIGHT_SYSTEM_APP=OFF`
+  and is omitted from releases/feed. See [RELEASE.md](docs/RELEASE.md).
+  Manual workflow launch is removed; publication verifies the existing pushed
+  lightweight/annotated tag against the exact built commit without changing refs.
+  Actions published v1.00 and v1.01 on 2026-10-26. The maintainer confirmed the
+  system-profile LiveArea update between them on firmware 3.60 using BMK-Studio
+  HomebrewUpdate after zm2283145's plugin failed firmware hook checks.
+  See [APP_UPDATE_RESEARCH.md](docs/APP_UPDATE_RESEARCH.md) for scoped evidence;
+  broader plugin/firmware compatibility remains pending.
+- [x] Published-system-VPK basic smoke accepted, 2026-10-26: the maintainer replies
+  “всё ок” to installation over the current app, Settings/saved-PC retention,
+  reconnect without another PIN, streaming and return to the suspended Vita game.
+  Both v1.00/v1.01 Actions runs succeeded and releases are published; their
+  source/VPK identities and the reply's scope are in
+  [RELEASE.md](docs/RELEASE.md#recorded-release-evidence-2026-10-26).
+  The request named v1.00; no installed tag/hash, method or new log was supplied.
+  The full release/device matrix remains separate from this basic acceptance.
 
 **Maintainer scope decision (2026-10-24):** Sony artwork permission work is omitted
 from the active plan; the provenance record remains. OpenSSL 3.x migration was a
@@ -1215,9 +1237,15 @@ Current independent work order: record exact toolchain/dependency revisions and 
 - [ ] Resolve the review's remaining compatibility/permission questions within the agreed
   scope (Sony artwork permission work excluded), confirm and add the project
   license, then include final notices and corresponding source/relinking materials with releases.
-- [ ] Document installation, runtime requirements, setup, and known compatibility limitations for the Vita and PC host.
-- [ ] Define versioning, release artifact naming, and a release checklist.
-- [ ] Perform a final clean build and smoke test on real hardware; verify core streaming and clean shutdown on the release candidate.
+- [x] Document installation, runtime requirements, setup, and known compatibility limitations
+  for the Vita and PC host: [INSTALL.md](docs/INSTALL.md), 2026-10-26.
+- [x] Define versioning, release artifact naming, and a release checklist:
+  [RELEASE.md](docs/RELEASE.md), 2026-10-26. No version bump/tag or publication performed.
+- [x] Publish clean CI system builds v1.00/v1.01 and record the maintainer's basic
+  release-VPK smoke acceptance (2026-10-26), with the scoped results above.
+- [ ] Complete remaining release/device coverage for subsequent candidates using
+  [RELEASE.md](docs/RELEASE.md); do not infer full fault/shutdown/input coverage
+  from the accepted basic smoke or reopen it without a regression.
 - [ ] Publish only artifacts and source revisions that have actually been validated.
 
 **Done when:** licensing/attribution is addressed, users can build or install from documented instructions, and the release candidate has a recorded Vita smoke-test result.
@@ -1226,11 +1254,14 @@ Current independent work order: record exact toolchain/dependency revisions and 
 
 Installed toolchain/dependency identities and setup are recorded in
 [BUILD_ENVIRONMENT.md](docs/BUILD_ENVIRONMENT.md); clean CI build passed on `4076f15`.
-The maintainer accepts the basic CI-package Vita smoke. Next independent work is
-resolution of the recorded [licensing questions](docs/LICENSING.md) and release documentation.
+The maintainer accepts the basic CI-package Vita smoke and the scoped 2026-10-26 LiveArea check.
+Installation and release/versioning procedures are documented in [INSTALL.md](docs/INSTALL.md)
+and [RELEASE.md](docs/RELEASE.md). Remaining release work is the recorded
+[licensing questions](docs/LICENSING.md), distribution materials and remaining
+release/device coverage. System releases v1.00/v1.01 are published; the requested
+basic release-VPK smoke is accepted, with exact scope recorded in the release guide.
 The review itself is complete; license selection and redistribution clearance are not.
-OpenSSL migration is not an agreed next task; installation/release documentation can proceed
-independently of the remaining license decisions.
+OpenSSL migration is not an agreed next task; keep the working pinned baseline.
 Keep remaining lifecycle/motion/security/error validation as
 milestone/release work, reprioritized by concrete regressions. Existing focused checks and scoped
 normal-flow evidence remain; do not start new routine stream tests merely to fill the audit.

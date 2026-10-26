@@ -1,15 +1,20 @@
 name: Clean Vita build
 
 on:
-  workflow_dispatch:
+  push:
+    tags:
+      - 'v*.*'
 
 permissions:
   contents: read
 
 jobs:
   build:
+    if: github.event.deleted == false
     runs-on: ubuntu-22.04
     timeout-minutes: 90
+    outputs:
+      source_sha: ${{ steps.source.outputs.sha }}
     defaults:
       run:
         shell: bash
@@ -19,8 +24,22 @@ jobs:
       - name: Check out project and pinned submodules
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          ref: ${{ github.sha }}
           submodules: recursive
           persist-credentials: false
+
+      - name: Resolve the pushed tag version and source commit
+        id: source
+        run: |
+          source_sha="$(git rev-parse HEAD)"
+          echo "SOURCE_SHA=$source_sha" >> "$GITHUB_ENV"
+          echo "sha=$source_sha" >> "$GITHUB_OUTPUT"
+          python3 scripts/release.py resolve >> "$GITHUB_ENV"
+
+      - name: Validate release version and availability before building
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/release.py check
 
       - name: Install host tools
         run: |
@@ -46,24 +65,35 @@ jobs:
       - name: Prepare pinned SDK, portlibs, PAF and CXML tool
         run: bash scripts/ci_setup.sh 2>&1 | tee "$CI_LOG_DIR/dependency-build.log"
 
-      - name: Build both application profiles
+      - name: Build the system profile
         run: |
-          bash build.sh 2>&1 | tee "$CI_LOG_DIR/application-build.log"
-          for profile in normal system; do
-            for extension in vpk self elf; do
-              test -s "build/vita_moonlight_paf-$profile.$extension"
-            done
+          bash build.sh -DMOONLIGHT_SYSTEM_APP=ON -DMOONLIGHT_APP_VERSION="$APP_VERSION" 2>&1 | tee "$CI_LOG_DIR/application-build.log"
+          for extension in vpk self elf; do
+            test -s "build/vita_moonlight_paf-system.$extension"
           done
-          (cd build && sha256sum vita_moonlight_paf-{normal,system}.{vpk,self,elf}) > "$CI_LOG_DIR/application.sha256"
+          (cd build && sha256sum vita_moonlight_paf-system.{vpk,self,elf}) > "$CI_LOG_DIR/application.sha256"
+
+      - name: Prepare versioned downloads and update feed
+        run: |
+          release_dir="$RUNNER_TEMP/moonlight-release"
+          mkdir "$release_dir"
+          git ls-files --recurse-submodules -z | tar --null -T - -czf "$release_dir/vita-moonlight-paf-source.tar.gz"
+          tar -czf "$release_dir/vita-moonlight-paf-build-evidence.tar.gz" -C "$CI_LOG_DIR" .
+          python3 scripts/release.py prepare --directory "$release_dir"
+
+      - name: Save complete release downloads
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: moonlight-release-${{ github.sha }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/moonlight-release/*
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Save application packages and matching debug ELF files
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: vita-moonlight-paf-${{ github.sha }}
           path: |
-            build/vita_moonlight_paf-normal.vpk
-            build/vita_moonlight_paf-normal.self
-            build/vita_moonlight_paf-normal.elf
             build/vita_moonlight_paf-system.vpk
             build/vita_moonlight_paf-system.self
             build/vita_moonlight_paf-system.elf
@@ -78,3 +108,32 @@ jobs:
           path: ${{ env.CI_LOG_DIR }}
           if-no-files-found: warn
           retention-days: 14
+
+  release:
+    needs: build
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    env:
+      SOURCE_SHA: ${{ needs.build.outputs.source_sha }}
+    permissions:
+      contents: write
+    concurrency:
+      group: moonlight-release-publication
+      cancel-in-progress: false
+    steps:
+      - name: Check out the exact built source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ needs.build.outputs.source_sha }}
+          persist-credentials: false
+
+      - name: Download the matching release downloads
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: moonlight-release-${{ github.sha }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/moonlight-release
+
+      - name: Create draft, verify downloads and publish the tagged release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/release.py publish --directory "$RUNNER_TEMP/moonlight-release"
