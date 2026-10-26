@@ -35,6 +35,8 @@ public:
     int Disconnect();
 
     MoonlightConnectionState State() const;
+    /* Selected attempt's value copy; consume after successful completion. */
+    const MoonlightHost &Host() const { return m_connect_host; }
     int GetStreamStats(MoonlightStreamStats *out);
     int GetControllerLight(MoonlightControllerLight *out);
 
@@ -60,7 +62,7 @@ private:
     ForegroundOperation m_operation;
     int m_worker_done;
     int m_worker_result;
-    char m_connect_address[256];
+    MoonlightHost m_connect_host;
     char m_error_message[512];
 };
 

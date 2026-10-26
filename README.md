@@ -388,13 +388,31 @@ Install the generated VPK on the Vita (title ID `VLMP00001`). This checkout ship
 `build.sh` and `build_cxml.sh`; the `dev-build-run.sh` deployment helper referenced
 in older notes is absent. Deployment tooling is therefore a separate local setup.
 
-LiveArea images under `sce_sys/` must be 8-bit indexed PNG (color type 3). A 24-bit or 32-bit PNG installs as far as 99% and then fails with `0x8010113D`. `icon0.png` is 128×128 with no alpha. `pic0.png` is 960×544. `livearea/contents/bg0.png` is 840×500. `startup.png` is 280×158 and is the only one that may use palette transparency (`tRNS`). Re-exporting these from a normal editor without quantizing them will break installation again.
+LiveArea images under `sce_sys/` must be 8-bit indexed PNG (color type 3). A 24-bit or 32-bit PNG installs as far as 99% and then fails with `0x8010113D`. `icon0.png` is 128×128 with no alpha. `pic0.png` is 960×544. `livearea/contents/bg0.png` is 840×500. `startup.png` is 280×158. Startup and frame icons can use palette transparency (`tRNS`); local SDK LiveArea samples include transparent frame icons. Re-exporting these from a normal editor without quantizing them will break installation again.
 
-`vita_create_vpk()` explicitly includes all seven LiveArea frame images and the three
-current manual pages (`001.png`–`003.png`); adding/removing files under `sce_sys/` also
-requires updating this explicit packaging list. The deleted `004.png` is no longer a dependency.
-Install the full rebuilt VPK when changing these assets. The template content/frame
-revisions are now 2. Packaging completeness and lossless palette conversion were
+`vita_create_vpk()` explicitly includes the LiveArea background, startup image/template
+and three current manual pages (`001.png`–`003.png`); adding/removing files under `sce_sys/` also
+requires updating this explicit packaging list. The deleted `004.png` and obsolete
+`frame1.png`–`frame7.png` are no longer dependencies. Dynamic frames use explicitly
+packaged indexed PNGs: `app_row.png` (472×48), `app.png` (128×128, displayed
+at 32×32), `pc_card.png` (280×158), and the transparent `pc.png` (80×80).
+`app_row.png` is a lossless indexed copy of Browser's `LA_window.png`. CMake
+packages the existing `sce_sys/icon0.png` as `app.png`, without a second source
+copy. Replacing `icon0.png` therefore affects both destinations; keep it 128×128,
+8-bit indexed and opaque. `tools/generate_livearea_backdrops.py` uses Pillow to
+derive the 280×158 PC card from the same Browser row with fixed 8 px corner/edge
+caps; optional
+`--browser-archive /path/to/sce_sys.7z`
+imports the Browser row using 7z/Pillow with decoded-pixel equality verification.
+The install template starts with native
+“Moonlight” / “Open source game streaming client” text and no sample app/PC names
+or purple placeholders. Install the full rebuilt VPK when changing these assets;
+content revision is 11; frames1–7 are revision 6.
+The installed display name is `Moonlight`. The original spotlight background has
+no painted caption; native welcome text lives in frames. Current `gd`/`gdc`
+categories skip the native top-left title. See the [LiveArea guide](docs/LIVEAREA.md)
+for geometry, the shell-caption evidence and remaining device checks.
+Packaging completeness and lossless palette conversion were
 checked without an agent-run build. On 2026-10-21, the maintainer confirmed the
 LiveArea assets appeared after deleting the old app and installing the full VPK
 again. Installation over the existing app had retained the default appearance;
@@ -404,12 +422,32 @@ The CXML build is fail-fast: if `psp2cxml-tool` is not available, the build stop
 
 ## Runtime Validation
 
-The 166bf56 source gate has 184 non-build Python checks (Python 3 + pycparser), covering selected parser
-grammar, pairing/trust, host-store/list, event, lifecycle, touch and video-size logic with mocked
-platform/library calls. See [tests/README.md](tests/README.md) for their scope and command and
-[the repeat Ponytail audit](docs/PONYTAIL_REAUDIT_2026-10-23.md) for the latest simplification changes. They do not compile
-or execute the application or replace Vita tests. C/Expat parser fixtures also exist, but their
-compilation/execution by the maintainer remains unverified.
+This branch adds [dynamic LiveArea text](docs/LIVEAREA.md): frame7 shows the last
+successfully connected PC, and frames1–6 show its first six applications after
+Apps retrieval. Native `SceLiveAreaUtil` publishes names asynchronously.
+No promoter or direct shell-file/database writes are used.
+The maintainer confirms changing labels on Vita. Populated app slots now have
+the original translucent Browser row backdrops, 32×32 Moonlight markers and
+left-aligned system text; Frame7 restores the transparent
+PC icon and uses a card as wide as the gate startup image. With no Apps names,
+native welcome text appears in the left column.
+Frame7 now connects to its saved PC, and app frames connect, refresh Apps and
+start the selected app ID through the existing PIN/progress/remote-Quit flow.
+New frame targets must first be republished by connecting and retrieving Apps.
+
+The maintainer replied “всё ок” on 2026-10-26 to the fresh VPK installation,
+replacement icon/startup image, labels/card activation and closure/reboot
+retention check following the PNG fixes at source revision `6e1a893`.
+This is basic user-reported Vita acceptance; no package hash, runtime log or
+per-profile results were supplied. Separate cold/resumed delivery, fresh welcome
+defaults, short/empty lists and fault cases remain in the LiveArea guide.
+
+Non-build Python checks (Python 3 + pycparser) cover selected parser, pairing/trust,
+host-store/list, event, lifecycle, input, video-size and LiveArea logic with mocked
+platform/library calls. See [tests/README.md](tests/README.md) for the command,
+current recorded count and limits. They do not compile or execute the application
+or replace Vita tests. C/Expat fixtures also exist; maintainer compilation/execution
+remains unverified.
 
 Changes are validated primarily on real PS Vita hardware:
 

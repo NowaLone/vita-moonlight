@@ -1,53 +1,57 @@
 <?xml version="1.0" encoding="utf-8"?>
-<livearea style="a5" format-ver="01.00" content-rev="1">
+<livearea style="a5" format-ver="01.00" content-rev="11">
   <livearea-background>
     <image>bg0.png</image>
   </livearea-background>
   <gate>
     <startup-image>startup.png</startup-image>
   </gate>
-  <frame id="frame1" multi="o" autoflip="0" rev="1">
+  <frame id="frame1" multi="o" autoflip="0" rev="6">
     <liveitem default="on">
-      <image align="center" valign="center" origin="frame" width="286" height="68" x="0" y="0">frame1.png</image>
-      <target>psla:eboot</target>
-      <text align="center" valign="bottom">
-        <str size="22" color="#ffffff" bold="on">Desktop</str>
+      <text origin="frame" width="440" height="48" align="center" valign="center" text-align="center" text-valign="center" line-align="center" word-wrap="off" ellipsis="on">
+        <str size="20" color="#ffffff" bold="off" shadow="off"></str>
       </text>
     </liveitem>
   </frame>
-  <frame id="frame2" multi="o" autoflip="0" rev="1">
+  <frame id="frame2" multi="o" autoflip="0" rev="6">
     <liveitem default="on">
-      <image align="center" valign="center" origin="frame" width="286" height="68" x="0" y="0">frame2.png</image>
-      <target>psla:eboot</target>
+      <text origin="frame" width="440" height="48" align="center" valign="center" text-align="center" text-valign="center" line-align="center" word-wrap="off" ellipsis="on">
+        <str size="28" color="#ffffff" bold="off" shadow="off">Moonlight</str>
+      </text>
     </liveitem>
   </frame>
-  <frame id="frame3" multi="o" autoflip="0" rev="1">
+  <frame id="frame3" multi="o" autoflip="0" rev="6">
     <liveitem default="on">
-      <image align="center" valign="center" origin="frame" width="286" height="68" x="0" y="0">frame3.png</image>
-      <target>psla:eboot</target>
+      <text origin="frame" width="440" height="48" align="center" valign="center" text-align="center" text-valign="center" line-align="center" word-wrap="off" ellipsis="on">
+        <str size="20" color="#d0d0d0" bold="off" shadow="off">Open source game streaming client</str>
+      </text>
     </liveitem>
   </frame>
-  <frame id="frame4" multi="o" autoflip="0" rev="1">
+  <frame id="frame4" multi="o" autoflip="0" rev="6">
     <liveitem default="on">
-      <image align="center" valign="center" origin="frame" width="286" height="68" x="0" y="0">frame4.png</image>
+      <text origin="frame" width="440" height="48" align="center" valign="center" text-align="center" text-valign="center" line-align="center" word-wrap="off" ellipsis="on">
+        <str size="20" color="#ffffff" bold="off" shadow="off"></str>
+      </text>
     </liveitem>
   </frame>
-  <frame id="frame5" multi="o" autoflip="0" rev="1">
+  <frame id="frame5" multi="o" autoflip="0" rev="6">
     <liveitem default="on">
-      <image align="center" valign="center" origin="frame" width="286" height="68" x="0" y="0">frame5.png</image>
+      <text origin="frame" width="440" height="48" align="center" valign="center" text-align="center" text-valign="center" line-align="center" word-wrap="off" ellipsis="on">
+        <str size="20" color="#ffffff" bold="off" shadow="off"></str>
+      </text>
     </liveitem>
   </frame>
-  <frame id="frame6" multi="o" autoflip="0" rev="1">
+  <frame id="frame6" multi="o" autoflip="0" rev="6">
     <liveitem default="on">
-      <image align="center" valign="center" origin="frame" width="286" height="68" x="0" y="0">frame6.png</image>
+      <text origin="frame" width="440" height="48" align="center" valign="center" text-align="center" text-valign="center" line-align="center" word-wrap="off" ellipsis="on">
+        <str size="20" color="#ffffff" bold="off" shadow="off"></str>
+      </text>
     </liveitem>
   </frame>
-  <frame id="frame7" multi="o" autoflip="0" rev="1">
+  <frame id="frame7" multi="o" autoflip="0" rev="6">
     <liveitem default="on">
-      <image align="center" valign="center" origin="frame" width="286" height="168" x="0" y="0">frame7.png</image>
-      <target>psla:eboot</target>
-      <text align="center" valign="bottom">
-        <str size="22" color="#ffffff" bold="on">NA-IGRUNOV</str>
+      <text origin="frame" width="440" height="48" align="center" valign="center" text-align="center" text-valign="center" line-align="center" word-wrap="off" ellipsis="on">
+        <str size="22" color="#ffffff" bold="off" shadow="off"></str>
       </text>
     </liveitem>
   </frame>

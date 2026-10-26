@@ -208,6 +208,7 @@ void Main::RestoreEventCallback()
     if (MoonlightApp::Instance()->IsInitialized()) {
         MoonlightApp::Instance()->SetEventCallback(OnMoonlightEvent, this);
         m_connecting = false;
+        m_livearea_application_id = 0;
         RefreshHosts();
         paf::ui::Widget *list = root ? root->FindChild("list_view_main") : NULL;
         if (list) list->SetActivate(true);
@@ -228,6 +229,7 @@ Main::Main()
       m_system_ui_overlaid(true),
       m_list_ready(false),
       m_connecting(false),
+      m_livearea_application_id(0),
       m_settings_suspended(false),
       m_initial_refresh_attempts(0),
       m_initial_refresh_stable_count(0),
@@ -729,6 +731,34 @@ void Main::SelectHost(int index)
         }
         host = saved_hosts[canonical];
     }
+    ConnectHost(host);
+}
+
+bool Main::CanConnectFromLiveArea() const
+{
+    MoonlightApp *app = MoonlightApp::Instance();
+    Base *current = Base::GetCurrent();
+    return root && (current == this || (current && current == Base::Find("page_apps"))) &&
+        !m_connecting && !m_selection_mode && !m_ime_open && !m_ime_retry_pending &&
+        !m_settings_suspended && !m_delete_dialog_open && m_pending_action == Pending_None &&
+        !app->Connection().IsBusy() &&
+        app->Connection().State() != MOONLIGHT_CONNECTION_STREAMING &&
+        app->Connection().State() != MOONLIGHT_CONNECTION_PAUSED;
+}
+
+void Main::ConnectFromLiveArea(const MoonlightHost &host, int application_id)
+{
+    if (!CanConnectFromLiveArea()) return;
+    if (Base::GetCurrent() != this) Base::CloseCurrent(); /* Idle Apps only. */
+    ConnectHost(host, application_id);
+}
+
+void Main::ConnectHost(const MoonlightHost &host, int application_id)
+{
+    MoonlightApp *app = MoonlightApp::Instance();
+    m_livearea_application_id = application_id;
+    m_connecting = true;
+    SuspendBackground();
     paf::ui::ListView *list = static_cast<paf::ui::ListView *>(
         root->FindChild("list_view_main"));
     if (list) list->SetActivate(false);
@@ -736,6 +766,7 @@ void Main::SelectHost(int index)
     int result = app->Connection().Connect(host);
     if (result != 0) {
         m_connecting = false;
+        m_livearea_application_id = 0;
         RefreshHosts();
         if (list) list->SetActivate(true);
     }
@@ -1196,25 +1227,7 @@ void Main::StartManualConnection(const char *address)
     strncpy(host.internal, host_address, sizeof(host.internal) - 1);
     host.internal[sizeof(host.internal) - 1] = '\0';
 
-    m_connecting = true;
-    SuspendBackground();
-
-    paf::ui::ListView *list = static_cast<paf::ui::ListView *>(
-        root->FindChild("list_view_main"));
-    if (list) {
-        list->SetActivate(false);
-    }
-
-    HideStatus();
-
-    int result = MoonlightApp::Instance()->Connection().Connect(host);
-    if (result != 0) {
-        m_connecting = false;
-        if (list) {
-            list->SetActivate(true);
-        }
-        ShowIdleStatus();
-    }
+    ConnectHost(host);
 }
 
 void Main::RetryAddPcIme()
@@ -1275,7 +1288,9 @@ void Main::OnMoonlightEvent(const MoonlightEvent *event, void *userdata)
         main->RefreshHosts();
         break;
 
-    case MOONLIGHT_EVENT_CONNECTION_READY:
+    case MOONLIGHT_EVENT_CONNECTION_READY: {
+        const int application_id = main->m_livearea_application_id;
+        main->m_livearea_application_id = 0;
         main->m_connecting = false;
         {
             paf::ui::Widget *list = main->root->FindChild("list_view_main");
@@ -1285,7 +1300,7 @@ void Main::OnMoonlightEvent(const MoonlightEvent *event, void *userdata)
         if (MoonlightApp::Instance()->Connection().State() ==
             MOONLIGHT_CONNECTION_PAIRED) {
             if (!Base::IsOpen("page_apps")) {
-                Apps *apps = new Apps();
+                Apps *apps = new Apps(application_id);
                 if (!apps->IsValid()) {
                     delete apps;
                     MoonlightApp::Instance()->Connection().ShowError("Unable to open applications.");
@@ -1303,7 +1318,7 @@ void Main::OnMoonlightEvent(const MoonlightEvent *event, void *userdata)
                 return;
             }
 
-            Pairing *pairing = new Pairing(pin);
+            Pairing *pairing = new Pairing(pin, application_id);
             if (!pairing || !pairing->IsValid()) {
                 delete pairing;
                 MoonlightApp::Instance()->Connection().ShowError("Unable to open pairing screen.");
@@ -1313,10 +1328,12 @@ void Main::OnMoonlightEvent(const MoonlightEvent *event, void *userdata)
 
         MoonlightApp::Instance()->Connection().ShowError("Unable to connect to PC.");
         break;
+    }
 
     case MOONLIGHT_EVENT_CONNECTION_FAILED:
     case MOONLIGHT_EVENT_CONNECTION_CLOSED:
         main->m_connecting = false;
+        main->m_livearea_application_id = 0;
         main->RefreshHosts();
         {
             paf::ui::ListView *list = static_cast<paf::ui::ListView *>(

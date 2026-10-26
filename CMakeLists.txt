@@ -177,6 +177,7 @@ add_executable(${PROJECT_NAME}
   ${CMAKE_CURRENT_SOURCE_DIR}/src/services/connection_service.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/services/application_service.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/services/settings_service.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/services/livearea_service.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/option_menu.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/moonlight/api.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/moonlight/stream_session.cpp
@@ -304,6 +305,7 @@ target_link_libraries(${PROJECT_NAME}
   ScePaf_stub_weak
   SceAppSettings_stub
   SceAppUtil_stub
+  SceLiveArea_stub
   SceCommonDialog_stub
   SceCommonGuiDialog_stub
   SceIme_stub
@@ -345,20 +347,17 @@ endif()
 # sce_sys PNGs must stay 8-bit indexed. 24-bit assets fail VPK install with 0x8010113D.
 vita_create_vpk(vita_moonlight_paf.vpk "VLMP00001" ${PROJECT_NAME}.self
   VERSION "01.00"
-  NAME "Vita Moonlight PAF UI"
+  NAME "Moonlight"
   FILE ${RCO_FILE} vita_moonlight_ui.rco
   FILE ${CMAKE_CURRENT_SOURCE_DIR}/sce_sys/icon0.png sce_sys/icon0.png
   FILE ${CMAKE_CURRENT_SOURCE_DIR}/sce_sys/pic0.png sce_sys/pic0.png
   FILE ${CMAKE_CURRENT_SOURCE_DIR}/sce_sys/livearea/contents/bg0.png sce_sys/livearea/contents/bg0.png
   FILE ${CMAKE_CURRENT_SOURCE_DIR}/sce_sys/livearea/contents/startup.png sce_sys/livearea/contents/startup.png
+  FILE ${CMAKE_CURRENT_SOURCE_DIR}/sce_sys/livearea/contents/app_row.png sce_sys/livearea/contents/app_row.png
+  FILE ${CMAKE_CURRENT_SOURCE_DIR}/sce_sys/icon0.png sce_sys/livearea/contents/app.png
+  FILE ${CMAKE_CURRENT_SOURCE_DIR}/sce_sys/livearea/contents/pc_card.png sce_sys/livearea/contents/pc_card.png
+  FILE ${CMAKE_CURRENT_SOURCE_DIR}/sce_sys/livearea/contents/pc.png sce_sys/livearea/contents/pc.png
   FILE ${CMAKE_CURRENT_SOURCE_DIR}/sce_sys/livearea/contents/template.xml sce_sys/livearea/contents/template.xml
-  FILE ${CMAKE_CURRENT_SOURCE_DIR}/sce_sys/livearea/contents/frame1.png sce_sys/livearea/contents/frame1.png
-  FILE ${CMAKE_CURRENT_SOURCE_DIR}/sce_sys/livearea/contents/frame2.png sce_sys/livearea/contents/frame2.png
-  FILE ${CMAKE_CURRENT_SOURCE_DIR}/sce_sys/livearea/contents/frame3.png sce_sys/livearea/contents/frame3.png
-  FILE ${CMAKE_CURRENT_SOURCE_DIR}/sce_sys/livearea/contents/frame4.png sce_sys/livearea/contents/frame4.png
-  FILE ${CMAKE_CURRENT_SOURCE_DIR}/sce_sys/livearea/contents/frame5.png sce_sys/livearea/contents/frame5.png
-  FILE ${CMAKE_CURRENT_SOURCE_DIR}/sce_sys/livearea/contents/frame6.png sce_sys/livearea/contents/frame6.png
-  FILE ${CMAKE_CURRENT_SOURCE_DIR}/sce_sys/livearea/contents/frame7.png sce_sys/livearea/contents/frame7.png
   FILE ${CMAKE_CURRENT_SOURCE_DIR}/sce_sys/manual/001.png sce_sys/manual/001.png
   FILE ${CMAKE_CURRENT_SOURCE_DIR}/sce_sys/manual/002.png sce_sys/manual/002.png
   FILE ${CMAKE_CURRENT_SOURCE_DIR}/sce_sys/manual/003.png sce_sys/manual/003.png

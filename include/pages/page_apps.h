@@ -18,7 +18,7 @@ public:
         Apps *m_parent;
     };
 
-    Apps();
+    explicit Apps(int application_id = 0);
     virtual ~Apps();
 
     void RestoreEventCallback();
@@ -31,9 +31,11 @@ private:
     void HideStatus();
     void ShowApps(int count);
     void SelectApp(int index);
+    void LaunchRequestedApplication();
 
     paf::vector<MoonlightApplication> m_apps;
     int m_app_count;
+    int m_livearea_application_id;
     bool m_launching;
     paf::ui::ListView *m_list;
 

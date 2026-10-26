@@ -22,6 +22,8 @@ public:
     void Shutdown();
 
     int GetHosts(MoonlightHost *out, int capacity);
+    /* UUID is authoritative. Route matching is only for an attempt without a UUID. */
+    bool Resolve(const MoonlightHost &identity, MoonlightHost *out);
     int Add(const char *address, uint16_t port, const char *name);
     int Delete(const MoonlightHost &host);
 

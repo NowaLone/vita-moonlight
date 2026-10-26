@@ -56,11 +56,17 @@ class EventQueue(unittest.TestCase):
         source = strip_directives((ROOT / 'src/app/event_queue.c').read_text())
         app = (ROOT / 'src/app/moonlight_app.cpp').read_text()
         dispatch = app[app.index('void MoonlightApp::ProcessEventTask('):]
+        dispatch = dispatch[:dispatch.index('\n}') + 2]
         dispatch = dispatch.replace('MoonlightApp::', '')
         dispatch = dispatch.replace('paf::thread::RMutex::main_thread_mutex.Lock()', 'main_lock()')
         dispatch = dispatch.replace('paf::thread::RMutex::main_thread_mutex.Unlock()', 'main_unlock()')
         dispatch = dispatch.replace('app->m_connection.GetCompletedJobEvent', 'job_completion')
         dispatch = dispatch.replace('app->m_connection.PrepareCompletion', 'prepare_completion')
+        dispatch = dispatch.replace('app->m_connection.IsBusy', 'connection_busy')
+        dispatch = dispatch.replace('app->m_connection.State', 'connection_state')
+        dispatch = dispatch.replace('app->m_livearea.Poll', 'livearea_poll')
+        dispatch = dispatch.replace('app->UpdateLiveArea', 'livearea_event')
+        dispatch = dispatch.replace('app->PollLiveAreaEvents', 'livearea_launch_poll')
         dispatch = dispatch.replace('app->m_hosts.PollAvailability', 'poll_availability')
         dispatch = dispatch.replace('app->m_discovery.Poll', 'poll_discovery')
         dispatch = dispatch.replace('app->m_discovery.Accepts', 'accepts_discovery')
@@ -95,6 +101,9 @@ class EventQueue(unittest.TestCase):
         self.base_expression = c_runtime.expression
         self.base_execute = c_runtime.execute
         self.library = dict(self.constants, strncpy=self.strncpy, sce_paf_strncpy=self.strncpy,
+                            connection_busy=lambda: False, connection_state=lambda: 0,
+                            livearea_poll=lambda allow: None, livearea_event=lambda event: None,
+                            livearea_launch_poll=lambda: None,
                             poll_availability=lambda event: 0, poll_discovery=lambda event: 0,
                             accepts_discovery=lambda event: True, current_page=lambda: 1, main_page=lambda: 1)
         for name in self.functions:
@@ -404,6 +413,26 @@ class EventQueue(unittest.TestCase):
 
         self.dispatch(lambda event: 1, callback, fallback)
         self.assertEqual(seen, [self.constants['MOONLIGHT_EVENT_CONNECTION_READY']])
+
+    def test_livearea_capture_waits_for_worker_and_precedes_page_callback(self):
+        self.push('CONNECTION_READY')
+        seen = []
+        self.library['livearea_event'] = lambda event: seen.append('livearea')
+        self.dispatch(lambda event: 0, lambda event: seen.append('page'))
+        self.assertEqual(seen, [])
+        self.dispatch(lambda event: 1, lambda event: seen.append('page'))
+        self.assertEqual(seen, ['livearea', 'page'])
+
+    def test_livearea_submissions_pause_for_foreground_work_and_streaming(self):
+        seen = []
+        self.library['livearea_poll'] = seen.append
+        for busy in (False, True):
+            self.library['connection_busy'] = lambda: busy
+            for name in ('DISCONNECTED', 'READY', 'PAIRED', 'STREAMING', 'PAUSED'):
+                state = self.constants['MOONLIGHT_CONNECTION_' + name]
+                self.library['connection_state'] = lambda: state
+                self.dispatch(lambda event: 1, lambda event: None)
+                self.assertEqual(seen[-1], not busy and name not in ('STREAMING', 'PAUSED'))
 
 
 if __name__ == '__main__':

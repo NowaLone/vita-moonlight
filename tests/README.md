@@ -1,6 +1,6 @@
 # Focused checks
 
-Latest recorded source gate: **208 checks including CI setup trust gates (2026-10-24)**.
+Latest recorded source gate: **227 checks including LiveArea layout/launch checks (2026-10-26)**.
 See [the repeat Ponytail audit](../docs/PONYTAIL_REAUDIT_2026-10-23.md) for the latest
 baseline, per-change checks and native gates; [the earlier refactor audit](../docs/REFACTOR_AUDIT.md)
 records the preceding pass. Counts in the
@@ -11,6 +11,37 @@ cases are in the API audit and `runtime/README.md`; source checks do not replace
 Non-build checks (Python 3 and pycparser):
 
     PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -p 'test_*.py'
+
+`test_livearea.py` interprets the actual frame builder and `LiveAreaService` with
+serial native API mocks: bounded XML/UTF-8 escaping, owned names, first-six cache
+capture, shorter/empty lists, host changes, one pending request, coalescing (also
+after an older failure), module/submission/completion errors and shutdown.
+The installation-default check requires native welcome strings, rejects sample
+app/PC labels, images/backgrounds and targets in the packaged template, and
+checks packaged asset entries, indexed PNG dimensions and palette alpha, including
+the gate's `startup.png`. Dynamic
+checks cover welcome → Apps → empty transitions, row/card geometry, icon presence,
+left alignment/icon spacing and removal of stale backdrops/targets from unused
+slots. Resource checks resolve CMake source/destination entries, including the
+app marker packaged directly from `icon0.png`.
+The optional Browser importer checks exact RGBA equality during conversion;
+this is source-asset validation, not resource compilation or device rendering.
+`test_event_queue.py` checks capture after worker completion and before page
+callbacks, plus submission gating while busy/streaming/paused. No native code,
+module, shell/database, filesystem write or Vita call is executed. Build/ABI,
+PAF responsiveness, display and persistence remain maintainer validation; see
+[the LiveArea device procedure](../docs/LIVEAREA.md).
+
+Launch follow-up adds target round trips, version/hex/decimal/overflow rejection,
+and inactive empty/UUID-less slots. `test_livearea_launch.py` interprets the
+actual saved-UUID resolver (including duplicate names/deleted identity), Main
+admission, fresh-ID one-shot selection and AppMgr/AppUtil poll with serial
+state/event/error mocks. It checks type 0/non-LiveArea events are not parsed,
+100 ms polling, API failure/overlay/busy/stale rejection and PC/app routing.
+Main → PIN → Apps constructor arguments and pending-intent error clears are
+source-inspected. The SDK output layout is asserted in the binding; no test
+executes the native parser, compilation, page animation, real cancellation,
+networking or cold/resumed Vita launch delivery.
 
 `test_ci_setup.py` executes only the standalone checksum/OpenSSL-pin helper definitions,
 never the setup script's main body or build commands. It checks valid/corrupt/missing archive

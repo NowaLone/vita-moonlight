@@ -29,6 +29,8 @@ public:
     void SuspendBackground();
     void OpenAddPc();
     void RestoreEventCallback();
+    bool CanConnectFromLiveArea() const;
+    void ConnectFromLiveArea(const MoonlightHost &host, int application_id);
 
     void EnterSelectionMode();
     bool HasHosts() const { return m_saved_count > 0; }
@@ -52,6 +54,7 @@ private:
     void RefreshHosts();
     void UpdateHostItem(paf::ui::Widget *item, int index);
     void SelectHost(int index);
+    void ConnectHost(const MoonlightHost &host, int application_id = 0);
     void HideStatus();
     void ShowIdleStatus();
     void StartAddPcIme();
@@ -90,6 +93,7 @@ private:
     bool m_system_ui_overlaid;
     bool m_list_ready;
     bool m_connecting;
+    int m_livearea_application_id;
     bool m_settings_suspended;
     int m_initial_refresh_attempts;
     int m_initial_refresh_stable_count;

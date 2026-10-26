@@ -87,7 +87,7 @@ ConnectionService::ConnectionService(MoonlightBackend &backend, PairingService &
       m_worker_result(0)
 {
     m_error_message[0] = '\0';
-    m_connect_address[0] = '\0';
+    memset(&m_connect_host, 0, sizeof(m_connect_host));
 }
 
 ConnectionService::~ConnectionService()
@@ -313,7 +313,7 @@ bool ConnectionService::GetCompletedJobEvent(MoonlightEvent *event) const
     if (m_operation == Operation_Connect) {
         event->type = m_worker_result == 0
             ? MOONLIGHT_EVENT_CONNECTION_READY : MOONLIGHT_EVENT_CONNECTION_FAILED;
-        event->address = m_connect_address;
+        event->address = m_connect_host.internal;
     } else {
         event->type = m_worker_result >= 0
             ? MOONLIGHT_EVENT_APPLICATIONS_READY : MOONLIGHT_EVENT_APPLICATIONS_FAILED;
@@ -411,8 +411,7 @@ int ConnectionService::Connect(const MoonlightHost &host)
 #ifdef MOONLIGHT_DISCONNECT_TEST
     disconnect_test_capture_host(host);
 #endif
-    strncpy(m_connect_address, host.internal, sizeof(m_connect_address) - 1);
-    m_connect_address[sizeof(m_connect_address) - 1] = '\0';
+    m_connect_host = host;
 
     /* A previous page must not keep the shared queue occupied by an abandoned PIN wait. */
     m_pairing.Cancel();

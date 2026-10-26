@@ -12,10 +12,11 @@
 
 namespace page {
 
-Pairing::Pairing(const char pin[5])
+Pairing::Pairing(const char pin[5], int application_id)
     : Base("page_pairing", "btn_close_pairing",
            paf::Plugin::TransitionType_SlideFromBottom,
            paf::Plugin::TransitionType_SlideFromBottom),
+      m_livearea_application_id(application_id),
       m_dialog_open(false),
       m_dialog_task_registered(false)
 {
@@ -164,6 +165,7 @@ void Pairing::ShowPairingError(int result, int server_status_code,
 
 void Pairing::ShowSystemError(const char *message)
 {
+    m_livearea_application_id = 0;
     vita_debug_log("[Pairing] error: %s", message);
     if (m_dialog_open) return;
     if (message != m_dialog_message) {
@@ -236,7 +238,7 @@ void Pairing::OnMoonlightEvent(
     case MOONLIGHT_EVENT_PAIRING_FINISHED:
         if (event->result == 0) {
             if (!Base::IsOpen("page_apps")) {
-                Apps *apps = new Apps();
+                Apps *apps = new Apps(pairing->m_livearea_application_id);
                 if (!apps->IsValid()) {
                     delete apps;
                     pairing->ShowSystemError("Unable to open applications.");

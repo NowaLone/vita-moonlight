@@ -290,7 +290,20 @@ The long-term native-integration shortlist below was researched specifically for
 
 - **`SceAppMgr`** — application lifecycle, system events, application launching and related app-management APIs. Particularly interesting are system-event handling, `sceAppMgrSetInfobarState`, and app launching by URI. Do not introduce AppMgr calls merely because they exist; use them for a concrete lifecycle/shell integration need.
 - **`SceNetCheckDialog`** — native network-check/diagnostic dialog. Worth testing for a user-invoked network diagnostic path, but not required for the core LAN streaming flow.
-- **`SceLiveArea`** — possible LiveArea integration and app launch/context information. Could be used later for richer shell-facing presentation, but is not currently part of core architecture.
+- **`SceLiveArea`** — this branch source-implements last-PC/first-six-app text through
+  `MoonlightApp`'s `LiveAreaService`; the maintainer confirms changing labels on Vita.
+  Dark left-aligned app rows, the restored PC icon/gate-width card and native
+  empty-state text are source-implemented. On 2026-10-26 the maintainer accepts
+  fresh VPK installation, replacement icon/startup, labels/card activation and
+  retention across closure/reboot (“всё ок”; no package hash/logs/per-profile results).
+  Frame targets source-implement UUID-based saved-PC Connect and fresh-app-ID
+  launch through existing Main/PIN/Apps pages; separate cold/resumed delivery,
+  fresh welcome defaults and stale/busy/cancel/error cases remain unverified.
+  Do not reopen the accepted basic check without a regression.
+  Never treat a frame number/name as identity
+  or bypass foreground admission, pairing, certificate checks or remote-Quit confirmation.
+  See `docs/LIVEAREA.md`. Use native frame updates with read-only packaged assets;
+  do not revive promoter probes, direct appmeta writes or shell-database experiments.
 - **`SceBGAppUtil`** — background-application utility. Potentially relevant to background discovery/update work, but no current feature depends on it.
 - **`SceAppMgr` BGM/audio-port facilities** — potentially useful if Moonlight audio conflicts with system/background audio are observed.
 - **`SceIncomingDialog`** — native incoming-event overlay. Interesting for future shell-like notifications, but there is no current Moonlight event that requires it.

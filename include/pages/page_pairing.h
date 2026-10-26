@@ -11,7 +11,7 @@ namespace page {
 
 class Pairing : public Base {
 public:
-    explicit Pairing(const char pin[5]);
+    explicit Pairing(const char pin[5], int application_id = 0);
     virtual ~Pairing();
 
     void RestoreEventCallback();
@@ -27,6 +27,7 @@ private:
     void SetPin(const char pin[5]);
 
     char m_pin[5];
+    int m_livearea_application_id;
     bool m_dialog_open;
     bool m_dialog_task_registered;
     SceMsgDialogParam m_dialog_param;

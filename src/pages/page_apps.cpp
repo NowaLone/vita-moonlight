@@ -11,11 +11,12 @@
 
 namespace page {
 
-Apps::Apps()
+Apps::Apps(int application_id)
     : Base("page_apps", "btn_close_apps",
            paf::Plugin::TransitionType_SlideFromBottom,
            paf::Plugin::TransitionType_SlideFromBottom),
       m_app_count(0),
+      m_livearea_application_id(application_id),
       m_launching(false),
       m_list(NULL) {
     if (!IsValid()) return;
@@ -42,6 +43,7 @@ Apps::Apps()
 
     int result = MoonlightApp::Instance()->Applications().Refresh();
     if (result != 0) {
+        m_livearea_application_id = 0;
         MoonlightApp::Instance()->Connection().ShowError("Unable to load applications.", result);
         ShowEmptyState();
     }
@@ -139,6 +141,21 @@ void Apps::SelectApp(int index) {
     }
 }
 
+void Apps::LaunchRequestedApplication()
+{
+    const int requested = m_livearea_application_id;
+    m_livearea_application_id = 0; /* One attempt; never replay after failure/Back. */
+    if (requested <= 0) return;
+    for (int i = 0; i < m_app_count; ++i) {
+        if (m_apps[i].id == requested) {
+            SelectApp(i);
+            return;
+        }
+    }
+    MoonlightApp::Instance()->Connection().ShowError(
+        "This application is no longer available on the PC. Select another application.");
+}
+
 void Apps::ShowEmptyState() {
     if (!root) return;
     paf::ui::Widget *widget = root->FindChild("text_apps_status");
@@ -218,13 +235,20 @@ void Apps::OnMoonlightEvent(
     switch (event->type) {
     case MOONLIGHT_EVENT_APPLICATIONS_READY:
         apps->ShowApps(event->result);
+        apps->LaunchRequestedApplication();
         break;
 
     case MOONLIGHT_EVENT_APPLICATIONS_FAILED: {
+        apps->m_livearea_application_id = 0;
         MoonlightApp::Instance()->Connection().ShowError("Unable to load applications.", event->result);
         apps->ShowEmptyState();
         break;
     }
+
+    case MOONLIGHT_EVENT_CONNECTION_FAILED:
+    case MOONLIGHT_EVENT_CONNECTION_CLOSED:
+        apps->m_livearea_application_id = 0;
+        break;
 
     case MOONLIGHT_EVENT_STREAM_STARTED: {
         if (!Base::IsOpen("page_stream")) {

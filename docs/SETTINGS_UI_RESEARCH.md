@@ -36,6 +36,212 @@ imports retain numeric NIDs. No builds, module execution or hardware tests.
 
 ## Header: the exact resource is local to Settings
 
+### LiveArea caption recheck, 2026-10-24
+
+The maintainer asked whether the green top-left `Settings` caption on LiveArea
+is present in these two RCOs. Their hashes still match the inputs above. A fresh
+tree/attribute decode finds 221 nodes in main (24 templates, nine text widgets,
+nine text styles, 17 textures) and 40 in plugin (string/texture tables and 17
+textures, no templates or text widgets). All nine main text styles specify
+opaque white. The `main_page_title_text`/`style_text_header` composition below
+is the centred, bold 32 px in-app header; it does not match the thin green
+caption on the shell's LiveArea. No matching LiveArea heading element was found
+in either supplied RCO. This does not rule out runtime-created elements or a
+resource elsewhere in SceShell. The two app RCOs do not establish the shell's
+title-eligibility rules. No RCO compiler, executable or Vita call was run.
+
+### Original LiveArea template and layout RCOs, 2026-10-24
+
+The next supplied files were decoded/read without running a compiler or changing
+Moonlight's implementation:
+
+- `template.xml`, SHA-256
+  `0ab64825369e3721328399abd6b782713792b2bd0618b28e4fe3b00cecca1414`:
+  `style="a1"`, content revision 3, and exactly `<title color="#94bd5cff"/>`
+  between background and system-function-zone. Its Settings manual target is
+  `sceman:settings`; frame3 contains the localized User's Guide link. This confirms
+  the prior Moonlight title element's spelling/color/order against the supplied
+  original; it does not explain the missing caption on the tested installation.
+- `a1.rco`, SHA-256
+  `a435a43d893bc6b18f3b54eb6355f9eba7c2b600651e7b7f2cf04f855cb3172e`:
+  11 nodes, one template and four group/layout pairs. Frame1/2 are 260×260 at
+  (-290,34)/(290,34), gate is at (0,32), frame3 is 840×150 at (0,-171).
+  There are no text widgets, styles or textures, so this layout RCO does not
+  define the caption.
+- `a5.rco`, SHA-256
+  `b34f4d2f0121a09c90a2039aa373bce287652de2717f6121b1eff9219956474c`:
+  19 nodes, one template and eight group/layout pairs, with no text, styles or
+  textures. Gate is at (240,66). Frames1–6 are 480×68 at x=-180 and
+  y=128/60/-8/-76/-144/-212. Frame7 is 360×210 at (240,-141).
+  This confirms the seven-slot geometry, without a title element.
+- `music.rco`, SHA-256
+  `55a0f2e41fa0098830f2542bdc3ba8ba9068783ddb0607514574e37547159d66`:
+  40 nodes with gate (0,54), three text widgets at y=-84/-122/-158, four
+  plane buttons and four textures. The text uses centred 20/28 px styles,
+  with white inner text objects; no top-left title composition is present.
+
+All three layouts share template ID hash `0x2e9374eb`. Their absence of a caption
+does not exclude a shared shell template or dynamic creation. The next resource,
+`vs0:vsh/shell/livearea_plugin.rco`, was subsequently supplied and decoded below.
+At that resource-only stage, app/style eligibility and title-setting code were
+unresolved. The shell trace below resolves the current profiles' admission gate;
+the RCOs alone did not justify changing to a1 or claiming a system-only rule.
+
+### Shared LiveArea title template, 2026-10-25
+
+The supplied `livearea_plugin.rco` has SHA-256
+`8f3256809c6e89182a03e5e4996ad564af462031b7ba6cb97eac8336034f142a`.
+The complete decoded tree has 221 nodes: 19 templates, six text widgets, four
+text styles and 19 textures. It contains a strong match for the top-left caption:
+
+```text
+template hash_399d0b3d                         tree 0x2f8
+  group hash_d892138e                          tree 0x334
+    size 840,500
+    text hash_14f63523                         tree 0x38c
+      style hash_3b29c32c
+      align 1,0,0; pos -410,208,0; size 374,80,0
+
+style_text hash_3b29c32c                       tree 0x1f2c
+  textobj text_obj1
+    font_size 28; bold 0; shadow 0
+    align_x 0; align_y 0; text_align 0
+    max_line_count 2; word_wrap 1; ellipsis 1
+    color 1,1,1,1
+```
+
+The separate 840×500 parent, left inset and regular 28 px text agree with the
+supplied LiveArea screenshot, unlike the centred Settings in-app header. This
+is resource/geometry evidence, not an executed shell call trace. The widget has
+no static label/string binding, and the style's default color is white rather
+than the Settings template's green. Runtime code must supply content/color for
+that caption path. The original ID names have not been recovered; `hash_*` names
+above are descriptive labels for actual hashes, not guessed Sony identifiers.
+
+The resource alone does not establish why Moonlight's `<title>` was invisible.
+The subsequently supplied shell ELF resolves the admission check below. Loading
+this template into the Moonlight PAF process would create an in-app widget; it
+would not control the shell's LiveArea.
+
+### Shell caption admission traced, 2026-10-25
+
+The supplied `shell.self.elf` identifies itself as `SceShell`, SHA-256
+`c98a5148326208f68b147a991a890fdf2de3d7b13e72f776ce1f840b3aa86089`.
+It is ELF32 ARM EABI5 without section headers. LOAD0 maps file `0x100` to
+VA `0x81000000`, file/memory size `0x541b74`; LOAD1 maps file `0x541c80` to
+VA `0x81542000`, file size `0x6d38`, memory size `0x93fac`. Addresses below
+are VAs in this image. BSS has no file-backed initial values and was not read
+as if it did. The exact firmware version and pairing of supplied files remain
+unverified.
+
+**[code]** This is the caption path, now matched by actual hash references:
+
+- Renderer `0x811a9796` dispatches parsed element type 5 to `0x811a74ce`
+  at call site `0x811a99fa` after its update-mask check.
+- `0x811a74ce` opens template `0x399d0b3d` via PAF `TemplateOpen`
+  (`0x811a757a`), then finds group `0xd892138e` and text `0x14f63523`
+  (`0x811a75d6` / `0x811a7642`). These match the supplied RCO.
+- `0x811a766e` calls the text widget's virtual slot `0x11c`,
+  `Widget::SetString(wstring const&)` in the installed PAF headers, with the
+  controller's cached display name at `+20`. `0x811a768a` calls
+  `Widget::SetColor` with the parsed element's four-float color at `+8`.
+  The green color therefore need not be baked into the shared RCO style.
+- Before any template/widget creation, `0x811a74e4` loads controller `+4`;
+  `0x811a74ea` branches to the successful no-op return at `0x811a769c` if
+  that word is nonzero. Thus a valid title element can be silently skipped.
+
+The controlling word is a presentation kind derived from application metadata,
+not the XML layout name or a PAF text-style flag:
+
+1. Category classifier `0x81015370` selects shell application type 0 for
+   `gda`, `gdb` and `wda`, except `NPXS10998` (type 2). The other-category
+   table at file-backed VA `0x81542c00` contains `gd`, `gp`, `gdc`, `gdd`,
+   `gpc`, `gpd`; matches select type 1 at `0x81015456`.
+2. Descriptor filler `0x8129744e` calls `sceLsdbGetType` at `0x81297470`.
+   Its native-launch case calls NID `0x9d27a87d` at `0x8129748a`, now named
+   `sceLsdbGetShellApplicationType` in the
+   [VitaSDK export map](https://github.com/vitasdk/vita-headers/blob/master/db/360/SceLsdb.yml).
+   A zero result sets descriptor kind 0 (`0x8129749a`); every nonzero result
+   sets kind 1 (`0x812974a2`). Launch types 2–5 select kinds 2/3/4/4.
+   Only kind 0 copies the cached UTF-16 display name at `0x812974f6`.
+3. The creation path fills this descriptor at `0x81298094`, then calls the
+   LiveArea interface's first callback at `0x812980b2`. Registration at
+   `0x8119a640`–`0x8119a648` assigns `0x8119accb` (Thumb).
+   That wrapper calls owner constructor `0x8119b4cc`, which passes the
+   descriptor to controller constructor `0x811a3baa` at `0x8119b540`.
+   `0x811a3bc4` copies descriptor kind into controller `+4`, the exact word
+   tested by the caption function.
+
+Consequently **both current Moonlight profiles fail this native caption check**:
+`CMakeLists.txt` selects `gd` for NORMAL and `gdc` for SYSTEM, and both select
+shell type 1 / presentation kind 1 on this path. `MOONLIGHT_SYSTEM_APP=ON` and
+UNSAFE do not imply the shell type 0 used by this caption. This statically
+explains why the earlier correctly spelled `<title color="#94bd5cff"/>` can
+produce no text. Changing a5 to a1, the title color, or the package display name
+does not change that gate. The installed package/profile from the missing-title
+screenshot was not inspected; this is binary/source evidence, not a captured
+runtime trace of that installation.
+
+Presentation kind 0 is necessary, not sufficient: the caption function also skips when the
+owner identifier matches the string returned by ActivityDb NID `0xe6c23731`
+(`0x811a74f4`–`0x811a7502`), or when its parent/group is unavailable. That
+ActivityDb function's semantic name is unresolved. No universal rule for every
+firmware or every category is claimed.
+
+The maintainer subsequently requested removal of the texture-caption variant;
+the original `bg0.png` is restored without a caption. A category change would
+affect application launch/lifecycle classification and was not made.
+No shell patch, title-ID/category change,
+database access, promoter call, build, resource compilation or native execution
+was performed. Input hash, file-backed category pointers, switch-table targets,
+import NIDs and relevant instruction/call sites were checked read-only.
+
+### Distinguishing gda, gdb and wda, 2026-10-25
+
+These categories share the shell-type-0 classifier above, but other Shell paths
+distinguish them. Do not infer identical launch, resource or memory behavior from
+their shared caption classification.
+
+The [VitaDevWiki PARAM.SFO field observations](https://www.psdevwiki.com/vita/PARAM.SFO#CATEGORY)
+name `gda` as System Application, record Welcome Park (`NPXS10007`) as a `gdb`
+example and User's Guide (`NPXS10060`) as a `wda` example. The table does not
+give formal names for `gdb` or `wda`. Its `CONTENT_LOCATION` observations for
+`wda` include `sceman:` / `sceman:near`. These examples are external research
+observations, not SFO files supplied/verified in this investigation.
+
+**[code]** The supplied Shell provides concrete differences:
+
+- `gda` and `wda` share a special resource path. Predicate `0x8100e930`
+  returns 0 for those two exact category strings and 1 otherwise. LiveArea
+  construction at `0x8100ebe0`–`0x8100ec2a` and icon construction at
+  `0x8100f718`–`0x8100f768` select their `BOOT_INSTALL_DIR` lookup. The lookup
+  key `0xface5965` is independently reproduced by FNV-1a of that string,
+  which is present in this ELF. This is resource-path evidence, not a claim
+  that this category alone grants a particular process memory budget.
+- `gdb` follows a different metadata/resource preparation path: predicate
+  `0x8101023c` groups it with `gd`, `gp`, `gdc`, `gpc`. Metadata preparation
+  `0x8103bf0a` excludes `gda`/`wda` with the first predicate, admits `gdb`
+  with the analogous predicate `0x8103be66`, and uses the `ur0:appmeta`
+  preparation path. This establishes a distinction from `gda`, without
+  inventing an official expansion of the `gdb` name or a complete runtime
+  contract from the Welcome Park example.
+- `wda` additionally has a content-location branch that `gda`/`gdb` do not
+  enter. At `0x8100fed0`–`0x8100ff00`, an exact `wda` match sets a descriptor
+  word at `+36` to 2 (otherwise 0). At `0x8100fff0`–`0x8101007a`, it fetches
+  key `0x39a02870` and copies the string to descriptor `+56`. That key is
+  FNV-1a of the ELF's `CONTENT_LOCATION` string. Together with the observed
+  `sceman:` values, this supports describing `wda` as a document/URI entry;
+  no complete browser/URI dispatch trace or native execution was performed.
+
+Practical distinction: `gda` is the system-application category; `gdb` is a
+separate native-app category exemplified by Welcome Park and handled through
+package-style metadata preparation; `wda` supplies a content/URI destination.
+Exact Sony terminology for the latter two and a complete AppMgr budget,
+suspend/coexistence and permission matrix remain unestablished. No Moonlight
+category was changed, and no database, promoter, build or device operation ran.
+
+### In-app Settings header composition
+
 **[code]** `system_settings_main.rco` has this complete header composition:
 
 ```text

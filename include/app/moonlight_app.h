@@ -11,6 +11,7 @@
 #include "services/connection_service.h"
 #include "services/application_service.h"
 #include "services/settings_service.h"
+#include "services/livearea_service.h"
 
 typedef void (*MoonlightAppEventCallback)(const MoonlightEvent *event, void *userdata);
 
@@ -48,9 +49,12 @@ private:
     static void ProcessEventTask(void *userdata);
 
     void QueueEvent(const MoonlightEvent *event);
+    void UpdateLiveArea(const MoonlightEvent &event);
+    void PollLiveAreaEvents();
 
     bool m_initialized;
     bool m_infobar_restore_pending;
+    uint64_t m_livearea_event_poll_at;
 
     LegacyMoonlightAdapter m_backend;
     HostService m_hosts;
@@ -59,6 +63,7 @@ private:
     ConnectionService m_connection;
     ApplicationService m_applications;
     SettingsService m_settings;
+    LiveAreaService m_livearea;
 
     MoonlightAppEventCallback m_event_callback;
     void *m_event_userdata;

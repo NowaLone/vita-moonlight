@@ -2,7 +2,20 @@
 
 This roadmap captures the agreed next steps for Vita Moonlight PAF. It is ordered by risk reduction and release readiness, not by a promise that every item must be completed before development continues. Keep individual changes small and verify device-specific behavior on real PS Vita hardware.
 
-## Active remaining work (reconciled 2026-10-24)
+## Active remaining work (reconciled 2026-10-26)
+
+- [x] Basic [dynamic LiveArea](docs/LIVEAREA.md) Vita check accepted on 2026-10-26:
+  the maintainer replied “всё ок” to fresh VPK installation after the PNG fixes,
+  the replacement icon/startup image, PC/app labels, card activation and retention
+  after app closure/reboot. This follows source revision `6e1a893`; no package
+  hash, runtime log, firmware or separate normal/system results were supplied.
+- [ ] Remaining LiveArea coverage: fresh empty/welcome defaults, shorter/empty lists,
+  host switching, separate cold/resumed launch delivery, stale/busy/cancel/error
+  cases and both-profile coverage. Do not reopen the accepted basic check without
+  a regression. The linked guide owns the device procedure; the
+  [shell trace](docs/SETTINGS_UI_RESEARCH.md#shell-caption-admission-traced-2026-10-25)
+  records why `gd`/`gdc` skip the top-left title. No promoter or shell-database
+  experiment is authorized by this item.
 
 This is the current task list. Dated implementation/evidence records below preserve the state
 at each stage; their unchecked boxes and old "next" instructions are not additional active

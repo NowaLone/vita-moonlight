@@ -13,6 +13,27 @@ int HostService::GetHosts(MoonlightHost *out, int capacity)
     return m_backend.GetHosts(out, capacity);
 }
 
+bool HostService::Resolve(const MoonlightHost &identity, MoonlightHost *out)
+{
+    if (!out) return false;
+    int capacity = GetHosts(NULL, 0);
+    if (capacity <= 0) return false;
+    paf::vector<MoonlightHost> hosts;
+    hosts.resize(capacity);
+    int count = GetHosts(hosts.data(), capacity);
+    if (count < 0 || count > capacity) return false;
+    for (int i = 0; i < count; ++i) {
+        if (identity.host_id[0]
+                ? strcmp(identity.host_id, hosts[i].host_id) == 0
+                : identity.internal[0] && identity.port == hosts[i].port &&
+                  strcmp(identity.internal, hosts[i].internal) == 0) {
+            *out = hosts[i];
+            return true;
+        }
+    }
+    return false;
+}
+
 int HostService::Add(const char *address, uint16_t port, const char *name)
 {
     return m_backend.AddHost(address, port, name);

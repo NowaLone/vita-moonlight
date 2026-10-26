@@ -4,12 +4,14 @@
 #include "app/memory_budget.h"
 #include "common.h"
 #include "debug.h"
+#include "platform/livearea.h"
 #ifdef MOONLIGHT_DISCONNECT_TEST
 #include "app/disconnect_test.h"
 #endif
 #include "pages/page_main.h"
 #include <psp2/appmgr.h>
 #include <psp2/apputil.h>
+#include <psp2/kernel/processmgr.h>
 #include <psp2/net/net.h>
 #include <psp2/net/netctl.h>
 #include <psp2/sysmodule.h>
@@ -105,6 +107,7 @@ static int InitializeNetwork()
 MoonlightApp::MoonlightApp()
     : m_initialized(false),
       m_infobar_restore_pending(false),
+      m_livearea_event_poll_at(0),
       m_backend(),
       m_hosts(m_backend),
       m_discovery(m_backend),
@@ -236,6 +239,7 @@ void MoonlightApp::Shutdown()
     m_pairing.Cancel();
     m_hosts.Shutdown();
     m_connection.Shutdown();
+    m_livearea.Shutdown();
     moonlight_log_memory_budget("app-shutdown");
     m_backend.Shutdown();
     m_initialized = false;
@@ -307,6 +311,11 @@ void MoonlightApp::ProcessEventTask(void *userdata)
     disconnect_test_poll(*app);
 #endif
 
+    app->PollLiveAreaEvents();
+    app->m_livearea.Poll(!app->m_connection.IsBusy() &&
+        app->m_connection.State() != MOONLIGHT_CONNECTION_STREAMING &&
+        app->m_connection.State() != MOONLIGHT_CONNECTION_PAUSED);
+
     MoonlightEvent discovery;
     if (app->m_discovery.Poll(&discovery)) app->QueueEvent(&discovery);
 
@@ -364,6 +373,8 @@ void MoonlightApp::ProcessEventTask(void *userdata)
             (!app->m_discovery.Accepts(event) ||
              page::Base::GetCurrent() != page::Main::Instance())) continue;
 
+        app->UpdateLiveArea(event);
+
         if (callback) {
             callback(&event, callback_userdata);
         }
@@ -374,4 +385,61 @@ void MoonlightApp::ProcessEventTask(void *userdata)
             moonlight_log_memory_budget("connection-failed");
         }
     }
+}
+
+void MoonlightApp::UpdateLiveArea(const MoonlightEvent &event)
+{
+    /* Called after PrepareCompletion releases the worker, before the page can
+     * launch the next workflow. GetAll with a non-NULL output reads the cache. */
+    if (event.type == MOONLIGHT_EVENT_CONNECTION_READY && event.result == 0) {
+        MoonlightHost stored;
+        const MoonlightHost &selected = m_connection.Host();
+        m_livearea.Connected(m_hosts.Resolve(selected, &stored) ? &stored : &selected);
+    } else if (event.type == MOONLIGHT_EVENT_APPLICATIONS_READY && event.result >= 0) {
+        MoonlightApplication apps[6];
+        int count = 0;
+        if (event.result > 0) count = m_applications.GetAll(apps, 6);
+        if (count >= 0 && count <= 6) m_livearea.Applications(apps, count);
+        else vita_debug_log("[LiveArea] application snapshot unavailable result=%d", count);
+    }
+}
+
+void MoonlightApp::PollLiveAreaEvents()
+{
+    const uint64_t now = sceKernelGetProcessTimeWide();
+    if (now < m_livearea_event_poll_at) return;
+    m_livearea_event_poll_at = now + 100000;
+
+    SceAppMgrAppState state;
+    sce_paf_memset(&state, 0, sizeof(state));
+    if (_sceAppMgrGetAppState(&state, sizeof(state), 0) < 0 ||
+        state.isSystemUiOverlaid || state.appEventNum == 0) return;
+    SceAppUtilAppEventParam event;
+    sce_paf_memset(&event, 0, sizeof(event));
+    int result = sceAppUtilReceiveAppEvent(&event);
+    /* 0 is the ordinary gate launch; only SDK event type 5 is a frame target. */
+    if (result < 0 || event.type != 5) return;
+
+    MoonlightLiveAreaEventParam parameter;
+    sce_paf_memset(&parameter, 0, sizeof(parameter));
+    result = sceAppUtilAppEventParseLiveArea(&event, (char *)&parameter);
+    if (result < 0 || !sce_paf_memchr(parameter.param, '\0', sizeof(parameter.param))) {
+        vita_debug_log("[LiveArea] launch parse failed result=0x%08X", (unsigned int)result);
+        return;
+    }
+    MoonlightHost identity;
+    int application_id = 0;
+    if (!LiveAreaService::ParseTarget(parameter.param, &identity, &application_id)) return;
+    page::Main *main = page::Main::Instance();
+    if (!main || !main->CanConnectFromLiveArea()) {
+        vita_debug_log("[LiveArea] launch ignored: foreground workflow/page is busy");
+        return;
+    }
+    MoonlightHost host;
+    if (!m_hosts.Resolve(identity, &host)) {
+        m_connection.ShowError("This PC is no longer saved. Select or add the PC again.");
+        return;
+    }
+    vita_debug_log("[LiveArea] launch saved PC app=%d", application_id);
+    main->ConnectFromLiveArea(host, application_id);
 }

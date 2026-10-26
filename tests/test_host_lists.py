@@ -84,7 +84,7 @@ class HostLists(unittest.TestCase):
         edits = edits[:edits.index('    }\n    list->UnblockSync();')]
         functions.append('void apply_cell_edit(int edit, int from, int to, Vector cells, Vector desired) {' + edits + '}')
         selection = function(cls.main, 'Main::SelectHost')
-        selection = selection[:selection.index('    paf::ui::ListView *list')] + '\n}'
+        selection = selection[:selection.index('    ConnectHost(host);')] + '\n}'
         functions.append(selection)
         focus = cls.main[cls.main.index('    if (focused_index >= 0'):]
         focus = focus[:focus.index('    if (m_selection_mode)')]

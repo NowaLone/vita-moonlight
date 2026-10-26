@@ -52,21 +52,65 @@ Evidence tags used below:
 - **[code]** read from the source; not a claim about how it looks.
 - **[open]** not verified; do not treat as fact.
 
-Earlier LiveArea packaging follow-up (2026-10-21): `CMakeLists.txt` initially included the seven
-`sce_sys/livearea/contents/frame*.png` images referenced by the `a5` template and
-the then-four `sce_sys/manual/` pages **[code]**. `frame1.png` uses an 8-bit palette with
-identical decoded RGB pixels; template content/frame revisions are 2 **[code]**.
-Missing frame files were confirmed in the earlier local packages. After installing
-the full updated system VPK over the existing app, the maintainer's screenshot still
-showed the standard background/gate while the Guide button appeared **[shot]**.
-The maintainer reported `a1` in the installed app's template and no template at the
-checked `ur0:appmeta` path; the supplied archive XML matched packaged `a5` revision 2
-**[code]**. After deleting the old app and installing again, the maintainer confirms
-the requested LiveArea assets appeared **[hw, user-reported, tested Vita]**. This
-supports stale installation/registration state, but does not establish which step
-preserved it. Updating LiveArea in place remains unverified **[open]**; clean removal
-is a recovery observed on this device, not a required general update procedure.
-Layout and image content are unchanged.
+LiveArea current layout (2026-10-26): `MoonlightApp` owns `LiveAreaService`,
+which publishes the last connected PC in frame7 and its first six app names in
+frames1–6 **[code]**. Changing labels are accepted on the maintainer's Vita
+**[hw, user-reported, 2026-10-24; profile/logs not supplied]**. On 2026-10-26 the
+maintainer replied “всё ок” to fresh VPK installation, replacement icon/startup,
+PC/app labels, card activation and closure/reboot retention **[hw, user-reported]**.
+The confirmation follows source revision `6e1a893`; tested artifact hash,
+firmware and per-profile results were not supplied. Exact geometry and the wider
+empty/stale/busy/cancel/error matrix remain **[open]**; see [LIVEAREA.md](LIVEAREA.md).
+
+The a5 paper is 840×500 at screen (60,44), origin (480,294). App frames are
+480×68 with a 68 px vertical step; frame7 is 360×210 **[code, supplied RCO]**.
+App rows use Browser's original 472×48 `LA_window.png`, losslessly indexed as
+`app_row.png`: black body alpha 97/255, antialiased corners and thin perimeter
+(top RGB 53/alpha 106, bottom alpha up to 118) **[code, decoded resource]**.
+Offsets x=6, y=2 give first-row bounds x=70…542, y=140…188; source visible bounds
+are [1,1,471,47) **[code]**. The Browser screenshot row-edge fit is near (70,140)
+**[shot]**. The existing Moonlight `icon0.png` is packaged again as `app.png`,
+without a duplicate source file, and displayed at 32×32 **[code]**.
+Icon replacement correction (2026-10-26): after the reported `0x8010113D`, the
+maintainer's new 128×128 icon was found to be RGB/color type 2, including both
+icon destinations in the existing normal/system
+VPKs. It is now 8-bit indexed/color type 3 without alpha; all 74 RGB colors and
+decoded pixels are preserved **[code; existing format check failed before and
+passes after conversion]**. Fresh VPK installation is accepted by the maintainer
+on 2026-10-26 **[hw, user-reported; profile/package hash not supplied]**.
+Its first-row box is x=80…112, y=148…180. Text starts at x=120: 8 px after the
+icon, with left/right margins 50/16, 22 px regular white system text, vertical
+centring and ellipsis **[code; native alignment/scale/focus open]**.
+
+Frame7 uses the same Browser artwork adapted to 280×158 at x=580…860,
+y=330…488, preserving 8×8 corner patches and border thickness **[code]**.
+Its width matches `startup.png`; the native gate outer box is 292×170, so exact
+focus-border matching remains **[open]**. The transparent 80×80 PC icon is centred
+above its 22 px name. The asset tool regenerates this card from `app_row.png`;
+its optional Browser import verifies decoded RGBA equality **[code]**.
+The maintainer's replacement `startup.png` (2026-10-26) is converted from RGBA
+to 8-bit indexed 280×158 PNG with 256 colors and `tRNS` transparency **[code]**.
+Palette reduction is lossy: mean R/G/B/A errors are 0.081/0.041/0.110/0.025 out
+of 255; alpha extrema remain 184…255. The format check rejects the RGBA input
+and accepts the converted asset. Installation/basic startup-image appearance are
+accepted on 2026-10-26 **[hw, user-reported; no pixel-level hardware comparison]**.
+
+With no app names, frame2/frame3 show “Moonlight” (28 px white) and “Open source
+game streaming client” (20 px #d0d0d0), regular, centred and without shadow in
+the system font. These native XML strings have no targets; a connected PC card
+remains visible. Short nonempty lists clear unused backgrounds/icons/targets.
+Packaged defaults use the same welcome text; content revision is 11 and all
+frame revisions are 6 **[code; build/Vita open]**. The original spotlight has no
+painted text. Current `gd`/`gdc` categories skip native top-left caption creation;
+see [the supplied shell trace](SETTINGS_UI_RESEARCH.md#shell-caption-admission-traced-2026-10-25).
+
+Frame targets carry saved UUID/app IDs and enter the existing Main/PIN/Apps flow,
+with fresh-ID selection and existing remote-Quit confirmation. Conflicting
+foreground workflows reject external requests. Seven-frame publication is serial,
+not atomic **[code]**. Geometry, asset provenance, installation history and device
+checks live in [the LiveArea guide](LIVEAREA.md); the
+[Browser resource comparison](LIVEAREA.md#browser-resource-comparison-2026-10-25)
+records the copied artwork and limits of the empty Browser template.
 
 Three-page manual packaging follow-up (2026-10-21): the maintainer's `529c3c5` asset update
 removed `sce_sys/manual/004.png`, retaining `001.png`–`003.png`. Its stale explicit CMake entry
