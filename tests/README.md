@@ -1,6 +1,6 @@
 # Focused checks
 
-Latest recorded source gate: **241 checks including tag-triggered publication and build-profile checks (2026-10-26)**.
+Latest recorded source gate: **244 checks including LiveArea event consumption and native-parameter bounds (2026-10-27)**.
 See [the repeat Ponytail audit](../docs/PONYTAIL_REAUDIT_2026-10-23.md) for the latest
 baseline, per-change checks and native gates; [the earlier refactor audit](../docs/REFACTOR_AUDIT.md)
 records the preceding pass. Counts in the
@@ -11,6 +11,12 @@ cases are in the API audit and `runtime/README.md`; source checks do not replace
 Non-build checks (Python 3 and pycparser):
 
     PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -p 'test_*.py'
+
+`test_ui_resources.py` also checks that native Settings' `Licenses and credits`
+section is read-only, all its labels resolve, and the component credits, original
+mDNS permission, OpenSSL acknowledgments and source-download address remain
+present. The check fails before adding the section. It does not compile the RCO
+or establish native text wrapping/scrolling, navigation or licensing completeness.
 
 `test_livearea.py` interprets the actual frame builder and `LiveAreaService` with
 serial native API mocks: bounded XML/UTF-8 escaping, owned names, first-six cache
@@ -38,6 +44,11 @@ actual saved-UUID resolver (including duplicate names/deleted identity), Main
 admission, fresh-ID one-shot selection and AppMgr/AppUtil poll with serial
 state/event/error mocks. It checks type 0/non-LiveArea events are not parsed,
 100 ms polling, API failure/overlay/busy/stale rejection and PC/app routing.
+The consuming-queue check advances across multiple polling deadlines: a launch event waits
+while system UI overlays the app, is consumed once after resume, and a tap rejected while
+busy is not replayed after admission reopens. A separate check fills all 1019 parameter
+bytes without a terminator (leaving the reserved tail zero) and requires rejection before
+the string parser or connection. These use the actual polling body with serial API mocks.
 Main → PIN → Apps constructor arguments and pending-intent error clears are
 source-inspected. The SDK output layout is asserted in the binding; no test
 executes the native parser, compilation, page animation, real cancellation,
@@ -366,3 +377,59 @@ An additional actual-source check drives Apps' failure handler into the existing
 path, then exercises its three-tick delay, stale generation and active-Stream rejection guards.
 All mutex/interrupt calls, atomics, services and time are mocked/serial. No real threads,
 common-c/RTSP/TLS, PAF surfaces, compiler/ABI or hardware behavior is validated.
+
+### Main discovery: maintainer Vita acceptance
+
+The maintainer confirms PC discovery already works on Vita (2026-10-27). This procedure
+covers the replacement Main list and is a regression/release reference, not required next
+work. Detailed cases below have no individually reported results; do not infer them from
+the basic acceptance or ask for a repeat baseline without a concrete regression.
+When a focused pass is needed, use the current system build;
+record its source revision, VPK SHA256, Vita firmware and Sunshine version. Build/install
+instructions are in [INSTALL.md](../docs/INSTALL.md). No build or device run by the agent.
+
+Keep a saved PC as a stable reference and use a separate, unsaved Sunshine PC for temporary
+rows. If only one PC is available, record the cases that cannot be exercised as not tested;
+do not delete existing trust/credentials merely to satisfy the setup. Use a disposable saved
+record for deletion checks. A temporary row has no availability dot; a saved offline row
+remains present even when its availability indicator changes.
+
+1. **Cold start and stable rows.** Start with Sunshine stopped on the unsaved PC. Open Main
+   and verify that saved rows appear without opening Settings. Start Sunshine: its temporary
+   row should appear below saved rows without a Search action, spinner or modal. Leave Main
+   idle through several five-second query cycles: no duplicates, flicker or focus reset.
+2. **Expiry and return.** Stop the unsaved PC's advertisements while Vita remains connected
+   to the LAN and Main stays active. Its row should expire after about 15 seconds of healthy
+   discovery since the last received observation; saved rows must remain. Restart Sunshine:
+   exactly one temporary row returns. Measure from the last observation when packet evidence
+   is available, rather than treating the host stop click as an exact timer boundary.
+3. **Pause and frozen age.** With the temporary row freshly observed, open Settings and then
+   stop its advertisements. Stay in Settings longer than 15 seconds and return: the row
+   should initially remain, then expire after its remaining active discovery time. Repeat
+   with OptionMenu, Delete selection/Cancel and Add PC's native keyboard/Cancel. Opening and
+   dismissing these controls repeatedly must remain responsive and must not crash.
+4. **Focus and virtualization.** Keep a saved row focused while the temporary PC disappears
+   and returns: focus must remain on the saved PC. Focus a temporary row and let it expire:
+   focus should move to the nearest remaining row. If more than eight rows are available,
+   scroll below the first screen and repeat; unchanged rows should retain their viewport.
+   Equal names on distinct endpoints must not merge; repeated announcements of one endpoint
+   must not add duplicates. Mark unavailable multi-PC cases as not tested.
+5. **Selection and persistence.** Select the temporary PC: it becomes one saved record before
+   ordinary Connect/PIN. Cancel PIN and return directly to Main; the saved record remains.
+   Reconnect to a paired PC, open Apps and return to Main: discovery resumes without duplicate
+   rows. In Delete mode only saved PCs appear; row toggles and Select/Clear All must update
+   visible and scrolled checkboxes. Delete confirmation Cancel preserves selection; OK removes
+   only the disposable selected record. An online deleted PC may reappear as temporary.
+6. **Overlay, suspension and streaming.** Open system UI, suspend/resume, and return to Main:
+   input and discovery should recover without a query burst or stale row activation. During
+   Apps/PIN/streaming and paused controls above, verify absence of this app's outgoing mDNS
+   queries using a LAN capture that first demonstrably sees its active-Main queries to
+   `224.0.0.251:5353` for `_nvstream._tcp.local`. Allow an in-flight query at transition.
+   A quiet console or unchanged list alone cannot prove that queries stopped. Without a
+   suitable capture, report UI recovery separately and leave network-pause evidence pending.
+
+Report each numbered case as pass, fail or not tested, with the action/expected/actual result
+for a failure. Attach only the relevant console excerpt or packet timestamps when available;
+logs are console-only through the existing Debug log switch. This is a discovery regression
+pass, not a repeat of the accepted general stream or release smoke test. Settings → Licenses
+and credits wrapping, end-of-page scrolling and return navigation remain a separate UI check.

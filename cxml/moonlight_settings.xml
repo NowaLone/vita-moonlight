@@ -170,5 +170,28 @@
       <label id="label_about_build_info" title="msg_about_build_info" style="heading" />
     </setting_list>
 
+    <setting_list id="licenses_settings" title="msg_licenses" style="edit" icon="tex_spanner">
+      <label id="label_license_intro" title="msg_license_intro" style="heading" />
+      <label id="label_license_moonlight" title="msg_license_moonlight" style="heading" />
+      <label id="label_license_common" title="msg_license_common" style="heading" />
+      <label id="label_license_fec" title="msg_license_fec" style="heading" />
+      <label id="label_license_enet" title="msg_license_enet" style="heading" />
+      <label id="label_license_ini" title="msg_license_ini" style="heading" />
+      <label id="label_license_h264" title="msg_license_h264" style="heading" />
+      <label id="label_license_mdns" title="msg_license_mdns" style="heading" />
+      <label id="label_license_curl" title="msg_license_curl" style="heading" />
+      <label id="label_license_expat" title="msg_license_expat" style="heading" />
+      <label id="label_license_openssl" title="msg_license_openssl" style="heading" />
+      <label id="label_license_opus" title="msg_license_opus" style="heading" />
+      <label id="label_license_zlib" title="msg_license_zlib" style="heading" />
+      <label id="label_license_zstd" title="msg_license_zstd" style="heading" />
+      <label id="label_license_newlib" title="msg_license_newlib" style="heading" />
+      <label id="label_license_pthread" title="msg_license_pthread" style="heading" />
+      <label id="label_license_gcc" title="msg_license_gcc" style="heading" />
+      <label id="label_license_vitasdk" title="msg_license_vitasdk" style="heading" />
+      <label id="label_license_paf" title="msg_license_paf" style="heading" />
+      <label id="label_license_sources" title="msg_license_sources" style="heading" />
+    </setting_list>
+
   </setting_list>
 </application_settings>

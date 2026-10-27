@@ -2,7 +2,11 @@
 
 This roadmap captures the agreed next steps for Vita Moonlight PAF. It is ordered by risk reduction and release readiness, not by a promise that every item must be completed before development continues. Keep individual changes small and verify device-specific behavior on real PS Vita hardware.
 
-## Active remaining work (reconciled 2026-10-26)
+## Active remaining work (reconciled 2026-10-27)
+
+- [x] Main PC discovery works on the maintainer's Vita: on 2026-10-27 the maintainer
+  confirms “поиск пк давно работает”. Basic discovery is accepted and is not the next
+  unfinished task. Do not request another baseline pass without a concrete regression.
 
 - [x] Basic [dynamic LiveArea](docs/LIVEAREA.md) Vita check accepted on 2026-10-26:
   the maintainer replied “всё ок” to fresh VPK installation after the PNG fixes,
@@ -16,6 +20,10 @@ This roadmap captures the agreed next steps for Vita Moonlight PAF. It is ordere
   [shell trace](docs/SETTINGS_UI_RESEARCH.md#shell-caption-admission-traced-2026-10-25)
   records why `gd`/`gdc` skip the top-left title. No promoter or shell-database
   experiment is authorized by this item.
+
+  Source coverage extended 2026-10-27: consuming LiveArea event queue across polling
+  deadlines, overlay/resume, no replay of busy taps and unterminated native parameters.
+  Existing application behavior passes; these serial checks do not close the device cases.
 
 This is the current task list. Dated implementation/evidence records below preserve the state
 at each stage; their unchecked boxes and old "next" instructions are not additional active
@@ -42,26 +50,30 @@ tasks. Source completion, reported device acceptance and remaining release cover
   requested startup/Settings/stream/reconnect check of the `4076f15` CI packages. This is
   user-reported acceptance; no new log or separate per-profile results were supplied.
 
-**Recent source changes awaiting maintainer acceptance.** These are implemented, not feature
-requests to implement again; no later device result is recorded for these specific changes.
+**Recent changes accepted by the maintainer (2026-10-27).** Asked which of the four
+implemented items below were already checked and working, the maintainer replied “всё”.
+This records user-reported Vita acceptance; do not request another basic pass without a
+regression. It does not establish unreported fault cases or independent metric benchmarks.
 
-- [ ] Main background discovery and its follow-ups: cold start, retained rows/focus/scroll,
-  temporary-PC expiry, pause/resume around Delete/IME/Settings, return from Apps/PIN and suspend;
-  no discovery during streaming. This replaces all former Search-page acceptance tasks.
-- [ ] Main manual-entry header artwork/state and the live checkbox/focus regression correction:
-  appearance, activation, Select/Clear All and Delete OK/Cancel on the current Main implementation.
-  Earlier saved-only Delete UI acceptance remains valid for that earlier version.
-- [ ] Debug log startup preference and both toggle directions, including restart without opening
-  Settings; transient stream warnings through fault/recovery with statistics on and off.
-- [ ] Compact stream statistics: readability, numerical accuracy and performance on Vita.
-  Session counters/snapshots and the six-line overlay already exist in `master`. The DS4 RGB
-  light-bar shape revision also awaits viewing; basic DS4/DualSense feedback already passed.
+- [x] Native Settings → Licenses and credits: readability/scrolling and navigation accepted;
+  persistent settings keys/defaults/version are unchanged.
+- [x] Main Add PC and current selection UI: manual entry, checkboxes, Select/Clear All and
+  Delete OK/Cancel accepted.
+- [x] Debug log preference: toggling and retention after restarting accepted.
+- [x] Compact stream statistics: working overlay/readability accepted.
 - [x] Combined normal/system build passed CI on `4076f15`; the maintainer subsequently accepts
   the requested basic CI-package Vita smoke (2026-10-24, “всё ок”). Earlier profile smoke results
   remain recorded separately. This does not itemize every recent UI/statistics/fault case above.
 
 **Deferred device/release coverage, not the default next development task.**
 
+- [ ] Independent statistics accuracy/performance measurements, transient stream warnings
+  through fault/recovery with statistics on/off, and the revised DS4 RGB light-bar appearance.
+  These were not part of the four-item acceptance question; basic RGB feedback already passed.
+- [ ] Detailed discovery edge cases were not individually reported: expiry timing, large-list
+  focus/scroll, pause/resume and packet-level absence of queries outside eligible Main.
+  The [regression reference](tests/README.md#main-discovery-maintainer-vita-acceptance)
+  is available for a relevant regression or planned release pass, not mandatory next work.
 - [ ] Motion/gyro hardware verification; broader device/game compatibility and endurance.
 - [ ] Remaining fault/race cases: malformed XML/proofs/pins, storage failures and durability,
   custom ports/encryption configurations, blocked-I/O cancellation and application shutdown.

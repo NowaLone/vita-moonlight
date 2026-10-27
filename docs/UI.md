@@ -7,11 +7,20 @@ measured numbers behind every layout decision. Read this before changing anythin
 Companion documents: `AGENTS.md` (hard rules for agents), `ROADMAP.md` (plan and hardware checks), `README.md`
 (overview and build).
 
-**Main background discovery, 2026-10-23 [code; build/Vita pending]:** Main now owns the
+**Maintainer acceptance, 2026-10-27 [hw, user-reported]:** replying “всё” to the four-item
+question, the maintainer confirms Licenses and credits, Add PC/checkboxes/Delete, Debug log
+preference retention after restart and compact stream statistics are checked and working.
+This supersedes their earlier basic-validation TODOs below. Fault/race cases, independent
+statistics benchmarks and the separate DS4 shape revision were not in that question.
+
+**Main background discovery, 2026-10-23 [code; basic Vita acceptance 2026-10-27]:** Main now owns the
 combined saved/temporary PC presentation. Search PC and its button, resources, strings and
 callback restoration branches are removed. The current behavior is specified in
 [Main background discovery](#main-background-discovery--2026-10-23). Dated Search evidence below
 belongs to the former interface; it does not verify the replacement.
+The maintainer confirms “поиск пк давно работает” **[hw, user-reported, 2026-10-27]**.
+Do not reopen basic discovery without a concrete regression; this confirmation does not
+itemize every timing, focus or pause/fault case below.
 
 **Current-state review, 2026-10-22:** foreground progress uses PAF CommonGuiDialog
 `s_dialogTextSmallBusy`; errors/Delete confirmation use SceMessageDialog. The maintainer
@@ -213,11 +222,16 @@ policies, not recovered Sony behavior.
 Non-build checks interpret the actual worker/control/expiry/publication, Main eligibility,
 merge/token/selection/canonical lookup and cell-edit logic, plus main-thread event dispatch.
 Serial clock/kernel/socket/vector/UI mocks do not prove real concurrency, native ABI, PAF
-rendering or device responsiveness. Build/RCO and Vita acceptance remain **[open]**: empty and
+rendering or device responsiveness. Basic discovery is user-accepted (2026-10-27).
+Detailed cases without individual results remain **[open]**: empty and
 >8-PC startup; appear/disappear/reappear; same names/duplicate endpoints; focus/scroll during
 insertion/removal/reordering; temporary-to-saved; repeated paired connection and PIN cancel/error;
 Delete/IME/OptionMenu/Settings; system overlay/suspend/resume; no queries during streaming.
 No agent application/resource compilation, packaging or deployment.
+The [regression reference](../tests/README.md#main-discovery-maintainer-vita-acceptance)
+specifies setup, observable results, frozen-age timing and the packet evidence needed to
+distinguish a paused worker from an unchanged list. Use it for relevant regressions or planned
+release coverage, not as a new baseline gate for the accepted working feature.
 
 **Linker follow-up, 2026-10-23 [maintainer build log; correction is source-only]:** the
 initial Main implementation instantiated `std::vector<uint32_t>` and the Vita link failed
@@ -802,8 +816,8 @@ Text: `style_text_header` (32 bold, centred), `style_text_paragraph` (26 regular
 The stream statistics overlay uses `plane_stream_statistics` (660 x 136, top-left offset 16/-12)
 and `text_stream_statistics` (644 x 120, offset 24/-20, at most 6 explicit lines). The background is
 black at alpha 0.65 with a white style multiplier. These are implementation values **[code]**,
-not screenshot measurements; readability, line clipping and actual appearance need Vita verification
-**[open]**. The old stray `ge>` text was removed when editing the resource.
+not screenshot measurements; the maintainer accepts compact-overlay readability/operation
+**[hw, user-reported, 2026-10-27]**. The old stray `ge>` text was removed when editing the resource.
 
 The existing AppSettings key `show_fps` and `msg_show_fps` identifier remain; the visible label is now
 `Display stream statistics`. `Stream::StatisticsTask` updates cached text/background widgets at most
@@ -816,7 +830,7 @@ percentages, average decode-call/PAF-queue timing and optional host min/max/aver
 or expired measurements are omitted. During a stall only current rates, available RTT and the
 stalled-video state remain. Audio/CPU/stride/window/cumulative-counter details and permanent
 `N/A` rows have been removed after the user's device screenshot showed excessive screen coverage.
-The old 928 x 380 panel is superseded; the compact panel is not yet hardware-verified. PAF FPS
+The old 928 x 380 panel is superseded; the compact panel is user-accepted on Vita. PAF FPS
 still measures texture submission, not physical presentation.
 The setting's native AppSettings hint (`msg_show_fps_hint`) explains Video/Mbps, the three FPS
 rates, RTT/variation, missing/pacer/PAF drops, average decode-call/queue timing, optional host
@@ -1208,9 +1222,8 @@ string are removed. Main's title and host-list/selection-bar geometry stay uncha
 the button and its container remain visible; `set_button_enabled()` disables the
 button on entry and enables it on exit **[code, 2026-10-24]**. `OpenAddPc()` also
 rejects activation during selection. Existing discovery pause/resume is unchanged.
-Resource/XML source checks pass; RCO compilation, final background/icon
-appearance, focus navigation, touch activation and manual entry on Vita remain
-**[open]**. No agent build or hardware test.
+Resource/XML source checks pass. The maintainer accepts Add PC and current checkbox/Delete
+behavior **[hw, user-reported, 2026-10-27]**. No agent build or hardware test.
 
 ### 5.2 List rows (PS4 Link "Which feature...") **[shot]**
 
@@ -1339,9 +1352,9 @@ selection persistence are unchanged; no widget pointers are retained across virt
 Two non-build regression checks first fail against the previous source, then pass with the
 fix. They interpret actual row/Select All toggles, item updates and focus capture using
 strict token-only widget mocks, including a list of 12 PCs and a missing/recreated item.
-These establish source lookup/state behavior, not native PAF drawing or ABI. Maintainer
-build/Vita checkmarks, row/checkbox activation, Select/Clear All and focus remain **[open]**
-for this regression; no agent build or hardware run.
+These establish source lookup/state behavior, not native PAF drawing or ABI. The maintainer
+accepts current checkboxes, Select/Clear All and Delete **[hw, user-reported, 2026-10-27]**;
+no agent build or hardware run.
 
 ## 6. Recipes
 
@@ -1371,11 +1384,25 @@ Do not introduce a settings file or a custom settings screen.
 AppSettings loads before the host store/Main during backend startup **[code, 2026-10-24]**.
 Debug log defaults off and uses the switch callback's new value immediately; closing Settings
 reapplies stored runtime values before logging/notifying closure. Both switch directions and
-restart without opening Settings still need maintainer build/Vita validation **[open]**.
+restart preference retention are accepted **[hw, user-reported, 2026-10-27]**.
 
 **Page messages.** Keep only static empty-list labels and Pairing instructions/PIN.
 Use ConnectionService's native busy/error dialogs for foreground progress/errors;
 return Main to its empty-state policy through `Main::ShowIdleStatus()`.
+
+**Licenses and credits (2026-10-27).** The native Settings root now includes
+`licenses_settings`, titled `Licenses and credits`, using the existing
+`setting_list style="edit"` / `label style="heading"` information pattern
+**[code]**. Read-only labels identify the Moonlight/transport/parser/crypto/codec
+and SDK contributors, component license names, the original mDNS permission and
+OpenSSL acknowledgments. The final label gives the project's Releases address
+for source archives containing full license texts; this screen is an attribution
+overview, not an offline full-license reader or a new project-wide license grant.
+All strings use `cxml/locale/en.xml` and the existing AppSettings GetString
+callback. No persistent keys/defaults or settings version change is needed.
+The focused resource check verifies read-only elements, localized references,
+component coverage and acknowledgments. The maintainer accepts readability/scrolling
+and navigation **[hw, user-reported, 2026-10-27]**; no agent build or Vita run.
 
 ## 7. Matching a reference screenshot
 

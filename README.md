@@ -46,8 +46,8 @@ The current application supports:
 - H.264 video streaming and Vita AVC presentation.
 - Opus audio playback.
 - Optional stream statistics overlay: video rates, missing/local-drop estimates, RTT,
-  decode/PAF queue timing and payload bitrate. The compact six-line layout and metric accuracy
-  still need specific Vita validation; streaming/playback verification is recorded separately.
+  decode/PAF queue timing and payload bitrate. The compact six-line overlay is accepted by
+  the maintainer on Vita (2026-10-27); independent metric benchmarks remain separate.
 - Vita controller input.
 - Front touchscreen input.
 - Motion/gyro input path.
@@ -108,7 +108,8 @@ UI never waits for its worker.
 Temporary results age out after 15 seconds of active healthy discovery without another observation;
 pause and detected network failures freeze aging. Clicking a temporary PC saves it before ordinary
 connection; discovery alone writes nothing. See [UI behavior and validation limits](docs/UI.md#main-background-discovery--2026-10-23).
-This replacement is source-checked; RCO/application build and Vita acceptance remain pending.
+The maintainer confirms PC discovery already works on Vita (2026-10-27). Basic discovery
+is accepted; detailed timing, focus and pause/fault cases were not individually reported.
 
 Saved hosts use the Vita system-app selection/action pattern. The standard bottom-right corner button opens a project-owned PAF `speech_balloon` action menu (not a discovered Sony system action-menu API) with **Delete** at the top and **Settings** at the bottom. Choosing Delete turns the saved-PC list into multi-selection mode with PAF checkboxes (tapping or activating a row toggles it) and a bottom action bar with Cancel, Select All/Deselect All, and Delete. Delete asks for confirmation through the native `SceMessageDialog`; no host-copy/clipboard action is provided. The earlier saved-only selection UI was verified on Vita, including popup placement, Delete/Settings focus, row/checkbox positioning, action-bar layout, Select All/Deselect All focus, disabled Delete behavior, confirmation, and post-delete list refresh/focus. Delete is disabled when there are no saved PCs or nothing is selected; its disabled appearance uses PAF `ButtonBase` state and keeps the button background black while rendering the label gray.
 
@@ -140,9 +141,14 @@ AppSettings loads during backend startup, before saved hosts and Main are popula
 The saved **Debug log** preference therefore applies without opening Settings first.
 Its switch applies the callback's new value immediately; closing Settings reapplies
 the stored runtime values before the closing memory diagnostic. Default logging is off.
-This correction is source-checked; maintainer build and Vita validation are pending.
+The maintainer accepts toggling and preference retention after restarting (2026-10-27).
 
 The project does **not** use the old `moonlight.conf` settings model.
+
+**Settings → Licenses and credits** provides read-only component attribution,
+license names and OpenSSL acknowledgments, plus the Releases address for source
+archives containing the full license texts. The native AppSettings section is
+accepted by the maintainer on Vita, including readability/scrolling and navigation (2026-10-27).
 
 ## Host Persistence
 

@@ -75,6 +75,28 @@
   <string src="Vita Moonlight PAF" id="msg_about_title" />
   <string src="Settings are stored by the Vita AppSettings service." id="msg_about_description" />
 
+  <string src="Licenses and credits" id="msg_licenses" />
+  <string src="Vita Moonlight PAF&#10;NowaLone and contributors.&#10;&#10;This application includes the following third-party components. License names below refer to the named components; full license texts and source are available with the project releases." id="msg_license_intro" />
+  <string src="Vita Moonlight / Moonlight Embedded&#10;Iwan Timmer, xyzz and contributors.&#10;Adapted GameStream/SPS code: Copyright (C) 2015-2017 Iwan Timmer. GNU GPL version 3 or later." id="msg_license_moonlight" />
+  <string src="moonlight-common-c&#10;Moonlight contributors.&#10;GNU General Public License version 3." id="msg_license_common" />
+  <string src="Reed-Solomon FEC&#10;Copyright 1997-98 Luigi Rizzo, 2001 Alain Knaff, 2017 Iwan Timmer. Portions by Phil Karn, Robert Morelos-Zaragoza and Hari Thirumoorthy.&#10;BSD 2-Clause license." id="msg_license_fec" />
+  <string src="ENet&#10;Copyright (c) 2002-2020 Lee Salzman.&#10;MIT license." id="msg_license_enet" />
+  <string src="inih&#10;Ben Hoyt, 2009-2025.&#10;BSD 3-Clause license." id="msg_license_ini" />
+  <string src="h264bitstream&#10;Alex Izvorski and Alex Giladi. Copyright 2005-2007 Auroras Entertainment, LLC; 2008-2011 Avail-TVN; 2012 Alex Izvorski.&#10;GNU LGPL version 2.1 or later." id="msg_license_h264" />
+  <string src="mdnsniff&#10;AorsiniYT, Copyright 2025.&#10;The author's README permits use, modification and sharing with attribution:&#10;MIT o similar. Puedes usar, modificar y compartir este código citando al autor." id="msg_license_mdns" />
+  <string src="curl&#10;Copyright (c) 1996-2025 Daniel Stenberg and contributors.&#10;curl copyright and permission notice." id="msg_license_curl" />
+  <string src="Expat&#10;Copyright 1998-2000 Thai Open Source Software Center Ltd and Clark Cooper; 2001-2025 Expat maintainers.&#10;MIT license." id="msg_license_expat" />
+  <string src="OpenSSL&#10;Copyright 1998-2016 The OpenSSL Project; 1995-1998 Eric Young. Original OpenSSL and SSLeay licenses.&#10;&#10;This product includes software developed by the OpenSSL Project for use in the OpenSSL Toolkit (http://www.openssl.org/)&#10;&#10;This product includes cryptographic software written by Eric Young (eay@cryptsoft.com). This product includes software written by Tim Hudson (tjh@cryptsoft.com)." id="msg_license_openssl" />
+  <string src="Opus&#10;Copyright 2001-2023 Xiph.Org, Skype Limited, Octasic, Jean-Marc Valin, Timothy B. Terriberry, CSIRO, Gregory Maxwell, Mark Borgerding, Erik de Castro Lopo, Mozilla and Amazon.&#10;BSD 3-Clause license; the full text includes patent-license references." id="msg_license_opus" />
+  <string src="zlib&#10;Copyright 1995-2026 Jean-loup Gailly and Mark Adler.&#10;zlib license." id="msg_license_zlib" />
+  <string src="Zstandard&#10;Copyright Meta Platforms, Inc. and affiliates.&#10;BSD 3-Clause license option." id="msg_license_zstd" />
+  <string src="newlib / libm&#10;Red Hat, the Regents of the University of California and other contributors.&#10;Multiple file-specific licenses; full notices are included with the source." id="msg_license_newlib" />
+  <string src="pthread-embedded&#10;John E. Bossom, Ross P. Johnson and pthreads-win32 contributors: GNU LGPL version 2.1.&#10;Vita port: Copyright (c) 2016 Davee, MIT license." id="msg_license_pthread" />
+  <string src="GCC compiler runtime&#10;Free Software Foundation and contributors.&#10;GNU GPL version 3 with the GCC Runtime Library Exception for covered runtime files." id="msg_license_gcc" />
+  <string src="vita-headers / VitaSDK import stubs&#10;Copyright 2017 vitasdk.&#10;MIT license." id="msg_license_vitasdk" />
+  <string src="PAF integration&#10;vitasdk-paf-component: Copyright (c) 2025 Princess-of-Sleeping, MIT license.&#10;ScePaf-RE declarations: GrapheneCt, credited separately." id="msg_license_paf" />
+  <string src="Full license texts and source&#10;Download the source archive from:&#10;https://github.com/NowaLone/vita-moonlight-paf/releases&#10;&#10;The archive contains the component license files and attribution details. Each component retains its own terms and warranty disclaimers." id="msg_license_sources" />
+
   <string src="Tells the host to adjust game graphics settings for the selected stream resolution and FPS." id="msg_optimize_graphics_hint" />
   <string src="Helps video recovery after lost or corrupted packets by invalidating unusable reference frames." id="msg_ref_frame_invalidation_hint" />
   <string src="Treats the connection as a remote/WAN stream. Use this for Internet or routed connections; leave it off for a normal local LAN." id="msg_stream_optimization_hint" />

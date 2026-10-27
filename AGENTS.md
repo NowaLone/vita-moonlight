@@ -53,7 +53,7 @@ The long-term goal is to keep the frontend architecture native to PAF while cont
 
 The application currently provides:
 
-- Main PC screen with native PAF title bar, saved/temporary host list, quiet five-second background discovery, inline Add PC address input, and system-settings entry (new discovery integration is source-only; build/Vita pending).
+- Main PC screen with native PAF title bar, saved/temporary host list, quiet five-second background discovery, inline Add PC address input, and system-settings entry. The maintainer confirms PC discovery already works on Vita (2026-10-27); do not reopen basic discovery without a concrete regression. Detailed timing/focus/pause cases were not individually reported.
 - Saved-host management is implemented in the PAF UI with Delete-only multi-selection: the corner button opens the current `OptionMenu`, Delete enters selection mode, saved-PC rows use `template_host_list_item_select` with native PAF `paf::ui::CheckBox` controls, and a bottom action bar provides Cancel, Select All/Deselect All, and Delete.
 - mDNS/LAN host discovery.
 - Persistent saved hosts.

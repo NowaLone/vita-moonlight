@@ -178,6 +178,12 @@ parsed; ordinary type 0 gate launches and other events are ignored. The pinned
 AppUtil prototype has a raw output pointer, so the platform binding supplies the
 SDK's 1019-byte parameter plus 32 reserved bytes, with an exact-size assertion.
 
+Source checks (2026-10-27) now model a consuming event queue over successive 100 ms
+deadlines: one cold-start delivery, overlay/resume delivery and no delayed launch after a
+busy rejection. An unterminated 1019-byte parameter is rejected even if the reserved tail
+contains zeros. These checks interpret the existing polling body with serial mocks; they
+do not establish native AppUtil delivery, suspension timing or Vita parser/ABI behavior.
+
 A validated request resolves the UUID against the current saved-host store,
 then uses Main's existing connection path. Only idle Main/Apps can accept it;
 an idle Apps page returns through the existing page stack first. PIN, Delete,

@@ -160,6 +160,61 @@ class LiveAreaLaunch(unittest.TestCase):
             self.execute('PollLiveAreaEvents')  # 100 ms gate; no replay at the same tick.
             self.assertEqual(self.calls, ['receive', 'parse'] + tail)
 
+    def test_queued_event_is_consumed_once_after_resume_and_busy_taps_are_not_deferred(self):
+        for label, overlaid, eligible in (('cold', False, True), ('resume', True, True),
+                                          ('busy', False, False)):
+            with self.subTest(label=label):
+                self.setUp()
+                self.prepare_native(eligible=eligible)
+                events = [5]
+                now = [1000000]
+                overlay = [overlaid]
+
+                def app_state(destination, *args):
+                    self.scope[destination].update(appEventNum=len(events),
+                                                   isSystemUiOverlaid=overlay[0])
+                    return 0
+
+                def receive(destination):
+                    self.calls.append('receive')
+                    self.scope[destination]['type'] = events.pop(0)
+                    return 0
+
+                self.scope.update(_sceAppMgrGetAppState=app_state,
+                                  sceAppUtilReceiveAppEvent=receive,
+                                  sceKernelGetProcessTimeWide=lambda: now[0])
+                self.execute('PollLiveAreaEvents')
+                if overlaid:
+                    self.assertEqual(self.calls, [])
+                    self.assertEqual(events, [5])
+                    overlay[0] = False
+                    now[0] += 100000
+                    self.execute('PollLiveAreaEvents')
+                self.assertEqual(events, [])
+                expected = ['receive', 'parse'] + ([('connect', 438)] if eligible else [])
+                self.assertEqual(self.calls, expected)
+                self.scope['can_connect'] = lambda: True
+                for _ in range(3):
+                    now[0] += 100000
+                    self.execute('PollLiveAreaEvents')
+                self.assertEqual(self.calls, expected)
+
+    def test_unterminated_native_parameter_is_rejected_before_target_parser(self):
+        self.prepare_native()
+
+        def parse(destination, output):
+            self.calls.append('parse')
+            # The reserved tail remains zero; only param's own boundary may terminate it.
+            self.scope[output]['param'] = [ord('a')] * 1019
+            return 0
+
+        def unexpected_target(*args):
+            self.fail('Unterminated native parameter reached the string parser')
+
+        self.scope.update(sceAppUtilAppEventParseLiveArea=parse, parse_target=unexpected_target)
+        self.execute('PollLiveAreaEvents')
+        self.assertEqual(self.calls, ['receive', 'parse'])
+
     def test_pairing_handoff_and_error_paths_preserve_one_shot_intent(self):
         pairing = (ROOT / 'src/pages/page_pairing.cpp').read_text()
         self.assertIn('new Apps(application_id)', self.main)
