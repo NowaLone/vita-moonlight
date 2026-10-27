@@ -46,6 +46,12 @@ or establish native text wrapping/scrolling, navigation or licensing completenes
 callback snapshot, covering RFI enabled on the first connection and repeated On/Off changes.
 The old source fails the enabled snapshots. Decoder setup must no longer mutate the original
 callbacks too late. No decoder, common-c runtime, compilation or packet-recovery test is run.
+Two keyboard checks interpret the actual in-stream text sender using native PAF conversion
+and UTF-8 transport mocks. ASCII punctuation/case, Cyrillic, French/German/Spanish accents
+and a surrogate pair must produce one complete UTF-8 payload with its byte length. Null/empty
+input, conversion failure and negative/positive queue errors never fall back to VK events.
+The old ASCII/keycode loop fails all language payload cases. String methods/casts are adapted
+for interpretation; real PAF UTF conversion, IME, host delivery and C++/ABI are not executed.
 
 `test_livearea.py` interprets the actual frame builder and `LiveAreaService` with
 serial native API mocks: bounded XML/UTF-8 escaping, owned names, first-six cache

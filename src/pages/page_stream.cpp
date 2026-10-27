@@ -1,4 +1,5 @@
 #include <paf.h>
+#include <paf/common/char_encoding.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdarg.h>
@@ -10,13 +11,6 @@
 #include <psp2/kernel/processmgr.h>
 
 #include <Limelight.h>
-
-#ifndef KEY_ACTION_DOWN
-#define KEY_ACTION_DOWN 0x03
-#endif
-#ifndef KEY_ACTION_UP
-#define KEY_ACTION_UP 0x04
-#endif
 
 #include "debug.h"
 #include "common.h"
@@ -111,18 +105,25 @@ static void format_stream_statistics(const MoonlightStreamStats &stats,
     }
 }
 
+static_assert(sizeof(SceWChar16) == sizeof(wchar_t), "IME and PAF UTF-16 code units must match");
+
 static void send_keyboard_text(const SceWChar16 *text)
 {
-    unsigned int i;
-
-    if (!text) {
+    if (!text || !text[0]) {
         return;
     }
-    for (i = 0; text[i] != 0 && i < 128; ++i) {
-        if (text[i] >= 0x20 && text[i] <= 0x7e) {
-            LiSendKeyboardEvent((short)text[i], KEY_ACTION_DOWN, 0);
-            LiSendKeyboardEvent((short)text[i], KEY_ACTION_UP, 0);
-        }
+
+    paf::string utf8;
+    int result = paf::common::Utf16ToUtf8(reinterpret_cast<const wchar_t *>(text), &utf8);
+    if (result < 0) {
+        vita_debug_log("[Input] IME text conversion failed result=%d", result);
+        return;
+    }
+    if (utf8.empty()) return;
+
+    result = LiSendUtf8TextEvent(utf8.c_str(), utf8.size());
+    if (result != 0) {
+        vita_debug_log("[Input] IME text send failed result=%d", result);
     }
 }
 

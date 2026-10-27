@@ -40,6 +40,82 @@ class SettingsBehavior(unittest.TestCase):
         self.assertEqual([s['capabilities'] for s in snapshots], [base | 2, base, base | 2, base])
         self.assertNotIn('decoder_callbacks_vita.capabilities =', function(source, 'vita_video_setup'))
 
+    def keyboard_send(self, text, conversion_result=0, send_result=0):
+        source = (ROOT / 'src/pages/page_stream.cpp').read_text()
+        code = function(source, 'send_keyboard_text')
+        code = code.replace('paf::string utf8;', 'int utf8 = new_utf8();')
+        code = code.replace('paf::common::Utf16ToUtf8', 'convert_utf16')
+        code = code.replace('reinterpret_cast<const wchar_t *>(text)', 'text')
+        for method in ('empty', 'c_str', 'size'):
+            code = code.replace('utf8.' + method + '()', 'utf8_' + method + '(utf8)')
+        body = c_parser.CParser().parse('typedef unsigned short SceWChar16;' + code).ext[-1].body
+        calls, logs = [], []
+        values = dict(text=text, NULL=0, KEY_ACTION_DOWN=3, KEY_ACTION_UP=4,
+                      new_utf8=lambda: dict(data=b''),
+                      utf8_empty=lambda value: not value['data'],
+                      utf8_c_str=lambda value: value['data'], utf8_size=lambda value: len(value['data']),
+                      vita_debug_log=lambda *args: logs.append(args),
+                      LiSendKeyboardEvent=lambda *args: calls.append(('key', args)))
+
+        def convert(data, destination):
+            if conversion_result < 0:
+                return conversion_result
+            raw = b''.join(unit.to_bytes(2, 'little') for unit in data[:data.index(0)])
+            values[destination]['data'] = raw.decode('utf-16-le').encode('utf-8')
+            return conversion_result
+
+        def send(data, length):
+            calls.append(('text', data, length))
+            return send_result
+
+        values.update(convert_utf16=convert, LiSendUtf8TextEvent=send)
+        original = runtime.expression
+
+        def expression(node, scope):
+            if isinstance(node, c_ast.Constant) and node.type == 'int':
+                return int(node.value, 0)
+            if isinstance(node, c_ast.BinaryOp) and node.op == '<=':
+                return expression(node.left, scope) <= expression(node.right, scope)
+            if isinstance(node, c_ast.UnaryOp) and node.op in ('++', 'p++'):
+                value = scope[node.expr.name]
+                scope[node.expr.name] += 1
+                return value if node.op == 'p++' else value + 1
+            return original(node, scope)
+
+        # The old ASCII key loop requires only this increment/statement support.
+        original_execute = runtime.execute
+
+        def execute(node, scope):
+            if isinstance(node, c_ast.UnaryOp):
+                expression(node, scope)
+            else:
+                original_execute(node, scope)
+
+        with patch.object(runtime, 'expression', expression), patch.object(runtime, 'execute', execute):
+            run(body, values)
+        return calls, logs
+
+    def test_keyboard_sends_one_utf8_text_packet_for_each_supported_ime_language(self):
+        for text in ('Hello, World! 123 @#', 'Привет, мир!', 'Français déjà', 'Grüße', 'Español', '🙂', 'я' * 120):
+            with self.subTest(text=text):
+                raw = text.encode('utf-16-le')
+                units = [int.from_bytes(raw[i:i + 2], 'little') for i in range(0, len(raw), 2)] + [0]
+                calls, logs = self.keyboard_send(units)
+                encoded = text.encode('utf-8')
+                self.assertEqual(calls, [('text', encoded, len(encoded))])
+                self.assertEqual(logs, [])
+
+    def test_keyboard_empty_conversion_and_send_failures_never_fall_back_to_keycodes(self):
+        for text in (0, [0]):
+            self.assertEqual(self.keyboard_send(text), ([], []))
+        calls, logs = self.keyboard_send([65, 0], conversion_result=-1)
+        self.assertEqual(calls, [])
+        self.assertEqual(len(logs), 1)
+        for result in (-2, 2):  # Uninitialized transport and a full common-c queue.
+            calls, logs = self.keyboard_send([65, 0], send_result=result)
+            self.assertEqual(calls, [('text', b'A', 1)])
+            self.assertEqual(len(logs), 1)
+
 
 if __name__ == '__main__':
     unittest.main()

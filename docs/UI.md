@@ -754,6 +754,15 @@ terminate the dialog, clear the open state and unregister its poll before handli
 **[code, 2026-10-23]**. Abort-on-destruction, module ownership and retry behavior are unchanged;
 source checks model the ordering, while maintainer build/Vita validation remains **[open]**.
 
+**In-stream keyboard text (2026-10-27) [code; build/Vita pending].** The existing stream
+IME keeps all five language choices and its Enter/Cancel flow. Enter converts UTF-16 using
+PAF's `common::Utf16ToUtf8` and sends one `LiSendUtf8TextEvent` with the byte length.
+The old ASCII filter/keycode loop dropped Cyrillic/accents and confused text with Win32 VK
+codes. Empty text sends nothing; conversion/queue failures are console-only and never fall
+back to synthetic keys. The build asserts matching IME/PAF code-unit sizes. Source checks
+mock conversion/transport for punctuation, five languages and a surrogate pair; native PAF
+conversion, IME, host text reception and game compatibility still require maintainer validation.
+
 ## 4. Building blocks
 
 ### 4.1 `page::Base` (`include/pages/page.h`, `src/pages/page.cpp`)
