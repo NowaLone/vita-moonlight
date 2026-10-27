@@ -379,7 +379,9 @@ static void vita_input_suppress_for_system_ui(void)
 
 static void vita_input_process(void)
 {
-    if (vita_input_system_ui_overlaid()) {
+    const bool system_ui_overlaid = vita_input_system_ui_overlaid();
+    vita_motion_set_suspended(system_ui_overlaid ? 1 : 0);
+    if (system_ui_overlaid) {
         vita_input_suppress_for_system_ui();
         return;
     }

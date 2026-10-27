@@ -74,7 +74,27 @@ regression. It does not establish unreported fault cases or independent metric b
   focus/scroll, pause/resume and packet-level absence of queries outside eligible Main.
   The [regression reference](tests/README.md#main-discovery-maintainer-vita-acceptance)
   is available for a relevant regression or planned release pass, not mandatory next work.
-- [ ] Motion/gyro hardware verification; broader device/game compatibility and endurance.
+- [x] Preliminary motion runtime acceptance (2026-10-27): after the four sensor corrections,
+  the maintainer reports “ну вроде работает”. Record this as tentative basic Vita evidence;
+  do not reopen the ordinary working path without a concrete regression.
+- [ ] Extended motion verification: precise axes/sensitivity, fault recovery, broader
+  device/game compatibility and endurance were not individually reported.
+  Source correction (2026-10-27): gyro and accelerometer workers use one atomic rate snapshot
+  for the nonzero guard and delay, preventing division by zero when a host stop request or
+  local stream stop races with sending. Two serial checks reproduce the old failure and pass
+  after correction. The later preliminary runtime report above does not establish real-thread
+  race/fault coverage.
+  A separate correction reads raw sensor samples using SDL's Vita x/y/z convention and
+  converts gyro rad/s to deg/s and acceleration g to m/s², as required by Moonlight; the
+  shared `28.0f` multiplier and y/z remapping are removed. Two further source checks cover
+  known vectors and read errors. Actual aiming direction/sensitivity still needs Vita evidence.
+  Motion now follows the existing input AppMgr overlay gate: Quick Actions pauses both
+  sensor workers without discarding host report rates; input return resumes them. Two source
+  checks cover gating/order/rate retention, not native overlay or in-flight-send timing.
+  Initialization also stays incomplete/inactive after sampling or worker setup failure,
+  allowing the next stream start to retry missing setup while reusing successful workers.
+  A serial start/retry/disable check reproduces the former false-ready state; device-level
+  recovery remains unverified.
 - [ ] Remaining fault/race cases: malformed XML/proofs/pins, storage failures and durability,
   custom ports/encryption configurations, blocked-I/O cancellation and application shutdown.
   Use the API audit's scoped evidence/limits; ordinary pairing, Apps, stop/reconnect, Quick

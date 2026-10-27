@@ -1,6 +1,6 @@
 # Focused checks
 
-Latest recorded source gate: **244 checks including LiveArea event consumption and native-parameter bounds (2026-10-27)**.
+Latest recorded source gate: **251 checks including motion rates, units/axes, overlay gating and setup retries (2026-10-27)**.
 See [the repeat Ponytail audit](../docs/PONYTAIL_REAUDIT_2026-10-23.md) for the latest
 baseline, per-change checks and native gates; [the earlier refactor audit](../docs/REFACTOR_AUDIT.md)
 records the preceding pass. Counts in the
@@ -11,6 +11,30 @@ cases are in the API audit and `runtime/README.md`; source checks do not replace
 Non-build checks (Python 3 and pycparser):
 
     PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -p 'test_*.py'
+
+`test_motion.py` interprets the actual gyro/accelerometer worker loops, stop and host-rate
+callback with serial atomics/send/delay mocks. Host rate 0, stop and a changed positive rate
+are injected during sending: the current delay must use its validated snapshot, and the next
+iteration must observe the update. The old source raises division-by-zero in four subcases
+and changes the current interval in two more. Inactive/disabled/zero-rate workers stay idle.
+Only unused argument casts are removed for parsing. This does not execute threads, native
+atomics, sensors, the Vita ABI or real Moonlight transport; build/device checks remain separate.
+Two further checks interpret actual sensor send bodies: asymmetric raw samples must retain
+SDL x/y/z order and convert rad/s to deg/s and g to m/s²; a failed read must send nothing.
+The old common `28.0f` scale fails both unit cases. Raw samples and errors are mocked.
+Unit/axis references are the vendored `Limelight.h` motion contract and the
+[upstream SDL Vita sensor driver](https://github.com/libsdl-org/SDL/blob/main/src/sensor/vita/SDL_vitasensor.c),
+whose gyro uses SDL's [radians/second convention](https://wiki.libsdl.org/SDL3/SDL_SensorType).
+Two overlay checks interpret the shared suspended flag and the actual input-process prefix:
+system UI pauses both workers, host rate changes are retained while paused, and foreground
+return resumes the requested rates. Motion starts suspended until the input loop applies
+its overlay state. This follows the existing cached AppMgr input policy, including its
+unknown-state behavior; it is not independent proof of native overlay/suspend timing.
+The setup retry check interprets init/start: sampling or either worker setup failure must
+leave motion inactive/uninitialized; the next start retries missing setup, accepting already
+active sampling and retaining successful workers. Disable/re-enable reuses the completed
+setup and clears rates. Old code fails all three injected failures. Worker creation itself
+is mocked by its started-flag contract; no real creation/cleanup or device recovery is tested.
 
 `test_ui_resources.py` also checks that native Settings' `Licenses and credits`
 section is read-only, all its labels resolve, and the component credits, original

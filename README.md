@@ -50,7 +50,9 @@ The current application supports:
   the maintainer on Vita (2026-10-27); independent metric benchmarks remain separate.
 - Vita controller input.
 - Front touchscreen input.
-- Motion/gyro input path.
+- Motion/gyro input path. Raw sensor units/axes, report-rate races and system-UI gating are source-corrected
+  (2026-10-27). The maintainer tentatively reports the changes working on Vita;
+  precise sensitivity, fault recovery and endurance are not individually verified.
 - Optional host-controller RGB overlay: Off, Like DualShock 4 or Like DualSense; source
   implemented in bff5712, with build/Vita appearance and host feedback validation pending.
 - PS Button/application lifecycle handling.

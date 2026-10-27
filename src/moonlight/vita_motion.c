@@ -8,46 +8,49 @@
 
 #include "debug.h"
 
-#define MOTION_SCALE 28.0f
+/* Vita raw samples use rad/s and g; Moonlight requires deg/s and m/s^2. */
+#define GYRO_RADIANS_TO_DEGREES 57.2957795131f
+#define ACCEL_STANDARD_GRAVITY 9.80665f
 
-static volatile bool s_active = false;
-static volatile bool s_enabled = false;
-static volatile uint16_t s_gyro_rate = 0;
-static volatile uint16_t s_accel_rate = 0;
+static bool s_active = false;
+static bool s_enabled = false;
+static bool s_suspended = true;
+static uint16_t s_gyro_rate = 0;
+static uint16_t s_accel_rate = 0;
 static bool s_initialized = false;
 static bool s_gyro_thread_started = false;
 static bool s_accel_thread_started = false;
 
 static void send_gyro(void)
 {
-    SceMotionState state;
+    SceMotionSensorState state;
 
-    if (sceMotionGetState(&state) < 0) {
+    if (sceMotionGetSensorState(&state, 1) < 0) {
         return;
     }
 
     LiSendControllerMotionEvent(
         0,
         LI_MOTION_TYPE_GYRO,
-        state.angularVelocity.x * MOTION_SCALE,
-        state.angularVelocity.z * MOTION_SCALE,
-        state.angularVelocity.y * -MOTION_SCALE);
+        state.gyro.x * GYRO_RADIANS_TO_DEGREES,
+        state.gyro.y * GYRO_RADIANS_TO_DEGREES,
+        state.gyro.z * GYRO_RADIANS_TO_DEGREES);
 }
 
 static void send_accel(void)
 {
-    SceMotionState state;
+    SceMotionSensorState state;
 
-    if (sceMotionGetState(&state) < 0) {
+    if (sceMotionGetSensorState(&state, 1) < 0) {
         return;
     }
 
     LiSendControllerMotionEvent(
         0,
         LI_MOTION_TYPE_ACCEL,
-        state.acceleration.x * MOTION_SCALE,
-        state.acceleration.z * MOTION_SCALE,
-        state.acceleration.y * -MOTION_SCALE);
+        state.accelerometer.x * ACCEL_STANDARD_GRAVITY,
+        state.accelerometer.y * ACCEL_STANDARD_GRAVITY,
+        state.accelerometer.z * ACCEL_STANDARD_GRAVITY);
 }
 
 static int gyro_thread_main(SceSize args, void *argp)
@@ -56,10 +59,14 @@ static int gyro_thread_main(SceSize args, void *argp)
     (void)argp;
 
     while (1) {
-        if (s_active && s_enabled && s_gyro_rate != 0) {
+        /* Host callbacks/stop may change the rate while send_gyro is running. */
+        const uint16_t rate = __atomic_load_n(&s_gyro_rate, __ATOMIC_RELAXED);
+        if (__atomic_load_n(&s_active, __ATOMIC_RELAXED) &&
+            __atomic_load_n(&s_enabled, __ATOMIC_RELAXED) &&
+            !__atomic_load_n(&s_suspended, __ATOMIC_RELAXED) && rate != 0) {
             send_gyro();
             sceKernelDelayThread(
-                1000000 / (SceUInt)s_gyro_rate);
+                1000000 / (SceUInt)rate);
         } else {
             sceKernelDelayThread(100000);
         }
@@ -74,10 +81,13 @@ static int accel_thread_main(SceSize args, void *argp)
     (void)argp;
 
     while (1) {
-        if (s_active && s_enabled && s_accel_rate != 0) {
+        const uint16_t rate = __atomic_load_n(&s_accel_rate, __ATOMIC_RELAXED);
+        if (__atomic_load_n(&s_active, __ATOMIC_RELAXED) &&
+            __atomic_load_n(&s_enabled, __ATOMIC_RELAXED) &&
+            !__atomic_load_n(&s_suspended, __ATOMIC_RELAXED) && rate != 0) {
             send_accel();
             sceKernelDelayThread(
-                1000000 / (SceUInt)s_accel_rate);
+                1000000 / (SceUInt)rate);
         } else {
             sceKernelDelayThread(100000);
         }
@@ -136,6 +146,7 @@ void vita_motion_init(void)
         vita_debug_log(
             "[Motion] start sampling failed result=0x%08x",
             (unsigned int)result);
+        return;
     }
 
     result = sceMotionReset();
@@ -154,29 +165,35 @@ void vita_motion_init(void)
         accel_thread_main,
         &s_accel_thread_started);
 
-    s_initialized = true;
+    s_initialized = s_gyro_thread_started && s_accel_thread_started;
 }
 
 void vita_motion_start(int enabled)
 {
-    s_enabled = enabled != 0;
+    /* Wait for the input thread to apply its current system-UI state. */
+    vita_motion_set_suspended(1);
+    __atomic_store_n(&s_enabled, enabled != 0, __ATOMIC_RELAXED);
 
-    if (!s_enabled) {
-        s_active = false;
-        s_gyro_rate = 0;
-        s_accel_rate = 0;
+    if (!enabled) {
+        vita_motion_stop();
         return;
     }
 
     vita_motion_init();
-    s_active = true;
+    __atomic_store_n(&s_active, s_initialized, __ATOMIC_RELAXED);
 }
 
 void vita_motion_stop(void)
 {
-    s_active = false;
-    s_gyro_rate = 0;
-    s_accel_rate = 0;
+    vita_motion_set_suspended(1);
+    __atomic_store_n(&s_active, false, __ATOMIC_RELAXED);
+    __atomic_store_n(&s_gyro_rate, 0, __ATOMIC_RELAXED);
+    __atomic_store_n(&s_accel_rate, 0, __ATOMIC_RELAXED);
+}
+
+void vita_motion_set_suspended(int suspended)
+{
+    __atomic_store_n(&s_suspended, suspended != 0, __ATOMIC_RELAXED);
 }
 
 void vita_motion_set_state(
@@ -184,14 +201,14 @@ void vita_motion_set_state(
     uint8_t motion_type,
     uint16_t report_rate_hz)
 {
-    if (controller != 0 || !s_enabled) {
+    if (controller != 0 || !__atomic_load_n(&s_enabled, __ATOMIC_RELAXED)) {
         return;
     }
 
     if (motion_type == LI_MOTION_TYPE_GYRO) {
-        s_gyro_rate = report_rate_hz;
+        __atomic_store_n(&s_gyro_rate, report_rate_hz, __ATOMIC_RELAXED);
     } else if (motion_type == LI_MOTION_TYPE_ACCEL) {
-        s_accel_rate = report_rate_hz;
+        __atomic_store_n(&s_accel_rate, report_rate_hz, __ATOMIC_RELAXED);
     }
 
     vita_debug_log(
