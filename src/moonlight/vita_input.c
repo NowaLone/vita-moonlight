@@ -47,13 +47,9 @@ static int s_back_deadzone_right = 0;
 static int s_back_deadzone_bottom = 0;
 static int s_back_deadzone_left = 0;
 static int s_front_touchzones = 0;
-static int s_double_tap_sprint = 0;
-static int s_double_tap_ms = 200;
 static int s_keyboard_layout = 0;
 static int s_keyboard_request = 0;
 static int s_zone_latched = 0;
-static uint64_t s_last_sprint_tap = 0;
-static int s_sprint_was_forward = 0;
 static int s_face_cross = A_FLAG;
 static int s_face_circle = B_FLAG;
 static int s_face_square = X_FLAG;
@@ -263,22 +259,6 @@ static void vita_input_send(uint32_t back_buttons)
         button_flags |= RS_CLK_FLAG;
     }
 
-    if (s_double_tap_sprint) {
-        int forward = s_pad.ly > 200;
-        uint64_t now = sceKernelGetSystemTimeWide();
-        if (forward && !s_sprint_was_forward) {
-            if (s_last_sprint_tap != 0 &&
-                now - s_last_sprint_tap <=
-                    (uint64_t)s_double_tap_ms * 1000ull) {
-                button_flags |= LS_CLK_FLAG;
-                s_last_sprint_tap = 0;
-            } else {
-                s_last_sprint_tap = now;
-            }
-        }
-        s_sprint_was_forward = forward;
-    }
-
     LiSendMultiControllerEvent(
         0,
         1,
@@ -445,8 +425,9 @@ static void vita_input_process(void)
             if (x < 140 && y < 100) {
                 s_keyboard_request = 1;
             } else if (x > 820 && y < 100) {
-                LiSendMouseButtonEvent(BUTTON_ACTION_PRESS, BUTTON_RIGHT);
-                LiSendMouseButtonEvent(BUTTON_ACTION_RELEASE, BUTTON_RIGHT);
+                vita_debug_log("[Input] Top-right touch zone, stopping stream");
+                moonlight_stream_stop();
+                return;
             } else if (x < 140 && y > 444) {
                 LiSendMultiControllerEvent(
                     0, 1, LS_CLK_FLAG, 0, 0, 0, 0, 0, 0);
@@ -878,14 +859,10 @@ static void vita_input_load_mapping(int swap_xo, int mapping_enabled)
 void vita_input_set_runtime(
     int swap_xo,
     int front_touchzones,
-    int double_tap_sprint,
-    int double_tap_ms,
     int keyboard_layout,
     int mapping_enabled)
 {
     s_front_touchzones = front_touchzones ? 1 : 0;
-    s_double_tap_sprint = double_tap_sprint ? 1 : 0;
-    s_double_tap_ms = double_tap_ms > 0 ? double_tap_ms : 200;
     s_keyboard_layout = keyboard_layout;
     vita_input_load_mapping(swap_xo, mapping_enabled);
 }

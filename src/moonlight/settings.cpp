@@ -55,8 +55,6 @@ static const char *key_name(MoonlightSettingKey key)
     case MOONLIGHT_SETTING_SWAP_XO: return "swap_xo";
     case MOONLIGHT_SETTING_SHOW_FPS: return "show_fps";
     case MOONLIGHT_SETTING_GYRO: return "gyro";
-    case MOONLIGHT_SETTING_DOUBLE_TAP_SPRINT: return "double_tap_sprint";
-    case MOONLIGHT_SETTING_SPRINT_DOUBLE_TAP_TIME: return "sprint_double_tap_time";
     case MOONLIGHT_SETTING_CONTROLLER_TYPE: return "controller_type";
     case MOONLIGHT_SETTING_SWAP_SHOULDERS: return "swap_shoulders";
     case MOONLIGHT_SETTING_MOUSE_ACCELERATION: return "mouse_acceleration";
@@ -305,8 +303,6 @@ int moonlight_settings_get_all(MoonlightSettings *out)
     moonlight_settings_get_value(MOONLIGHT_SETTING_VITA_VBLANK, &out->enable_vita_vblank_wait);
     moonlight_settings_get_value(MOONLIGHT_SETTING_GYRO, &out->enable_motion_controls);
     moonlight_settings_get_value(MOONLIGHT_SETTING_PS_BUTTON_CAPTURE, &out->enable_psbutton_capture);
-    moonlight_settings_get_value(MOONLIGHT_SETTING_DOUBLE_TAP_SPRINT, &out->enable_double_tap_sprint);
-    moonlight_settings_get_value(MOONLIGHT_SETTING_SPRINT_DOUBLE_TAP_TIME, &out->double_tap_sprint_step_time);
     moonlight_settings_get_value(MOONLIGHT_SETTING_CONTROLLER_TYPE, &out->controller_type);
     moonlight_settings_get_value(MOONLIGHT_SETTING_SWAP_SHOULDERS, &out->swap_shoulder_buttons);
     moonlight_settings_get_value(MOONLIGHT_SETTING_TOUCHSCREEN_MODE, &out->touchscreen_mode);
@@ -346,8 +342,6 @@ void moonlight_settings_apply_runtime(void)
     vita_input_set_runtime(
         settings.jp_layout,
         settings.enable_front_touchzones,
-        settings.enable_double_tap_sprint,
-        settings.double_tap_sprint_step_time,
         settings.keyboard_layout,
         settings.mapping_enabled);
     moonlight_video_set_stream_options(

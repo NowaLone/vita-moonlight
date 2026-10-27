@@ -16,8 +16,6 @@ typedef enum MoonlightSettingKey {
     MOONLIGHT_SETTING_SWAP_XO,
     MOONLIGHT_SETTING_SHOW_FPS,
     MOONLIGHT_SETTING_GYRO,
-    MOONLIGHT_SETTING_DOUBLE_TAP_SPRINT,
-    MOONLIGHT_SETTING_SPRINT_DOUBLE_TAP_TIME,
     MOONLIGHT_SETTING_CONTROLLER_TYPE,
     MOONLIGHT_SETTING_SWAP_SHOULDERS,
     MOONLIGHT_SETTING_MOUSE_ACCELERATION,
@@ -55,8 +53,6 @@ typedef struct MoonlightSettings {
     int enable_vita_vblank_wait;
     int enable_motion_controls;
     int enable_psbutton_capture;
-    int enable_double_tap_sprint;
-    int double_tap_sprint_step_time;
     int keyboard_layout;
     int touchscreen_mode;
     int controller_type;

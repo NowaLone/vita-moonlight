@@ -1405,6 +1405,37 @@ worker enters common-c. Updating the original callback struct inside decoder set
 late for common-c's copy and could apply the previous connection's value. The setting and
 its default remain unchanged; first connection and subsequent On/Off snapshots are source-tested.
 
+**Settings wording correction (2026-10-27) [code; build/Vita pending].**
+The existing sections and all 29 controls, keys, defaults and stored choice values remain.
+Bitrate displays Mbps (stored kbps); two-finger scroll speed displays its actual multiplier
+`1 + value / 100` and applies only in Mouse Absolute mode. Back-touch margins use pixels in
+the virtual 960×544 area. Labels distinguish host graphics/audio, motion sensors, screen
+cropping, VBlank and presentation limiting. Remote detection still maps On to AUTO and Off
+to LOCAL; this is a wording correction, not a connection-policy change. Hints explain PS
+single/double/hold actions, special touch zones requiring mode Off, and custom face mappings
+overriding X/O swap. Keyboard language selects the native IME. AppSettings version stays 1.
+
+**Sprint settings removed (2026-10-27) [code; build/Vita pending].**
+At the maintainer's request, double-tap sprint and its interval are removed from native
+Settings, localized text, settings reads/types and the input runtime. Stick double taps no
+longer synthesize L3; existing rear/front touch L3 controls remain. Old sprint keys are never
+read. The other 27 controls keep their groups, keys, defaults and choices; settings version
+stays 1 so the remaining preferences are not reset.
+
+**Special-key stream exit (2026-10-27) [code; build/Vita pending].**
+With `Enable touchscreen special keys` enabled and `Touchscreen mode` Off, the top-right
+zone (`x > 820`, `y < 100` in virtual 960×544 coordinates) now requests the existing
+asynchronous `moonlight_stream_stop()` and returns from the input poll immediately.
+It replaces the former right mouse click and works with PS capture On or Off. The
+existing touch latch prevents repeating while held. Top-left keyboard and bottom L3/R3
+zones retain their actions. This ends the local stream, not the application on the PC.
+The native Settings hint describes the new action; keys/defaults/version are unchanged.
+
+**Keyboard category (2026-10-27) [code; build/Vita pending].**
+`On-screen keyboard language` now follows Touchscreen mode in Input. The former Keyboard
+root category is removed. Its `keyboard_layout` key, default and five language values are
+unchanged, as are the other controls and AppSettings version 1.
+
 **Licenses and credits (2026-10-27).** The native Settings root now includes
 `licenses_settings`, titled `Licenses and credits`, using the existing
 `setting_list style="edit"` / `label style="heading"` information pattern

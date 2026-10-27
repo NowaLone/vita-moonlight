@@ -275,7 +275,7 @@ Main::Main()
     paf::ui::Widget *title = root->FindChild("text_top");
     if (title) {
         ((paf::ui::Text *)title)->SetString(
-            paf::common::string_util::ToWString("Connect to a PC"));
+            paf::common::string_util::ToWString("Computers"));
     }
 
     HideStatus();

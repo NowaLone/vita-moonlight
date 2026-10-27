@@ -1,4 +1,5 @@
 """Interpret settings consumers with serial mocks; no C++/PAF/transport execution."""
+import re
 import unittest
 from unittest.mock import patch
 
@@ -9,6 +10,68 @@ from test_xml_source import ROOT, strip_directives
 
 
 class SettingsBehavior(unittest.TestCase):
+    def test_special_keys_stop_without_ps_capture_and_preserve_other_zones(self):
+        source = (ROOT / 'src/moonlight/vita_input.c').read_text()
+        process = function(source, 'vita_input_process')
+        start = process.index('    if (s_front_touchzones &&')
+        end = process.index('\n    /*', start)
+        # Isolate the actual touch block. Its goto only skips a latched touch;
+        # return is equivalent here because no later controller logic is interpreted.
+        code = process[start:end].replace('goto front_done;', 'return;')
+        code = re.sub(r'front_done:\s*;', '', code)
+        preamble = ('typedef int SceTouchData;'
+                    'void touch_poll(void) {')
+        body = c_parser.CParser().parse(preamble + code + ' forward_input(); }').ext[-1].body
+        original = runtime.expression
+
+        def expression(node, values):
+            if isinstance(node, c_ast.BinaryOp) and node.op in ('*', '/'):
+                a, b = expression(node.left, values), expression(node.right, values)
+                return a * b if node.op == '*' else a // b
+            return original(node, values)
+
+        for capture in (0, 1):
+            for enabled, mode, x, y, action in (
+                    (1, 0, 900, 50, 'stop'), (1, 0, 50, 50, 'keyboard'),
+                    (1, 0, 50, 500, 'L3'), (1, 0, 900, 500, 'R3'),
+                    (1, 0, 480, 272, None), (0, 0, 900, 50, None),
+                    (1, 1, 900, 50, None), (1, 2, 900, 50, None),
+                    (1, 3, 900, 50, None)):
+                with self.subTest(capture=capture, enabled=enabled, mode=mode, x=x, y=y):
+                    calls = []
+                    front = dict(reportNum=1, report=[dict(x=x * 2, y=y * 2)])
+                    values = dict(s_front_touchzones=enabled, s_touchscreen_mode=mode,
+                                  s_ps_button_capture=capture, s_zone_latched=0,
+                                  s_keyboard_request=0, SCE_TOUCH_PORT_FRONT=0,
+                                  LS_CLK_FLAG=64, RS_CLK_FLAG=128,
+                                  BUTTON_ACTION_PRESS=1, BUTTON_ACTION_RELEASE=2, BUTTON_RIGHT=3,
+                                  memset=lambda *args: None,
+                                  moonlight_stream_stop=lambda: calls.append('stop'),
+                                  LiSendMouseButtonEvent=lambda *args: calls.append('mouse'),
+                                  LiSendMultiControllerEvent=lambda *args: calls.append(
+                                      'L3' if args[2] == 64 else 'R3'),
+                                  forward_input=lambda: calls.append('forward'))
+
+                    def peek(port, destination, count):
+                        values[destination] = front
+                        return 1
+
+                    values['sceTouchPeek'] = peek
+                    with patch.object(runtime, 'expression', expression):
+                        run(body, values)
+                        self.assertEqual(calls, ['stop'] if action == 'stop' else
+                                         ([action] if action in ('L3', 'R3') else []) + ['forward'])
+                        self.assertEqual(values['s_keyboard_request'], int(action == 'keyboard'))
+                        if action == 'stop':
+                            run(body, values)  # Holding does not request a second stop.
+                            self.assertEqual(calls, ['stop'])
+                            front['reportNum'] = 0
+                            run(body, values)
+                            self.assertEqual(values['s_zone_latched'], 0)
+                            front['reportNum'] = 1
+                            run(body, values)
+                            self.assertEqual(calls, ['stop', 'forward', 'stop'])
+
     def test_rfi_capability_is_ready_before_the_first_connection_and_each_toggle(self):
         source = (ROOT / 'src/moonlight/vita_video_renderer.c').read_text()
         setter = function(source, 'moonlight_video_set_stream_options')

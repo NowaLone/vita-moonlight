@@ -15,28 +15,27 @@
   <string src="Stream" id="msg_stream_settings" />
   <string src="Resolution" id="msg_resolution" />
   <string src="FPS" id="msg_fps" />
-  <string src="Bitrate" id="msg_bitrate" />
-  <string src="Change graphical game settings for performance" id="msg_optimize_graphics" />
+  <string src="Bitrate (Mbps)" id="msg_bitrate" />
+  <string src="Adjust game graphics on PC" id="msg_optimize_graphics" />
   <string src="Enable reference frame invalidation" id="msg_ref_frame_invalidation" />
-  <string src="Enable stream optimization" id="msg_stream_optimization" />
-  <string src="Enable VITA vblank" id="msg_vita_vblank" />
-  <string src="Enable frame pacer" id="msg_frame_pacer" />
-  <string src="Enable local audio" id="msg_local_audio" />
+  <string src="Detect remote connections automatically" id="msg_stream_optimization" />
+  <string src="Wait for screen refresh (VBlank)" id="msg_vita_vblank" />
+  <string src="Limit frame presentation rate" id="msg_frame_pacer" />
+  <string src="Play audio on PC" id="msg_local_audio" />
 
   <string src="System" id="msg_system_settings" />
-  <string src="Swap X &amp; O for Moonlight" id="msg_swap_xo" />
+  <string src="Swap X and O sent to PC" id="msg_swap_xo" />
+  <string src="Swaps the A/B buttons sent by X/O to the PC. Does not change Moonlight navigation. Ignored when custom face-button mapping is enabled. Takes effect on the next stream." id="msg_swap_xo_hint" />
   <string src="Display stream statistics" id="msg_show_fps" />
   <string src="Connection unstable" id="msg_stream_connection_poor" />
   <string src="Connection unstable: low video bitrate" id="msg_stream_low_bitrate" />
   <string src="Waiting for video" id="msg_stream_video_stalled" />
-  <string src="Use center region only" id="msg_center_region_only" />
+  <string src="Fill screen (crop edges)" id="msg_center_region_only" />
   <string src="Debug log" id="msg_debug_log" />
 
   <string src="Input" id="msg_input_settings" />
-  <string src="Enable gyroscope reporting" id="msg_gyro" />
-  <string src="Enable double tap to sprint" id="msg_double_tap_sprint" />
-  <string src="Sprint double tap time" id="msg_sprint_double_tap_time" />
-  <string src="Controller type" id="msg_controller_type" />
+  <string src="Enable motion sensors" id="msg_gyro" />
+  <string src="Host controller type" id="msg_controller_type" />
   <string src="Controller light" id="msg_controller_light" />
   <string src="Off" id="msg_controller_light_off" />
   <string src="Like DualShock 4" id="msg_controller_light_ds4" />
@@ -47,7 +46,7 @@
   <string src="Nintendo" id="msg_controller_nintendo" />
   <string src="Generic" id="msg_controller_generic" />
   <string src="Swap R1/L1 &lt;-> R2/L2" id="msg_swap_shoulders" />
-  <string src="Mouse acceleration" id="msg_mouse_acceleration" />
+  <string src="Two-finger scroll speed" id="msg_mouse_acceleration" />
   <string src="Enable PS button capture" id="msg_ps_button_capture" />
   <string src="Enable touchscreen special keys" id="msg_front_touchzones" />
   <string src="Touchscreen mode" id="msg_touchscreen_mode" />
@@ -56,8 +55,7 @@
   <string src="Mouse Absolute" id="msg_touch_mouse" />
   <string src="Tablet (Sunshine)" id="msg_touch_tablet" />
 
-  <string src="Keyboard" id="msg_keyboard_settings" />
-  <string src="Keyboard layout" id="msg_keyboard_layout" />
+  <string src="On-screen keyboard language" id="msg_keyboard_layout" />
   <string src="US" id="msg_keyboard_us" />
   <string src="DE" id="msg_keyboard_de" />
   <string src="ES" id="msg_keyboard_es" />
@@ -65,11 +63,11 @@
   <string src="RU" id="msg_keyboard_ru" />
 
   <string src="Advanced" id="msg_advanced_settings" />
-  <string src="Enable mapping file" id="msg_mapping_enabled" />
-  <string src="Back touchscreen deadzone top" id="msg_back_deadzone_top" />
-  <string src="Back touchscreen deadzone right" id="msg_back_deadzone_right" />
-  <string src="Back touchscreen deadzone bottom" id="msg_back_deadzone_bottom" />
-  <string src="Back touchscreen deadzone left" id="msg_back_deadzone_left" />
+  <string src="Use custom face-button mapping" id="msg_mapping_enabled" />
+  <string src="Back touchscreen deadzone top (px)" id="msg_back_deadzone_top" />
+  <string src="Back touchscreen deadzone right (px)" id="msg_back_deadzone_right" />
+  <string src="Back touchscreen deadzone bottom (px)" id="msg_back_deadzone_bottom" />
+  <string src="Back touchscreen deadzone left (px)" id="msg_back_deadzone_left" />
 
   <string src="About" id="msg_about" />
   <string src="Vita Moonlight PAF" id="msg_about_title" />
@@ -97,23 +95,21 @@
   <string src="PAF integration&#10;vitasdk-paf-component: Copyright (c) 2025 Princess-of-Sleeping, MIT license.&#10;ScePaf-RE declarations: GrapheneCt, credited separately." id="msg_license_paf" />
   <string src="Full license texts and source&#10;Download the source archive from:&#10;https://github.com/NowaLone/vita-moonlight-paf/releases&#10;&#10;The archive contains the component license files and attribution details. Each component retains its own terms and warranty disclaimers." id="msg_license_sources" />
 
-  <string src="Tells the host to adjust game graphics settings for the selected stream resolution and FPS." id="msg_optimize_graphics_hint" />
+  <string src="Requests game graphics adjustments on the PC for the selected resolution and FPS, when supported by the host. Takes effect on the next stream." id="msg_optimize_graphics_hint" />
   <string src="Helps video recovery after lost or corrupted packets by invalidating unusable reference frames." id="msg_ref_frame_invalidation_hint" />
-  <string src="Treats the connection as a remote/WAN stream. Use this for Internet or routed connections; leave it off for a normal local LAN." id="msg_stream_optimization_hint" />
+  <string src="On: automatically detects local or remote connections from the host address. Off: forces local LAN mode. Takes effect on the next stream." id="msg_stream_optimization_hint" />
   <string src="Waits for the Vita display VBlank when presenting video frames. This can reduce tearing, but may affect latency and frame pacing." id="msg_vita_vblank_hint" />
   <string src="Limits presentation to the selected FPS by dropping excess decoded frames when they arrive too quickly." id="msg_frame_pacer_hint" />
-  <string src="Keeps game audio on the PC instead of streaming audio to the Vita." id="msg_local_audio_hint" />
+  <string src="Requests audio playback through the PC's speakers or headphones when supported by the host. Takes effect on the next stream." id="msg_local_audio_hint" />
   <string src="Video: resolution, codec, target FPS and video payload bitrate (Mbps). FPS: received, decoded and submitted to PAF; PAF is not the physical display rate. RTT/variation: round-trip network delay and its fluctuation (ms). Drops: frames missing before decoding, skipped by the pacer or replaced in the PAF queue (%). Decode call/PAF queue: average decoder call time and queue wait (ms). Host min/max/avg: PC processing time (ms), when available. Video stalled: no recent frames. Unavailable measurements are hidden." id="msg_show_fps_hint" />
-  <string src="When the video aspect ratio does not match the Vita screen, shows the center portion instead of fitting the entire image. Edges may be cropped." id="msg_center_region_only_hint" />
+  <string src="On: fills the Vita screen and crops edges when the aspect ratios differ. Off: fits the entire image." id="msg_center_region_only_hint" />
   <string src="Enables diagnostic messages in psp2shell. No log file is written." id="msg_debug_log_hint" />
   <string src="Sends the Vita gyroscope and accelerometer data to the PC as motion input." id="msg_gyro_hint" />
-  <string src="Enables sprinting by quickly double-tapping the forward movement control." id="msg_double_tap_sprint_hint" />
-  <string src="Maximum time between the two taps for double-tap sprint, in milliseconds." id="msg_sprint_double_tap_time_hint" />
   <string src="Swaps the functions of R1/L1 with R2/L2." id="msg_swap_shoulders_hint" />
-  <string src="Controls how much touch or analog mouse movement is accelerated. Higher values make the cursor move farther." id="msg_mouse_acceleration_hint" />
-  <string src="Captures the Vita PS button during streaming. A double press opens the menu; a single press can be sent to the host as a PS/Xbox button." id="msg_ps_button_capture_hint" />
-  <string src="Enables predefined front-screen touch zones for special keys. Touches in active zones are used as those keys instead of normal touch input." id="msg_front_touchzones_hint" />
+  <string src="Sets the two-finger scroll speed in Mouse Absolute mode. Higher multipliers scroll faster; cursor speed is unchanged." id="msg_mouse_acceleration_hint" />
+  <string src="Captures the Vita PS button during streaming. A single press is sent to the PC as a PS/Xbox button; a double press stops the stream. Hold to open Vita Quick Actions." id="msg_ps_button_capture_hint" />
+  <string src="Only active when Touchscreen mode is Off. Top left: keyboard; top right: stop stream (also works without PS button capture); bottom left: L3; bottom right: R3." id="msg_front_touchzones_hint" />
   <string src="Selects how the Vita front touchscreen is presented to the host: off, DS4-style touchpad, absolute mouse, or Sunshine tablet mode." id="msg_touchscreen_mode_hint" />
-  <string src="Enables the custom controller mapping configuration used by Moonlight." id="msg_mapping_enabled_hint" />
-  <string src="Sets how much of this back-touchscreen edge is reserved as a deadzone. Higher values move the active area farther inward." id="msg_back_deadzone_hint" />
+  <string src="Loads Cross, Circle, Square and Triangle mappings from ux0:data/moonlight/vita.conf. Overrides the X/O swap setting. Takes effect on the next stream." id="msg_mapping_enabled_hint" />
+  <string src="Reserves a margin along this back-touchscreen edge, in pixels of the virtual 960x544 touch area. Higher values move the active area inward." id="msg_back_deadzone_hint" />
     </stringset>

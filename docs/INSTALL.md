@@ -102,6 +102,11 @@ list. A short single press can be sent to the host; holding PS is reserved for
 the Vita's Quick Actions. An ordinary stop/disconnect does not quit the PC game.
 Select it again to reconnect/resume.
 
+To stop without PS capture, enable **Enable touchscreen special keys** and set
+**Touchscreen mode** to **Off** before streaming. Tap the **top-right corner** to
+stop and return to the app list; the **top-left corner** opens the Vita keyboard.
+This replaces the top-right special key's former right mouse click.
+
 If a different application is already active on the host, Moonlight asks whether
 to quit it before launching your selection. Choose **Yes** only when that is
 intended; **No** preserves the existing host application.

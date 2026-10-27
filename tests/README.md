@@ -1,6 +1,6 @@
 # Focused checks
 
-Latest recorded source gate: **251 checks including motion rates, units/axes, overlay gating and setup retries (2026-10-27)**.
+Latest recorded source gate: **255 checks including motion, RFI, UTF-8 keyboard sending and special-key stream exit (2026-10-27)**.
 See [the repeat Ponytail audit](../docs/PONYTAIL_REAUDIT_2026-10-23.md) for the latest
 baseline, per-change checks and native gates; [the earlier refactor audit](../docs/REFACTOR_AUDIT.md)
 records the preceding pass. Counts in the
@@ -52,6 +52,10 @@ and a surrogate pair must produce one complete UTF-8 payload with its byte lengt
 input, conversion failure and negative/positive queue errors never fall back to VK events.
 The old ASCII/keycode loop fails all language payload cases. String methods/casts are adapted
 for interpretation; real PAF UTF conversion, IME, host delivery and C++/ABI are not executed.
+The special-key check interprets the actual touch-zone block: top-right requests stop with
+PS capture On or Off and returns before further input, holding does not repeat, and release
+rearms the zone. Other corners and disabled/DS4/mouse/tablet modes retain their behavior.
+Touch samples and stream stop are mocked; native polling, threads and teardown are not run.
 
 `test_livearea.py` interprets the actual frame builder and `LiveAreaService` with
 serial native API mocks: bounded XML/UTF-8 escaping, owned names, first-six cache
