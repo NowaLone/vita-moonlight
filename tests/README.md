@@ -42,6 +42,11 @@ mDNS permission, OpenSSL acknowledgments and source-download address remain
 present. The check fails before adding the section. It does not compile the RCO
 or establish native text wrapping/scrolling, navigation or licensing completeness.
 
+`test_settings_behavior.py` interprets the actual video-options setter before common-c's
+callback snapshot, covering RFI enabled on the first connection and repeated On/Off changes.
+The old source fails the enabled snapshots. Decoder setup must no longer mutate the original
+callbacks too late. No decoder, common-c runtime, compilation or packet-recovery test is run.
+
 `test_livearea.py` interprets the actual frame builder and `LiveAreaService` with
 serial native API mocks: bounded XML/UTF-8 escaping, owned names, first-six cache
 capture, shorter/empty lists, host changes, one pending request, coalescing (also

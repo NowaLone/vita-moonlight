@@ -1390,6 +1390,12 @@ restart preference retention are accepted **[hw, user-reported, 2026-10-27]**.
 Use ConnectionService's native busy/error dialogs for foreground progress/errors;
 return Main to its empty-state policy through `Main::ShowIdleStatus()`.
 
+**RFI setting correction (2026-10-27) [code; build/Vita pending].**
+`moonlight_video_set_stream_options()` prepares decoder capabilities before the stream
+worker enters common-c. Updating the original callback struct inside decoder setup was too
+late for common-c's copy and could apply the previous connection's value. The setting and
+its default remain unchanged; first connection and subsequent On/Off snapshots are source-tested.
+
 **Licenses and credits (2026-10-27).** The native Settings root now includes
 `licenses_settings`, titled `Licenses and credits`, using the existing
 `setting_list style="edit"` / `label style="heading"` information pattern

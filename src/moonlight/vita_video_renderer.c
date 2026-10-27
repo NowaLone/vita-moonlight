@@ -52,7 +52,6 @@ static int s_target_fps = 60;
 static int s_frame_pacer = 1;
 static int s_vblank_wait = 0;
 static int s_center_region = 0;
-static int s_ref_frame_invalidation = 0;
 static uint64_t s_last_present_time;
 static uint32_t s_stats_generation;
 static uint32_t s_receive_generation;
@@ -151,7 +150,13 @@ void moonlight_video_set_stream_options(
     s_frame_pacer = frame_pacer ? 1 : 0;
     s_vblank_wait = vblank_wait ? 1 : 0;
     s_center_region = center_region ? 1 : 0;
-    s_ref_frame_invalidation = ref_frame_invalidation ? 1 : 0;
+#ifdef CAPABILITY_REFERENCE_FRAME_INVALIDATION_AVC
+    /* common-c copies these callbacks before it invokes decoder setup. */
+    decoder_callbacks_vita.capabilities =
+        CAPABILITY_DIRECT_SUBMIT |
+        CAPABILITY_SLICES_PER_FRAME(2) |
+        (ref_frame_invalidation ? CAPABILITY_REFERENCE_FRAME_INVALIDATION_AVC : 0);
+#endif
 }
 
 int moonlight_video_center_region(void)
@@ -417,14 +422,6 @@ static int vita_video_setup(
     s_last_present_time = 0;
     s_stats_generation = moonlight_stats_configure_video(
         video_format, width, height, redraw_rate, &s_receive_generation);
-#ifdef CAPABILITY_REFERENCE_FRAME_INVALIDATION_AVC
-    decoder_callbacks_vita.capabilities =
-        CAPABILITY_DIRECT_SUBMIT |
-        CAPABILITY_SLICES_PER_FRAME(2) |
-        (s_ref_frame_invalidation
-            ? CAPABILITY_REFERENCE_FRAME_INVALIDATION_AVC
-            : 0);
-#endif
 
     vita_debug_log(
         "[Video] decoder ready %ux%u",
