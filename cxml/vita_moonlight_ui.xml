@@ -7,44 +7,48 @@
         <layout_hint size="960, 544" />
       </plane>
 
-      <template_ref id="template_ref_main_title" template="template_top_title_bar" />
-      <template_ref id="template_ref_main_host_list" template="template_list_view_main" />
+      <!-- Left-aligned 960 px content: its rotation pivot is screen x=0. -->
+      <plane style="_common_style_plane_transparent" id="plane_main_content">
+        <layout_hint size="960, 544" align="1, 0" pos="-480, 0" />
+        <template_ref id="template_ref_main_title" template="template_top_title_bar" />
+        <template_ref id="template_ref_main_host_list" template="template_list_view_main" />
 
-      <text style="style_text_main_status" id="text_main_status">
-        <layout_hint anchor="0, 2" align="0, 2" size="760, 0" pos="0, -225" adjust="0, 2" />
-      </text>
+        <text style="style_text_main_status" id="text_main_status">
+          <layout_hint anchor="0, 2" align="0, 2" size="760, 0" pos="0, -225" adjust="0, 2" />
+        </text>
 
-      <plane style="_common_style_plane_transparent" id="plane_main_actions">
-        <layout_hint anchor="1, 2" size="100, 62" pos="52, -64" />
-        <button sound="_common_sound_button_enter" style="style_button_header_action" texture="tex_add_pc" id="btn_add_pc">
-          <layout_hint size="100, 62" />
-          <focus_hint focus_shape="0" focus_size="88, 48" />
-        </button>
-      </plane>
-
-      <plane style="style_plane_selection_bar" id="plane_main_selection_actions">
-        <layout_hint anchor="0, 1" align="0, 1" size="960, 64" pos="0, 0" />
-        <plane style="style_plane_selection_bar_edge_dark" id="plane_selection_bar_separator">
-          <layout_hint anchor="0, 2" align="0, 2" size="960, 1" pos="0, 0" />
-        </plane>
-        <plane style="style_plane_selection_bar_edge_light" id="plane_selection_bar_separator_light">
-          <layout_hint anchor="0, 2" align="0, 2" size="960, 1" pos="0, -1" />
-        </plane>
-        <button sound="_common_sound_button_back" style="_common_default_style_button" label="msg_cancel" id="btn_selection_cancel">
-          <layout_hint anchor="1, 1" align="1, 1" adjust="2, 0, 0" size="0, 46, 0" pos="9, 9" />
-        </button>
-        <box style="_common_default_style_box" id="box_selection_actions">
-          <layout_box anchor="2, 1" align="2, 1" pos="-8, 9" space="9" adjust="2, 2" layout_type="2" size="0, 0" />
-          <button sound="_common_sound_button_enter" style="_common_default_style_button" label="msg_select_all" id="btn_selection_select_all">
-            <layout_hint adjust="2, 0, 0" size="0, 46, 0" />
+        <plane style="_common_style_plane_transparent" id="plane_main_actions">
+          <layout_hint anchor="1, 2" size="100, 62" pos="52, -64" />
+          <button sound="_common_sound_button_enter" style="style_button_header_action" texture="tex_add_pc" id="btn_add_pc">
+            <layout_hint size="100, 62" />
+            <focus_hint focus_shape="0" focus_size="88, 48" />
           </button>
-          <button sound="_common_sound_button_enter" style="_common_default_style_button" label="msg_delete" id="btn_selection_action">
-            <layout_hint adjust="2, 0, 0" size="0, 46, 0" />
-          </button>
-        </box>
-      </plane>
+        </plane>
 
-      <corner_button style="_common_style_corner_bottom_right" id="settings_button" />
+        <plane style="style_plane_selection_bar" id="plane_main_selection_actions">
+          <layout_hint anchor="0, 1" align="0, 1" size="960, 64" pos="0, 0" />
+          <plane style="style_plane_selection_bar_edge_dark" id="plane_selection_bar_separator">
+            <layout_hint anchor="0, 2" align="0, 2" size="960, 1" pos="0, 0" />
+          </plane>
+          <plane style="style_plane_selection_bar_edge_light" id="plane_selection_bar_separator_light">
+            <layout_hint anchor="0, 2" align="0, 2" size="960, 1" pos="0, -1" />
+          </plane>
+          <button sound="_common_sound_button_back" style="_common_default_style_button" label="msg_cancel" id="btn_selection_cancel">
+            <layout_hint anchor="1, 1" align="1, 1" adjust="2, 0, 0" size="0, 46, 0" pos="9, 9" />
+          </button>
+          <box style="_common_default_style_box" id="box_selection_actions">
+            <layout_box anchor="2, 1" align="2, 1" pos="-8, 9" space="9" adjust="2, 2" layout_type="2" size="0, 0" />
+            <button sound="_common_sound_button_enter" style="_common_default_style_button" label="msg_select_all" id="btn_selection_select_all">
+              <layout_hint adjust="2, 0, 0" size="0, 46, 0" />
+            </button>
+            <button sound="_common_sound_button_enter" style="_common_default_style_button" label="msg_delete" id="btn_selection_action">
+              <layout_hint adjust="2, 0, 0" size="0, 46, 0" />
+            </button>
+          </box>
+        </plane>
+
+        <corner_button style="_common_style_corner_bottom_right" id="settings_button" />
+      </plane>
     </page>
 
     <page id="page_pairing">
@@ -106,16 +110,15 @@
     </page>
 
     <page id="page_apps">
-      <plane texture="_bg_texture" id="plane_apps_bg">
-        <layout_hint size="960, 544" />
+      <!-- Main owns the stationary background; Apps leaves the folded parent visible. -->
+      <plane style="_common_style_plane_transparent" id="plane_apps_content">
+        <layout_hint size="960, 544" align="1, 0" pos="-480, 0" />
+        <template_ref id="apps_title_ref" template="template_top_title_bar" />
+        <template_ref id="apps_list_ref" template="template_list_view_generic" />
+        <text style="style_text_main_status" label="msg_no_applications" id="text_apps_status">
+          <layout_hint anchor="0, 2" align="0, 2" size="730, 0" pos="0, -220" adjust="0, 2" />
+        </text>
       </plane>
-
-      <template_ref id="apps_title_ref" template="template_top_title_bar" />
-      <template_ref id="apps_list_ref" template="template_list_view_generic" />
-
-      <text style="style_text_main_status" label="msg_no_applications" id="text_apps_status">
-        <layout_hint anchor="0, 2" align="0, 2" size="760, 0" pos="0, -220" adjust="0, 2" />
-      </text>
 
       <corner_button style="_common_style_corner_bottom_left" id="btn_close_apps" />
     </page>
@@ -179,22 +182,6 @@
 
     <style_plane color="1, 1, 1, 1" planeobj="plane_obj_selection_bar_edge_light" id="style_plane_selection_bar_edge_light">
       <planeobj color="1, 1, 1, 0.18" id="plane_obj_selection_bar_edge_light" />
-    </style_plane>
-
-    <style_plane color="1, 1, 1, 1" planeobj="plane_obj_flow_bar" id="style_plane_flow_bar">
-      <planeobj color="0.055, 0.106, 0.467, 1" id="plane_obj_flow_bar" />
-    </style_plane>
-
-    <style_plane color="1, 1, 1, 1" planeobj="plane_obj_flow_bar_edge1" id="style_plane_flow_bar_edge1">
-      <planeobj color="0.024, 0.082, 0.424, 1" id="plane_obj_flow_bar_edge1" />
-    </style_plane>
-
-    <style_plane color="1, 1, 1, 1" planeobj="plane_obj_flow_bar_edge2" id="style_plane_flow_bar_edge2">
-      <planeobj color="0.325, 0.369, 0.678, 1" id="plane_obj_flow_bar_edge2" />
-    </style_plane>
-
-    <style_plane color="1, 1, 1, 1" planeobj="plane_obj_flow_bar_edge3" id="style_plane_flow_bar_edge3">
-      <planeobj color="0.165, 0.208, 0.529, 1" id="plane_obj_flow_bar_edge3" />
     </style_plane>
 
     <style_text textobj="header_obj" id="style_text_header">
@@ -272,21 +259,18 @@
     <templatetable>
       <template fast_open="1" id="template_list_view_generic">
         <list_view style="style_list_view_generic" id="list_view_generic">
-          <layout_hint align="0, 1" size="960, 448" pos="0, -272" />
+          <layout_hint align="0, 1" size="730, 448" pos="0, -272" />
         </list_view>
       </template>
 
       <template fast_open="1" id="template_flow_bar">
-        <plane style="style_plane_flow_bar" id="plane_flow_bar">
+        <plane style="style_plane_selection_bar" id="plane_flow_bar">
           <layout_hint anchor="0, 1" align="0, 1" size="960, 64" pos="0, 0" />
-          <plane style="style_plane_flow_bar_edge1" id="plane_flow_bar_edge1">
+          <plane style="style_plane_selection_bar_edge_dark" id="plane_flow_bar_edge1">
             <layout_hint anchor="0, 2" align="0, 2" size="960, 1" pos="0, 0" />
           </plane>
-          <plane style="style_plane_flow_bar_edge2" id="plane_flow_bar_edge2">
+          <plane style="style_plane_selection_bar_edge_light" id="plane_flow_bar_edge2">
             <layout_hint anchor="0, 2" align="0, 2" size="960, 1" pos="0, -1" />
-          </plane>
-          <plane style="style_plane_flow_bar_edge3" id="plane_flow_bar_edge3">
-            <layout_hint anchor="0, 2" align="0, 2" size="960, 1" pos="0, -2" />
           </plane>
         </plane>
       </template>
@@ -299,10 +283,10 @@
 
       <template fast_open="1" id="template_list_item_generic">
         <list_item style="style_list_view_item_generic" id="list_item_generic">
-          <layout_hint size="960, 80" />
+          <layout_hint size="730, 80" />
           <image_button sound="_common_sound_image_button" enable_long_press_text_auto_scroll="1" style="style_image_button_list_button" id="image_button_list_item">
             <focus_hint focus_shape="3" />
-            <layout_hint size="840, 80" />
+            <layout_hint size="730, 80" />
           </image_button>
         </list_item>
       </template>

@@ -738,7 +738,8 @@ bool Main::CanConnectFromLiveArea() const
 {
     MoonlightApp *app = MoonlightApp::Instance();
     Base *current = Base::GetCurrent();
-    return root && (current == this || (current && current == Base::Find("page_apps"))) &&
+    return root && current && !current->IsTransitioning() &&
+        (current == this || current == Base::Find("page_apps")) &&
         !m_connecting && !m_selection_mode && !m_ime_open && !m_ime_retry_pending &&
         !m_settings_suspended && !m_delete_dialog_open && m_pending_action == Pending_None &&
         !app->Connection().IsBusy() &&

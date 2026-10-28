@@ -133,8 +133,8 @@ log is scoped below; other hardware checks remain **[open]**. No agent build.
 
 1. **Look like a native Vita system app.** PAF + CXML for pages, `SceAppSettings` for settings, `SceImeDialog` for
    text input, `SceMessageDialog` for confirmations. No custom keyboard, no custom settings screen.
-2. **Match references by measuring, not by eye.** The references are PS4 Link (same blue theme: flow pages, list
-   screens), the system Photos app (selection mode, popup, selection bar) and the NetStream / `vitasdk-paf-component`
+2. **Match references by measuring, not by eye.** The references are PS4 Link (flow-page and list layouts),
+   the system Photos app (selection mode, popup, selection bar) and the NetStream / `vitasdk-paf-component`
    samples (templates, speech balloon). Take 960 x 544 screenshots of both and compare pixels (section 7).
 3. **Reuse a system `_common_*` resource only if it is known to exist and renders correctly.** The names already
    used in the XML are the only ones known to exist (section 4.6). Never invent a `_common_*` name. If no standard
@@ -630,6 +630,19 @@ Rows are 80 px tall and 960 px wide. The first row's top edge is at y = 96 and d
   correction. The supplied common RCO contains a 4 px-high image with transparent outer rows;
   both header separator planes now retain that height. Appearance remains **[open]** on Vita.
 
+**Palette alignment, 2026-10-28 [shot/code; build/Vita pending].** The supplied
+`2026-10-28-022659.jpg` Main screenshot has median RGB **(2, 8, 27)** in the
+widget-free body rectangle **[64, 280, 896, 470)**. The same rectangle in
+`texture/bg.png` has median RGB **(2, 8, 26)**. Native AppSettings now uses that
+asset-derived **(2, 8, 26, 255)** solid background in `moonlight_settings.xml`,
+replacing the inherited bright blue **(4, 21, 105, 255)**. It remains the real
+Sony Settings UI, with its native controls, gradients and focus glow; this
+matches the base palette, not the decorative texture. Pairing already uses
+Main's `_bg_texture`; its bottom bar now reuses Main's translucent selection-bar
+styles and two separator rows instead of the opaque PS4 Link blue styles.
+The **64 px** bar, Back-button geometry, text and PIN remain unchanged **[code]**.
+XML/reference checks do not establish native AppSettings tint or Vita appearance.
+
 ### 2.4 Text
 
 - `style_text` needs its `textobj` attribute bound to the inner `<textobj id="...">`; unbound text styles are not
@@ -768,7 +781,8 @@ conversion, IME, host text reception and game compatibility still require mainta
 ### 4.1 `page::Base` (`include/pages/page.h`, `src/pages/page.cpp`)
 
 - Owns the page stack. A page is `Base(page_id, back_button_id_or_NULL, open_transition, close_transition)`.
-  Opening deactivates the previous page; destroying a page closes it and reactivates the one below.
+  Opening deactivates the previous page; destroying a page closes it and reactivates the one below
+  only when that page is not in a navigation transition (including mid-stack PIN removal).
 - If `back_button_id` is given, the widget with that id gets the default back callback (`CloseCurrent()`); it is shown
   when there is a previous page and hidden otherwise. A corner button or a normal button both work.
 - `IsValid()` must be checked after construction (`new X(); if (!x->IsValid()) delete x;`).
@@ -804,18 +818,18 @@ ownership remains in ConnectionService.
 | Template | Child ids | Used by | Purpose |
 |---|---|---|---|
 | `template_top_title_bar` | `plane_top`, `box_top_title`, `text_top`, `plane_top_separator` | Main, Apps | Settings-style plane/box/text header, centred 32 px bold title over the system ruled-line separator |
-| `template_list_view_generic` | `list_view_generic` (960 x 448) | Apps | list that runs to the bottom of the screen |
+| `template_list_view_generic` | `list_view_generic` (730 x 448) | Apps | list that runs to the bottom of the screen |
 | `template_list_view_main` | `list_view_main` (960 x 384) | Main | list that ends where the bar starts (y = 480) |
-| `template_list_item_generic` | `list_item_generic`, `image_button_list_item` | Apps | single-label row |
+| `template_list_item_generic` | `list_item_generic`, `image_button_list_item` | Apps | 730 x 80 single-label row |
 | `template_host_list_item` | `list_item_host`, `image_button_host`, `plane_host_pc`, `text_host_title`, `text_host_desc` | Main | saved PC row: availability dot, PC icon, title and description |
 | `template_host_list_item_discovered` | same scoped ids as the normal host row, without `plane_host_availability` | Main | temporary PC; same columns, no dot |
 | `template_host_list_item_select` | `list_item_host_select`, `image_button_host_select`, `plane_host_select_pc`, `text_host_select_title`, `text_host_select_desc`, `checkbox_host_select` | Main (selection mode) | same row with a checkbox |
-| `template_flow_bar` | `plane_flow_bar` + three edge planes | Pairing | opaque PS4 Link style bottom bar (no buttons) |
+| `template_flow_bar` | `plane_flow_bar` + two edge planes | Pairing | translucent bottom bar sharing Main's selection-bar styles (no buttons) |
 
 ### 4.3 Styles (`<styletable>`)
 
-Planes: `style_plane_selection_bar` (+ `_edge_dark`, `_edge_light`) for the Photos style selection bar;
-`style_plane_flow_bar` (+ `_edge1/2/3`) for the PS4 Link bar; `style_plane_stream_black` for the stream backdrop.
+Planes: `style_plane_selection_bar` (+ `_edge_dark`, `_edge_light`) for Main's Photos style selection bar
+and Pairing's bottom bar; `style_plane_stream_black` for the stream backdrop.
 
 Text: `style_text_header` (32 bold, centred), `style_text_paragraph` (26 regular, line pitch 40, wrapped),
 `style_text_row_title` (28 regular), `style_text_row_desc` (22, 85% white), `style_text_pin` (48 bold),
@@ -1308,7 +1322,7 @@ for the design limits and acceptance cases.
 | Bar | Look | Source |
 |---|---|---|
 | Selection bar (Photos) | 64 px, top at y = 480; body about 5% darker than the page; dark row y = 480 (5% black extra), light row y = 481 (18% white) | system Photos **[shot]** |
-| Flow bar (PS4 Link) | 64 px, opaque; body (14, 27, 119) from y = 480; edge rows (6, 21, 108) at 480, (83, 94, 173) at 481, (42, 53, 135) at 482 | PS4 Link **[shot]**, identical on three different pages |
+| Earlier flow-bar reference (PS4 Link) | 64 px, opaque; body (14, 27, 119) from y = 480; edge rows (6, 21, 108) at 480, (83, 94, 173) at 481, (42, 53, 135) at 482 | PS4 Link **[shot]**, identical on three different pages; palette superseded for Pairing on 2026-10-28 (§2.3) |
 
 The selection bar keeps the Photos values on purpose. A stronger tint (12% / 10% / 30%) was tried on the blue theme
 and judged too prominent.
@@ -1364,6 +1378,64 @@ strict token-only widget mocks, including a list of 12 PCs and a missing/recreat
 These establish source lookup/state behavior, not native PAF drawing or ABI. The maintainer
 accepts current checkboxes, Select/Clear All and Delete **[hw, user-reported, 2026-10-27]**;
 no agent build or hardware run.
+
+### 5.6 Photos folded-parent navigation — 2026-10-28
+
+The [Photos binary investigation](PHOTOS_NAVIGATION_RESEARCH.md) recovers a local
+`furl_stack` using native PAF position/quaternion/meta-alpha animation **[code]**.
+The screenshot shows the previous category list at the left **[shot]**; the
+maintainer confirms the basic animation works on Vita and initially reports
+title overlap at the end of Back. After correction `2b36285`, the maintainer
+replies “вроде всё ок” **[hw, tentative user-reported, 2026-10-28]**. This supports
+ordinary transition/title-return appearance; no profile, package hash or runtime
+log was supplied, and the separate cases below were not individually reported.
+
+- Main's `plane_main_content` contains its existing chrome/host list, with its
+  background outside. Apps' `plane_apps_content` contains its title bar and
+  list/empty state; its Back corner remains outside. Apps no longer draws an
+  opaque background.
+- Both containers are 960 × 544, left-aligned at `(-480, 0)` in center-origin
+  PAF coordinates **[code]**. This expresses the left pivot in CXML. Main's
+  folded target is `(-596, 0, -150)`, Y rotation `+π/2`, meta-alpha `0.15`.
+  Apps enters from `(480, 0, 330)`, Y rotation `−π/2`, alpha `0`, then returns
+  to the CXML foreground transform. Geometry uses 500 ms `FUNC_CIRQ_OUT` timers;
+  alpha uses 400 ms linear timers. These targets follow Photos' recovered
+  defaults; perspective and actual strip width remain **[open]**.
+- Apps' list/cell/button are now 730 px wide with 80 px rows. Their intended
+  bounds x=115…845 match the supplied Photos grid's horizontal reference
+  **[shot-derived layout, native appearance open]**. Main's 960 px list/rows,
+  generic title bar, selection geometry and row identity logic are unchanged.
+- Apps owns both animations and uses two native completion callbacks. A PAF
+  main-thread task reopens input only after both complete; Back animates the
+  reverse targets and deletes Apps from that task, outside the native callback.
+  No sleeps, per-frame transform updates, image snapshots or second stack.
+- `Base` keeps a transitioning current page deactivated when a non-current PIN
+  page is removed. LiveArea admission rejects a transition; a requested app ID
+  waits for both successful list readiness and entrance completion. Forced Apps
+  deletion cancels the owned callbacks/task and restores Main before activation.
+  Timer allocation/API failure cancels animations and applies final targets so
+  input can resume. Missing containers log and retain immediate navigation for
+  an older resource. Stream, PIN, Settings and OptionMenu transitions retain
+  their existing behavior. Discovery remains paused while Apps is current.
+
+**Return-title correction [code, 2026-10-28]:** Apps' title template originally
+sat outside its animated content. It remained visible until page deletion while
+Main's title returned to the same screen position, producing the reported late
+overlap. The title template (including its separator) now belongs to
+`plane_apps_content`, so it shares the existing 400 ms fade and 500 ms movement.
+The resource regression assertion fails before this move and passes afterward;
+no new animation timers, callbacks or visibility state are needed. Corrected
+native title appearance has the tentative maintainer acceptance recorded above;
+do not reopen this basic check without a regression.
+
+Five non-build checks interpret the actual Apps helper/state/callback/cleanup
+bodies with serial PAF mocks; existing LiveArea admission checks include the
+transition gate. XML/reference checks also pass. They do not establish native
+API ownership, ABI, projection/clipping, focus/scroll preservation or rendering.
+The basic transition/title-return has tentative maintainer Vita evidence above.
+PIN → Apps → Back, early LiveArea app readiness, empty/error lists, repeated
+entry/Back, focus/scroll retention and Stream → Apps → Main remain **[open]**;
+these cases were not individually reported. No agent build or hardware run.
 
 ## 6. Recipes
 

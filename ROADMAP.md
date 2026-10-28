@@ -4,6 +4,17 @@ This roadmap captures the agreed next steps for Vita Moonlight PAF. It is ordere
 
 ## Active remaining work (reconciled 2026-10-27)
 
+- [x] Preliminary Photos-style Main ↔ Apps animation/title-return acceptance
+  (2026-10-28): after `2b36285`, the maintainer replies “вроде всё ок” to the
+  title-overlap correction. This is tentative user-reported Vita evidence for
+  the ordinary transition and corrected title appearance, without a profile,
+  package hash or log. Five source checks pass (260 total); no agent build/run.
+- [ ] Remaining Photos-navigation cases: PIN handoff, early LiveArea app
+  readiness, empty/error lists, repeated entry/Back, focus/scroll retention and
+  Stream → Apps → Main were not individually reported. Do not reopen the basic
+  transition/title check without a regression. [UI guide §5.6](docs/UI.md#56-photos-folded-parent-navigation--2026-10-28)
+  records the targets and validation limits.
+
 - [x] Main PC discovery works on the maintainer's Vita: on 2026-10-27 the maintainer
   confirms “поиск пк давно работает”. Basic discovery is accepted and is not the next
   unfinished task. Do not request another baseline pass without a concrete regression.

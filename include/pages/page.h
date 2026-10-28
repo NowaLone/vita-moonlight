@@ -7,6 +7,7 @@ public:
     Base(const char *id,const char *back_id,paf::Plugin::TransitionType open_transition,paf::Plugin::TransitionType close_transition);
     virtual ~Base();
     bool IsValid() const { return m_registered; }
+    bool IsTransitioning() const { return m_transitioning; }
     static Base *GetCurrent();
     static bool IsOpen(const char *id);
     static Base *Find(const char *id);
@@ -14,7 +15,7 @@ public:
     static void DefaultBackButtonCB(int32_t type, paf::ui::Handler *self, paf::ui::Event *event, void *userdata);
     paf::ui::Scene *root;
 protected:
-    const char *m_id; paf::ui::Widget *m_back; paf::Plugin::PageCloseParam m_close_param; bool m_registered;
+    const char *m_id; paf::ui::Widget *m_back; paf::Plugin::PageCloseParam m_close_param; bool m_registered; bool m_transitioning;
 };
 }
 #endif

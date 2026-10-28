@@ -11,15 +11,72 @@
 
 namespace page {
 
+namespace {
+
+/* Photos' furl-stack targets; CXML gives both content planes a left pivot. */
+const float kNavigationDuration = 500.0f;
+const float kNavigationOriginX = -480.0f;
+const float kFoldedX = -596.0f;
+const float kFoldedZ = -150.0f;
+const float kRightAngle = 1.5707963f;
+
+void stop_navigation(paf::ui::Widget *widget)
+{
+    if (!widget) return;
+    widget->KillAnim(paf::ui::Widget::ANIM_MOVE);
+    widget->KillAnim(paf::ui::Widget::ANIM_ROT);
+    widget->KillAnim(paf::ui::Widget::ANIM_META_ALPHA);
+}
+
+void set_navigation(paf::ui::Widget *widget, float x, float z, float angle, float alpha)
+{
+    widget->SetPos(paf::math::v4(x, 0.0f, z));
+    widget->SetRot(paf::math::v4(0.0f, angle, 0.0f));
+    widget->SetMetaAlpha(alpha);
+}
+
+bool animate_navigation(paf::ui::Widget *widget, float x, float z, float angle,
+                        float alpha, paf::ui::AnimCB finished, void *userdata)
+{
+    paf::Timer *move = new paf::Timer(kNavigationDuration, paf::Timer::FUNC_CIRQ_OUT);
+    paf::Timer *rotate = new paf::Timer(kNavigationDuration, paf::Timer::FUNC_CIRQ_OUT);
+    paf::Timer *opacity = new paf::Timer(kNavigationDuration * 0.8f, paf::Timer::FUNC_LINEAR);
+    if (!move || !rotate || !opacity) {
+        delete move;
+        delete rotate;
+        delete opacity;
+        return false;
+    }
+    /* PAF owns timers after they are passed to the widget animation API. */
+    int moved = widget->SetPos(paf::math::v4(x, 0.0f, z), move);
+    int faded = widget->SetMetaAlpha(alpha, opacity);
+    int rotated = widget->SetRot(paf::math::v4(0.0f, angle, 0.0f), 0, rotate,
+        paf::ui::Widget::ANIM_ROT, 0, 0.0f, finished, userdata);
+    return moved >= 0 && faded >= 0 && rotated >= 0;
+}
+
+} // namespace
+
 Apps::Apps(int application_id)
     : Base("page_apps", "btn_close_apps",
-           paf::Plugin::TransitionType_SlideFromBottom,
-           paf::Plugin::TransitionType_SlideFromBottom),
+           paf::Plugin::TransitionType_None,
+           paf::Plugin::TransitionType_None),
       m_app_count(0),
       m_livearea_application_id(application_id),
       m_launching(false),
+      m_apps_ready(false),
+      m_closing(false),
+      m_navigation_pending(0),
+      m_content(NULL),
+      m_main_content(NULL),
       m_list(NULL) {
     if (!IsValid()) return;
+
+    m_content = root->FindChild("plane_apps_content");
+    Base *main = Base::Find("page_main");
+    if (main && main->root) m_main_content = main->root->FindChild("plane_main_content");
+    bind_decide(root, "btn_close_apps", OnBack, this);
+    StartNavigation(false);
 
     m_list = static_cast<paf::ui::ListView *>(
         root->FindChild("list_view_generic"));
@@ -27,7 +84,7 @@ Apps::Apps(int application_id)
     if (m_list) {
         m_list->SetItemFactory(new ListViewFactory(this));
         m_list->InsertSegment(0, 1);
-        m_list->SetCellSizeDefault(0, { 960.0f, 80.0f });
+        m_list->SetCellSizeDefault(0, { 730.0f, 80.0f });
         m_list->SetSegmentLayoutType(0, paf::ui::ListView::LAYOUT_TYPE_LIST);
     }
 
@@ -50,6 +107,15 @@ Apps::Apps(int application_id)
 }
 
 Apps::~Apps() {
+    /* Cancel native callbacks before this userdata or the closing page is released. */
+    m_transitioning = false;
+    paf::common::MainThreadCallList::Unregister(NavigationTask, this);
+    stop_navigation(m_content);
+    stop_navigation(m_main_content);
+    if (m_main_content && m_content) {
+        set_navigation(m_main_content, kNavigationOriginX, 0.0f, 0.0f, 1.0f);
+    }
+
     if (!MoonlightApp::Instance() ||
         !MoonlightApp::Instance()->IsInitialized()) {
         return;
@@ -68,6 +134,89 @@ Apps::~Apps() {
     }
 
     MoonlightApp::Instance()->SetEventCallback(NULL, NULL);
+}
+
+void Apps::StartNavigation(bool closing)
+{
+    if (!m_content || !m_main_content) {
+        vita_debug_log("[Apps] navigation containers unavailable");
+        if (closing) Base::CloseCurrent();
+        return;
+    }
+
+    m_transitioning = false;
+    stop_navigation(m_content);
+    stop_navigation(m_main_content);
+    m_closing = closing;
+    m_navigation_pending = 2;
+    m_transitioning = true;
+    root->SetActivate(false);
+    if (!closing) set_navigation(m_content, 480.0f, 330.0f, -kRightAngle, 0.0f);
+
+    float main_x = closing ? kNavigationOriginX : kFoldedX;
+    float main_z = closing ? 0.0f : kFoldedZ;
+    float main_angle = closing ? 0.0f : kRightAngle;
+    float main_alpha = closing ? 1.0f : 0.15f;
+    float apps_x = closing ? 480.0f : kNavigationOriginX;
+    float apps_z = closing ? 330.0f : 0.0f;
+    float apps_angle = closing ? -kRightAngle : 0.0f;
+    float apps_alpha = closing ? 0.0f : 1.0f;
+    if (!animate_navigation(m_main_content, main_x, main_z, main_angle, main_alpha,
+                            NavigationFinished, this) ||
+        !animate_navigation(m_content, apps_x, apps_z, apps_angle, apps_alpha,
+                            NavigationFinished, this)) {
+        /* A failed animation must neither strand input nor retain stale callbacks. */
+        m_transitioning = false;
+        stop_navigation(m_content);
+        stop_navigation(m_main_content);
+        set_navigation(m_main_content, main_x, main_z, main_angle, main_alpha);
+        set_navigation(m_content, apps_x, apps_z, apps_angle, apps_alpha);
+        m_navigation_pending = 0;
+        m_transitioning = true;
+        vita_debug_log("[Apps] navigation animation failed; completed immediately");
+    }
+    paf::common::MainThreadCallList::Register(NavigationTask, this);
+}
+
+void Apps::NavigationFinished(paf::Timer *timer, paf::ui::AnimListener *listener,
+                              void *widget, void *userdata, void *unused)
+{
+    (void)timer;
+    (void)listener;
+    (void)widget;
+    (void)unused;
+    Apps *apps = static_cast<Apps *>(userdata);
+    if (apps && apps->m_transitioning && apps->m_navigation_pending > 0) {
+        --apps->m_navigation_pending;
+    }
+}
+
+void Apps::NavigationTask(void *userdata)
+{
+    Apps *apps = static_cast<Apps *>(userdata);
+    if (!apps->m_transitioning || apps->m_navigation_pending != 0) return;
+    paf::common::MainThreadCallList::Unregister(NavigationTask, apps);
+    apps->m_transitioning = false;
+    if (apps->m_closing) {
+        /* Defer page destruction until after the native animation callback returns. */
+        delete apps;
+        return;
+    }
+    if (Base::GetCurrent() == apps) {
+        apps->root->SetActivate(true);
+        apps->LaunchRequestedApplication();
+    }
+}
+
+void Apps::OnBack(int32_t type, paf::ui::Handler *self, paf::ui::Event *event, void *userdata)
+{
+    (void)type;
+    (void)self;
+    (void)event;
+    Apps *apps = static_cast<Apps *>(userdata);
+    if (!apps || Base::GetCurrent() != apps || apps->IsTransitioning() ||
+        MoonlightApp::Instance()->Connection().IsBusy()) return;
+    apps->StartNavigation(true);
 }
 
 void Apps::RestoreEventCallback() {
@@ -124,7 +273,8 @@ void Apps::OnAppButton(int32_t type,
 }
 
 void Apps::SelectApp(int index) {
-    if (m_launching || MoonlightApp::Instance()->Connection().IsBusy() ||
+    if (m_transitioning || Base::GetCurrent() != this || m_launching ||
+        MoonlightApp::Instance()->Connection().IsBusy() ||
         index < 0 || index >= m_app_count) return;
 
     m_launching = true;
@@ -143,6 +293,7 @@ void Apps::SelectApp(int index) {
 
 void Apps::LaunchRequestedApplication()
 {
+    if (m_transitioning || !m_apps_ready) return;
     const int requested = m_livearea_application_id;
     m_livearea_application_id = 0; /* One attempt; never replay after failure/Back. */
     if (requested <= 0) return;
@@ -179,6 +330,7 @@ void Apps::HideStatus() {
 void Apps::ShowApps(int count) {
     if (!root || !m_list) return;
 
+    m_apps_ready = false;
     const int existing = m_list->GetCellNum(0);
     if (existing > 0) {
         /* DeleteCell's third argument is a cell count, not the last index. */
@@ -222,6 +374,7 @@ void Apps::ShowApps(int count) {
         ShowEmptyState();
     }
 
+    m_apps_ready = true;
     vita_debug_log("[Apps] ShowApps count=%d cells before=%d after_delete=%d after_insert=%d",
         m_app_count, existing, cells_after_delete, m_list->GetCellNum(0));
 }
@@ -235,6 +388,7 @@ void Apps::OnMoonlightEvent(
     switch (event->type) {
     case MOONLIGHT_EVENT_APPLICATIONS_READY:
         apps->ShowApps(event->result);
+        if (!apps->m_apps_ready) apps->m_livearea_application_id = 0;
         apps->LaunchRequestedApplication();
         break;
 

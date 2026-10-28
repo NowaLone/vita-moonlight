@@ -1,6 +1,6 @@
 # Focused checks
 
-Latest recorded source gate: **255 checks including motion, RFI, UTF-8 keyboard sending and special-key stream exit (2026-10-27)**.
+Latest recorded source gate: **260 checks including Photos-style page navigation (2026-10-28)**.
 See [the repeat Ponytail audit](../docs/PONYTAIL_REAUDIT_2026-10-23.md) for the latest
 baseline, per-change checks and native gates; [the earlier refactor audit](../docs/REFACTOR_AUDIT.md)
 records the preceding pass. Counts in the
@@ -11,6 +11,18 @@ cases are in the API audit and `runtime/README.md`; source checks do not replace
 Non-build checks (Python 3 and pycparser):
 
     PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -p 'test_*.py'
+
+`test_page_navigation.py` interprets the actual Apps animation helper, state,
+completion, input admission and destructor cleanup with serial PAF timer/widget
+mocks. It covers both completion orders, list readiness before/after entrance,
+PIN mid-stack activation, Back/busy gating, allocation and native API failures,
+forced-close callback cancellation, Main restoration and CXML pivot/list bounds.
+The Apps title must share the animated content container; this resource assertion
+reproduces the 2026-10-28 late-return overlap before the CXML correction.
+`test_livearea_launch.py` also rejects LiveArea admission during transitions.
+These are non-build source checks; native ownership/ABI, interpolation,
+projection/clipping, focus/scroll retention and Vita appearance remain unverified.
+See [UI guide §5.6](../docs/UI.md#56-photos-folded-parent-navigation--2026-10-28).
 
 `test_motion.py` interprets the actual gyro/accelerometer worker loops, stop and host-rate
 callback with serial atomics/send/delay mocks. Host rate 0, stop and a changed positive rate

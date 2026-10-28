@@ -27,6 +27,7 @@ class LiveAreaLaunch(unittest.TestCase):
         admission = function(cls.main, 'Main::CanConnectFromLiveArea').replace(') const', ')')
         admission = admission.replace('MoonlightApp *app = MoonlightApp::Instance()', 'int app = 1')
         admission = admission.replace('Base *current = Base::GetCurrent()', 'int current = current_page()')
+        admission = admission.replace('current->IsTransitioning()', 'is_transitioning(current)')
         admission = admission.replace('Base::Find', 'find_page').replace('app->Connection().IsBusy', 'is_busy')
         admission = admission.replace('app->Connection().State', 'connection_state')
         resolve = function((ROOT / 'src/services/host_service.cpp').read_text(), 'HostService::Resolve')
@@ -50,11 +51,12 @@ class LiveAreaLaunch(unittest.TestCase):
         self.h.setUp()
         self.calls = []
         self.scope = dict(false=0, true=1, NULL=0, this=1, root=1,
-                          m_connecting=0, m_selection_mode=0, m_ime_open=0, m_ime_retry_pending=0,
+                          m_transitioning=0, m_apps_ready=1, m_connecting=0, m_selection_mode=0,
+                          m_ime_open=0, m_ime_retry_pending=0,
                           m_settings_suspended=0, m_delete_dialog_open=0, m_pending_action=0, Pending_None=0,
                           MOONLIGHT_CONNECTION_STREAMING=3, MOONLIGHT_CONNECTION_PAUSED=4,
                           current_page=lambda: 1, find_page=lambda name: 2,
-                          is_busy=lambda: False, connection_state=lambda: 2,
+                          is_busy=lambda: False, is_transitioning=lambda page: False, connection_state=lambda: 2,
                           vita_debug_log=lambda *args: None,
                           show_error=lambda *args: self.calls.append('error'))
 
@@ -85,6 +87,11 @@ class LiveAreaLaunch(unittest.TestCase):
         for page, accepted in ((1, True), (2, True), (3, False), (0, False)):
             self.scope['current_page'] = lambda: page
             self.assertEqual(bool(self.execute('CanConnectFromLiveArea')), accepted)
+        self.scope['is_transitioning'] = lambda page: True
+        for page in (1, 2):
+            self.scope['current_page'] = lambda: page
+            self.assertFalse(self.execute('CanConnectFromLiveArea'))
+        self.scope['is_transitioning'] = lambda page: False
         self.scope['current_page'] = lambda: 1
         for field in ('m_connecting', 'm_selection_mode', 'm_ime_open', 'm_ime_retry_pending',
                       'm_settings_suspended', 'm_delete_dialog_open', 'm_pending_action'):

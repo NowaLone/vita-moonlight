@@ -33,7 +33,8 @@ Base::Base(const char *id, const char *back_id,
     : root(NULL),
       m_id(id),
       m_back(NULL),
-      m_registered(false)
+      m_registered(false),
+      m_transitioning(false)
 {
     m_close_param = make_close_param(close_transition);
 
@@ -56,6 +57,11 @@ Base::Base(const char *id, const char *back_id,
         open_param.graphics_flag = 0x80;
         open_param.overwrite_draw_priority = 8;
         open_param.fade = false;
+    }
+
+    if (id_eq(id, "page_apps")) {
+        open_param.fade = false;
+        m_close_param.fade = false;
     }
 
     root = g_plugin->PageOpen(id, open_param);
@@ -108,7 +114,7 @@ Base::~Base()
 
     Base *current = GetCurrent();
     if (current && current->root) {
-        current->root->SetActivate(true);
+        current->root->SetActivate(!current->IsTransitioning());
     }
 
     m_registered = false;
@@ -154,7 +160,8 @@ void Base::DefaultBackButtonCB(int32_t type,
     (void)userdata;
     MoonlightApp *app = MoonlightApp::Instance();
     if (app->IsInitialized() && app->Connection().IsBusy()) return;
-    CloseCurrent();
+    Base *current = GetCurrent();
+    if (current && !current->IsTransitioning()) CloseCurrent();
 }
 
 } // namespace page
