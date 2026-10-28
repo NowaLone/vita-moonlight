@@ -85,7 +85,8 @@ The UI is implemented with PAF CXML resources.
 English and Russian interface dictionaries are source-implemented. The application
 selects Russian when PAF reports the Russian system locale, and English otherwise.
 Pages, native Settings content, dialogs, IME titles, stream statistics and LiveArea
-welcome text use these resources. Keyboard layout remains a separate setting;
+welcome text use these resources. The stream keyboard uses Vita's configured
+input languages and native language switcher;
 PC/app names and server messages retain their original text. Third-party notices
 retain their original wording, and the existing PNG manual is unchanged.
 Build, language selection and translated layout on Vita remain unverified.

@@ -129,17 +129,6 @@ static void send_keyboard_text(const SceWChar16 *text)
     }
 }
 
-static int ime_language(int layout)
-{
-    switch (layout) {
-    case 1: return SCE_IME_LANGUAGE_GERMAN;
-    case 2: return SCE_IME_LANGUAGE_SPANISH;
-    case 3: return SCE_IME_LANGUAGE_FRENCH;
-    case 4: return SCE_IME_LANGUAGE_RUSSIAN;
-    default: return SCE_IME_LANGUAGE_ENGLISH;
-    }
-}
-
 void Stream::OpenKeyboardIfRequested()
 {
     static int module_loaded = 0;
@@ -156,8 +145,9 @@ void Stream::OpenKeyboardIfRequested()
         }
         memset(buffer, 0, sizeof(buffer));
         sceImeDialogParamInit(&param);
-        param.supportedLanguages = ime_language(vita_input_keyboard_layout());
-        param.languagesForced = SCE_TRUE;
+        // Use the input languages enabled in Vita Settings and its native switcher.
+        param.supportedLanguages = 0;
+        param.languagesForced = SCE_FALSE;
         param.type = SCE_IME_TYPE_DEFAULT;
         param.option = SCE_IME_OPTION_NO_AUTO_CAPITALIZATION;
         param.dialogMode = SCE_IME_DIALOG_DIALOG_MODE_WITH_CANCEL;

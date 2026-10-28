@@ -706,7 +706,6 @@ extern "C" int moonlight_stream_start(
     vita_input_set_runtime(
         settings->jp_layout,
         settings->enable_front_touchzones,
-        settings->keyboard_layout,
         settings->mapping_enabled);
     moonlight_video_set_stream_options(
         settings->fps,

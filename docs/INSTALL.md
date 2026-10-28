@@ -107,6 +107,13 @@ To stop without PS capture, enable **Enable touchscreen special keys** and set
 stop and return to the app list; the **top-left corner** opens the Vita keyboard.
 This replaces the top-right special key's former right mouse click.
 
+The stream keyboard uses the input languages enabled in **Vita Settings →
+Language → Input Languages → Keyboards/Add Terms**. Enable multiple languages
+there to switch between them on the native keyboard; Moonlight has no separate
+keyboard-language setting. Manual PC address entry keeps its English URL keyboard.
+The maintainer accepts the basic system-language keyboard change on Vita
+(2026-10-29); individual language/host-application combinations were not reported.
+
 If a different application is already active on the host, Moonlight asks whether
 to quit it before launching your selection. Choose **Yes** only when that is
 intended; **No** preserves the existing host application.

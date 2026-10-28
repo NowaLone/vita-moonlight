@@ -51,12 +51,6 @@
   <string src="Тачпад DS4" id="msg_touch_ds4" />
   <string src="Мышь (абсолютные координаты)" id="msg_touch_mouse" />
   <string src="Планшет (Sunshine)" id="msg_touch_tablet" />
-  <string src="Язык экранной клавиатуры" id="msg_keyboard_layout" />
-  <string src="Английский (США)" id="msg_keyboard_us" />
-  <string src="Немецкий" id="msg_keyboard_de" />
-  <string src="Испанский" id="msg_keyboard_es" />
-  <string src="Французский" id="msg_keyboard_fr" />
-  <string src="Русский" id="msg_keyboard_ru" />
   <string src="Дополнительно" id="msg_advanced_settings" />
   <string src="Своё назначение лицевых кнопок" id="msg_mapping_enabled" />
   <string src="Отступ задней панели сверху (пкс)" id="msg_back_deadzone_top" />

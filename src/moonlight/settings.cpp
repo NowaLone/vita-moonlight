@@ -61,7 +61,6 @@ static const char *key_name(MoonlightSettingKey key)
     case MOONLIGHT_SETTING_PS_BUTTON_CAPTURE: return "ps_button_capture";
     case MOONLIGHT_SETTING_FRONT_TOUCHZONES: return "front_touchzones";
     case MOONLIGHT_SETTING_TOUCHSCREEN_MODE: return "touchscreen_mode";
-    case MOONLIGHT_SETTING_KEYBOARD_LAYOUT: return "keyboard_layout";
     case MOONLIGHT_SETTING_BACK_DEADZONE_TOP: return "back_deadzone_top";
     case MOONLIGHT_SETTING_BACK_DEADZONE_RIGHT: return "back_deadzone_right";
     case MOONLIGHT_SETTING_BACK_DEADZONE_BOTTOM: return "back_deadzone_bottom";
@@ -305,7 +304,6 @@ int moonlight_settings_get_all(MoonlightSettings *out)
     moonlight_settings_get_value(MOONLIGHT_SETTING_CONTROLLER_TYPE, &out->controller_type);
     moonlight_settings_get_value(MOONLIGHT_SETTING_SWAP_SHOULDERS, &out->swap_shoulder_buttons);
     moonlight_settings_get_value(MOONLIGHT_SETTING_TOUCHSCREEN_MODE, &out->touchscreen_mode);
-    moonlight_settings_get_value(MOONLIGHT_SETTING_KEYBOARD_LAYOUT, &out->keyboard_layout);
     moonlight_settings_get_value(MOONLIGHT_SETTING_BACK_DEADZONE_TOP, &out->back_deadzone_top);
     moonlight_settings_get_value(MOONLIGHT_SETTING_BACK_DEADZONE_RIGHT, &out->back_deadzone_right);
     moonlight_settings_get_value(MOONLIGHT_SETTING_BACK_DEADZONE_BOTTOM, &out->back_deadzone_bottom);
@@ -341,7 +339,6 @@ void moonlight_settings_apply_runtime(void)
     vita_input_set_runtime(
         settings.jp_layout,
         settings.enable_front_touchzones,
-        settings.keyboard_layout,
         settings.mapping_enabled);
     moonlight_video_set_stream_options(
         settings.fps,

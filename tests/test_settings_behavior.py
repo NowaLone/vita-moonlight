@@ -1,6 +1,7 @@
 """Interpret settings consumers with serial mocks; no C++/PAF/transport execution."""
 import re
 import unittest
+from itertools import product
 from unittest.mock import patch
 
 from pycparser import c_ast, c_parser
@@ -10,6 +11,48 @@ from test_xml_source import ROOT, strip_directives
 
 
 class SettingsBehavior(unittest.TestCase):
+    def test_stream_keyboard_uses_system_languages_with_existing_open_and_failure_gates(self):
+        source = function((ROOT / 'src/pages/page_stream.cpp').read_text(), 'Stream::OpenKeyboardIfRequested')
+        code = source[source.index('    if (!dialog_open &&'):source.index('    if (!dialog_open ||')]
+        code = code.replace('reinterpret_cast<const SceWChar16 *>(ui_string("msg_keyboard"))', 'keyboard_title()')
+        code = re.sub(r'//[^\n]*', '', code)
+        body = c_parser.CParser().parse('void open_keyboard(void) {' + code + '}').ext[-1].body
+        for requested, opened, loaded, load_result, init_result in product((0, 1), (0, 1), (0, 1), (-1, 0), (-1, 0)):
+            with self.subTest(requested=requested, opened=opened, loaded=loaded, load=load_result, init=init_result):
+                shown, calls = [], []
+                values = dict(dialog_open=opened, module_loaded=loaded, param={}, buffer=[99] * 128,
+                              SCE_SYSMODULE_IME=1, SCE_FALSE=0, SCE_IME_TYPE_DEFAULT=0,
+                              SCE_IME_OPTION_NO_AUTO_CAPITALIZATION=1, SCE_IME_DIALOG_DIALOG_MODE_WITH_CANCEL=1,
+                              SCE_IME_DIALOG_TEXTBOX_MODE_DEFAULT=0, SCE_IME_ENTER_LABEL_GO=2,
+                              vita_input_consume_keyboard_request=lambda: requested,
+                              sceSysmoduleLoadModule=lambda module: calls.append('load') or load_result,
+                              keyboard_title=lambda: 'Клавиатура',
+                              memset=lambda buffer, *args: buffer.__setitem__(slice(None), [0] * 128))
+
+                def initialize(pointer):
+                    # Poison these defaults so the actual assignments must select system behavior.
+                    values[pointer] = dict(supportedLanguages=999, languagesForced=1)
+
+                def show(pointer):
+                    shown.append(values[pointer].copy())
+                    return init_result
+
+                values.update(sceImeDialogParamInit=initialize, sceImeDialogInit=show)
+                run(body, values)
+                admitted = requested and not opened
+                can_open = admitted and (loaded or load_result >= 0)
+                self.assertEqual(calls, ['load'] if admitted and not loaded else [])
+                self.assertEqual(bool(shown), bool(can_open))
+                self.assertEqual(values['dialog_open'], bool(opened or (can_open and init_result >= 0)))
+                if shown:
+                    self.assertEqual(shown[0]['supportedLanguages'], 0)
+                    self.assertEqual(shown[0]['languagesForced'], 0)
+                    self.assertEqual(shown[0]['type'], 0)
+                    self.assertEqual(shown[0]['dialogMode'], 1)
+                    self.assertEqual(shown[0]['title'], 'Клавиатура')
+                    self.assertEqual(shown[0]['maxTextLength'], 120)
+                    self.assertEqual(shown[0]['inputTextBuffer'], [0] * 128)
+
     def test_special_keys_stop_without_ps_capture_and_preserve_other_zones(self):
         source = (ROOT / 'src/moonlight/vita_input.c').read_text()
         process = function(source, 'vita_input_process')
@@ -158,8 +201,9 @@ class SettingsBehavior(unittest.TestCase):
             run(body, values)
         return calls, logs
 
-    def test_keyboard_sends_one_utf8_text_packet_for_each_supported_ime_language(self):
-        for text in ('Hello, World! 123 @#', 'Привет, мир!', 'Français déjà', 'Grüße', 'Español', '🙂', 'я' * 120):
+    def test_keyboard_sends_one_utf8_text_packet_for_system_input_languages(self):
+        for text in ('Hello, World! 123 @#', 'Привет, мир!', 'Français déjà', 'Grüße', 'Español',
+                     '日本語', '한국어', '中文', 'Türkçe', '🙂', 'я' * 120):
             with self.subTest(text=text):
                 raw = text.encode('utf-16-le')
                 units = [int.from_bytes(raw[i:i + 2], 'little') for i in range(0, len(raw), 2)] + [0]

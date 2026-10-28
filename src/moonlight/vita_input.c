@@ -47,7 +47,6 @@ static int s_back_deadzone_right = 0;
 static int s_back_deadzone_bottom = 0;
 static int s_back_deadzone_left = 0;
 static int s_front_touchzones = 0;
-static int s_keyboard_layout = 0;
 static int s_keyboard_request = 0;
 static int s_zone_latched = 0;
 static int s_face_cross = A_FLAG;
@@ -859,11 +858,9 @@ static void vita_input_load_mapping(int swap_xo, int mapping_enabled)
 void vita_input_set_runtime(
     int swap_xo,
     int front_touchzones,
-    int keyboard_layout,
     int mapping_enabled)
 {
     s_front_touchzones = front_touchzones ? 1 : 0;
-    s_keyboard_layout = keyboard_layout;
     vita_input_load_mapping(swap_xo, mapping_enabled);
 }
 
@@ -872,9 +869,4 @@ int vita_input_consume_keyboard_request(void)
     int requested = s_keyboard_request;
     s_keyboard_request = 0;
     return requested;
-}
-
-int vita_input_keyboard_layout(void)
-{
-    return s_keyboard_layout;
 }

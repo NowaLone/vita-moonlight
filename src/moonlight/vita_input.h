@@ -22,10 +22,8 @@ int vita_input_configure(
 void vita_input_set_runtime(
     int swap_xo,
     int front_touchzones,
-    int keyboard_layout,
     int mapping_enabled);
 int vita_input_consume_keyboard_request(void);
-int vita_input_keyboard_layout(void);
 
 void vita_input_set_motion_state(
     uint16_t controller,

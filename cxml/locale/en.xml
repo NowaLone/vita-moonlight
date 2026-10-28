@@ -55,12 +55,6 @@
   <string src="Mouse Absolute" id="msg_touch_mouse" />
   <string src="Tablet (Sunshine)" id="msg_touch_tablet" />
 
-  <string src="On-screen keyboard language" id="msg_keyboard_layout" />
-  <string src="US" id="msg_keyboard_us" />
-  <string src="DE" id="msg_keyboard_de" />
-  <string src="ES" id="msg_keyboard_es" />
-  <string src="FR" id="msg_keyboard_fr" />
-  <string src="RU" id="msg_keyboard_ru" />
 
   <string src="Advanced" id="msg_advanced_settings" />
   <string src="Use custom face-button mapping" id="msg_mapping_enabled" />

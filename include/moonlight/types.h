@@ -23,7 +23,6 @@ typedef enum MoonlightSettingKey {
     MOONLIGHT_SETTING_PS_BUTTON_CAPTURE,
     MOONLIGHT_SETTING_FRONT_TOUCHZONES,
     MOONLIGHT_SETTING_TOUCHSCREEN_MODE,
-    MOONLIGHT_SETTING_KEYBOARD_LAYOUT,
     MOONLIGHT_SETTING_BACK_DEADZONE_TOP,
     MOONLIGHT_SETTING_BACK_DEADZONE_RIGHT,
     MOONLIGHT_SETTING_BACK_DEADZONE_BOTTOM,
@@ -53,7 +52,6 @@ typedef struct MoonlightSettings {
     int enable_vita_vblank_wait;
     int enable_motion_controls;
     int enable_psbutton_capture;
-    int keyboard_layout;
     int touchscreen_mode;
     int controller_type;
     int swap_shoulder_buttons;

@@ -777,7 +777,8 @@ terminate the dialog, clear the open state and unregister its poll before handli
 source checks model the ordering, while maintainer build/Vita validation remains **[open]**.
 
 **In-stream keyboard text (2026-10-27) [code; build/Vita pending].** The existing stream
-IME keeps all five language choices and its Enter/Cancel flow. Enter converts UTF-16 using
+IME retains its Enter/Cancel flow; system language selection is described below
+(2026-10-29). Enter converts UTF-16 using
 PAF's `common::Utf16ToUtf8` and sends one `LiSendUtf8TextEvent` with the byte length.
 The old ASCII filter/keycode loop dropped Cyrillic/accents and confused text with Win32 VK
 codes. Empty text sends nothing; conversion/queue failures are console-only and never fall
@@ -1482,7 +1483,7 @@ VPK is needed to validate packaged resources; no direct shell writes are used.
 
 To add a translation, supply the same IDs and format placeholders in a new locale
 XML, register it in the CXML stringtable, and add that language to `interface_locale()`.
-Use dictionary IDs for new user-facing text. Keyboard layout/URL address input
+Use dictionary IDs for new user-facing text. Vita input-language selection/URL address input
 policy is independent of interface language. Existing geometry, native fonts,
 selection bar and popup sizes are retained. Russian PIN paragraphs keep explicit
 line breaks inside the existing 790 px width **[code; layout open]**.
@@ -1588,6 +1589,30 @@ The native Settings hint describes the new action; keys/defaults/version are unc
 `On-screen keyboard language` now follows Touchscreen mode in Input. The former Keyboard
 root category is removed. Its `keyboard_layout` key, default and five language values are
 unchanged, as are the other controls and AppSettings version 1.
+
+**System input languages (2026-10-29) [code; basic Vita acceptance below].**
+Stream's native IME now uses `supportedLanguages = 0` and `languagesForced = SCE_FALSE`,
+delegating input languages and switching to the Vita's system configuration. This
+supersedes the five-choice Moonlight setting above. The native language switcher
+requires multiple keyboards enabled in Vita Settings → Language → Input Languages.
+The [Sony keyboard guide](https://manuals.playstation.net/document/en/psvita/basic/osk.html)
+describes this system behavior. Main's manual-address IME retains its forced English
+URL mode, ASCII address validation and module/dialog ownership.
+
+The keyboard-language control, six EN/RU resource entries, setting enum/field/read,
+runtime storage/getter and parameter plumbing are removed. The old stored key is
+ignored; AppSettings version remains 1. All other 26 controls retain their keys,
+defaults and choices, so unrelated preferences are preserved. Enter/Cancel, the
+120-unit stream text limit and the existing UTF-16 → UTF-8 text transport remain.
+One new non-build check interprets the actual dialog setup/admission block with
+module/open failures and duplicate-open gates, asserting system-language parameters.
+The existing sender check covers additional Japanese, Korean, Chinese and Turkish
+text. These mocks do not establish native IME switching or host reception.
+After `f273c72`, the maintainer replies “всё ок” **[hw, user-reported, 2026-10-29]**,
+accepting the basic system-language keyboard change. No package hash, profile,
+log or individual Enter/Cancel, language/host-application and failure-case results
+were supplied. Do not reopen the accepted basic check without a regression;
+the broader matrix remains unverified. No agent build or hardware run.
 
 **Licenses and credits (2026-10-27).** The native Settings root now includes
 `licenses_settings`, titled `Licenses and credits`, using the existing

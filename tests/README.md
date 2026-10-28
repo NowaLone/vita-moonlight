@@ -1,6 +1,6 @@
 # Focused checks
 
-Latest recorded source gate: **271 checks including the CXML UTF-16 correction (2026-10-28)**.
+Latest recorded source gate: **272 checks including system IME languages (2026-10-29)**.
 See [the repeat Ponytail audit](../docs/PONYTAIL_REAUDIT_2026-10-23.md) for the latest
 baseline, per-change checks and native gates; [the earlier refactor audit](../docs/REFACTOR_AUDIT.md)
 records the preceding pass. Counts in the
@@ -83,8 +83,11 @@ or establish native text wrapping/scrolling, navigation or licensing completenes
 callback snapshot, covering RFI enabled on the first connection and repeated On/Off changes.
 The old source fails the enabled snapshots. Decoder setup must no longer mutate the original
 callbacks too late. No decoder, common-c runtime, compilation or packet-recovery test is run.
-Two keyboard checks interpret the actual in-stream text sender using native PAF conversion
-and UTF-8 transport mocks. ASCII punctuation/case, Cyrillic, French/German/Spanish accents
+One keyboard check interprets the actual stream dialog setup/admission block, asserting
+system-default languages without forcing, the existing title/text limit, module/open
+failures and duplicate-open gating. Two more interpret the text sender using PAF conversion
+and UTF-8 transport mocks. ASCII punctuation/case, Cyrillic, French/German/Spanish accents,
+Japanese, Korean, Chinese, Turkish
 and a surrogate pair must produce one complete UTF-8 payload with its byte length. Null/empty
 input, conversion failure and negative/positive queue errors never fall back to VK events.
 The old ASCII/keycode loop fails all language payload cases. String methods/casts are adapted
