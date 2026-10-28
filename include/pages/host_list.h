@@ -46,16 +46,6 @@ inline bool same_discovered_host(const MoonlightHost &left, const MoonlightHost 
             strcmp(left.internal, right.external) == 0);
 }
 
-inline int canonical_host_index(const MoonlightHost *hosts, int count,
-                                const MoonlightHost &selected)
-{
-    for (int i = 0; i < count; ++i) {
-        if (hosts[i].port == selected.port &&
-            strcmp(hosts[i].internal, selected.internal) == 0) return i;
-    }
-    return -1;
-}
-
 /* One native cell edit at a time. Retained tokens identify the existing widgets.
  * Prefer removing obsolete cells, then moving/inserting toward the desired order.
  * ponytail: repeated linear scans suit short PC lists; index tokens if lists grow large. */

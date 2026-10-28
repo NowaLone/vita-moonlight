@@ -159,10 +159,15 @@ Search PC and its button are removed. Main combines saved rows with temporary di
 only saved PCs have TCP availability indicators and participate in Delete. One backend worker
 repeats mDNS queries five seconds after send completion, publishes locked generations/snapshots,
 pauses without a UI join and retains observations for 15 seconds of active healthy discovery.
-Selection persists/canonicalizes a captured host before ordinary connection; Apps/PIN return
-straight to Main. See [UI policy and pending acceptance](docs/UI.md#main-background-discovery--2026-10-23)
+Selection connects a captured host without saving; new discovered/manual PCs are saved only
+after successful PIN/HTTPS pairing (source correction, 2026-10-28). Apps/PIN return straight
+to Main. See [UI policy and pending acceptance](docs/UI.md#main-background-discovery--2026-10-23)
 and the earlier [official Wi-Fi evidence](docs/WIFI_BACKGROUND_SEARCH_RESEARCH.md).
 Non-build source checks cover the changed logic; no agent build/RCO/packaging/deployment.
+The persistence correction also defers server-certificate writing until the paired record
+exists, preserves authenticated reconnection updates and refreshes LiveArea's saved UUID after
+pairing. All 262 non-build checks pass. Maintainer validation remains pending for discovered/
+manual PIN cancel/error (no new record), success/restart/reconnect and existing-PC re-pairing.
 Maintainer validation remains open for focus/scroll, responsive search/cancellation, PC aging,
 repeated connect/pairing returns, Delete/IME/Settings and suspension/no discovery during stream.
 Historical Search runtime evidence below does not validate the replacement; no device gate is ticked.

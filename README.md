@@ -108,8 +108,8 @@ PC-plus button opens manual entry in the native Vita IME; the corner menu opens 
 Discovery pauses during those flows, foreground operations, other pages and app suspension;
 UI never waits for its worker.
 Temporary results age out after 15 seconds of active healthy discovery without another observation;
-pause and detected network failures freeze aging. Clicking a temporary PC saves it before ordinary
-connection; discovery alone writes nothing. See [UI behavior and validation limits](docs/UI.md#main-background-discovery--2026-10-23).
+pause and detected network failures freeze aging. Clicking a temporary PC connects without saving;
+only successful PIN/HTTPS pairing saves a new PC. See [UI behavior and validation limits](docs/UI.md#main-background-discovery--2026-10-23).
 The maintainer confirms PC discovery already works on Vita (2026-10-27). Basic discovery
 is accepted; detailed timing, focus and pause/fault cases were not individually reported.
 
@@ -186,7 +186,7 @@ prefer_external
 
 `host_id` is the GameStream/Sunshine server UUID obtained from `/serverinfo`. It is the persistent PC identity; the display name and IP address are discovery/connection data, not client-identity storage keys.
 
-Discovery results are temporary. Selecting a discovered PC creates or updates its persistent host record before connection/pairing. The inline manual address input (including a custom port when supplied) is persisted only after a successful GameStream connection. Pairing updates that host record with its paired state and MAC.
+Discovery results are temporary. Selecting a discovered PC or entering an address manually (including a custom port) keeps it unsaved through connection and PIN entry. Only successful PIN/HTTPS pairing saves the PC with its server UUID, paired state, MAC and server certificate. Cancellation or failure leaves no new saved PC. Authenticated reconnections can update an existing paired record.
 
 The host store resolves the selected record to `<storage name>/server.pem`; this is the public
 Sunshine/GameStream **server** certificate, never the global Vita client certificate or key.

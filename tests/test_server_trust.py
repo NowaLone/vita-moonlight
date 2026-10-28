@@ -42,8 +42,13 @@ class ServerTrust(unittest.TestCase):
         self.assertLess(pair.index('step_result = verify_signature('), pair.index('server->server_certificate = candidate'))
         self.assertLess(pair.index('memcmp(challenge_response, expected_response_hash'),
                         pair.index('server->server_certificate = candidate'))
-        self.assertLess(pair.index('GameStream rejected HTTPS pairing challenge'),
-                        pair.index('save_pinned_certificate(server)'))
+        self.assertNotIn('save_certificate(', pair)
+        self.assertNotIn('save_pinned_certificate(', pair)
+        api = (ROOT / 'src/moonlight/api.cpp').read_text().split('int moonlight_api_pair_current_host(', 1)[1]
+        self.assertLess(api.index('if (result != LEGACY_GAMESTREAM_OK)'),
+                        api.index('legacy_device_store_mark_paired('))
+        self.assertLess(api.index('legacy_device_store_mark_paired('),
+                        api.index('legacy_gamestream_save_certificate('))
         self.assertEqual(pair.count('server->server_certificate = previous'), 2)
 
 

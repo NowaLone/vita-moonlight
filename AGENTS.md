@@ -175,8 +175,9 @@ recipes for common UI changes live in [`docs/UI.md`](docs/UI.md). Read it before
 - Search PC and Search PCs are removed. Main lists saved hosts first, temporary discoveries below.
   Only saved hosts have an availability plane and enter TCP probes. Temporary CXML rows keep the same
   text/icon columns without a dot, label, section header or spinner. Delete mode contains saved rows only.
-  A temporary selection copies the host, saves it and canonicalizes against all saved PCs by address/port.
-  Save failure never connects. Apps/PIN cancel/error return to Main; build/Vita integration remains pending.
+  A temporary selection copies the host and connects without saving. New discovered/manual PCs are
+  saved only after successful PIN/HTTPS pairing; cancellation/failure leaves them temporary.
+  Apps/PIN cancel/error return to Main; build/Vita integration remains pending.
 - Default-construct PAF vectors and then resize; do not use the installed SDK's sized vector
   constructor for row storage. It reads _capacity before initialization and caused the Main
   startup null-write regression. On system build 6af2e3639c69 the maintainer log reaches one-PC
@@ -350,7 +351,7 @@ ux0:data/moonlight/
 
 `host_id` is the GameStream/Sunshine server UUID returned by `/serverinfo`. The client never generates a host identity. Client `uniqueid.dat` and key/certificate material are never stored in a host directory.
 
-Discovery results are temporary. Main selections of discovered PCs are persisted before connection. Add Manually does not persist the entered address up front; a successful GameStream connection stores or updates the host through the server UUID returned by /serverinfo. Failed manual connections therefore do not leave a new saved host entry. Successful pairing updates the same record with paired state and MAC.
+Discovery results are temporary. Selecting a discovered PC or entering an address manually does not create a saved host, including after unauthenticated /serverinfo or opening the PIN page. Only successful PIN proof and the final HTTPS challenge create/update the paired record with the server UUID and MAC, then save its server certificate. Cancellation or pairing failure creates no new saved record. Already authenticated paired reconnections may update existing metadata; saved PCs are not removed on a failed re-pair.
 
 Host identity resolution is ordered as `host_id`, MAC, internal/external address, then display name. The stable server UUID is the primary persistent identity once it is known.
 
@@ -362,8 +363,8 @@ Subsequent HTTPS requests verify the complete paired leaf certificate. Old recor
 fails closed: remove that saved PC locally and add/pair it again to establish new trust.
 Local deletion removes its server pin as part of the host directory; it does not revoke the
 Vita identity on Sunshine. Host metadata writes return failure on open, write or flush/close
-errors through Add/MarkPaired/SetHostId. Main discovery selection uses the native save-error dialog;
-successful connection/pairing log metadata failures separately without becoming protocol failures.
+errors through Add/MarkPaired/SetHostId. Successful authenticated reconnection/pairing logs metadata
+failures separately without becoming protocol failures; discovery selection does not write metadata.
 Normalization logs failed rewrites and keeps usable in-memory records. This is checked error
 reporting, not atomic persistence: failed writes can leave partial files and in-memory updates.
 Normal metadata writes/paired Apps are logged on system 5db31a9; controlled Vita storage-failure

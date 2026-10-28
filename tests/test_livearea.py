@@ -38,6 +38,7 @@ class LiveArea(unittest.TestCase):
         app = app.replace('m_livearea.Connected', 'Connected').replace('m_livearea.Applications', 'Applications')
         app = app.replace('const MoonlightHost &selected = m_connection.Host()', 'MoonlightHost *selected = selected_host()')
         app = app.replace('m_hosts.Resolve', 'resolve_host').replace('m_applications.GetAll', 'get_apps')
+        app = app.replace('m_connection.State()', 'connection_state()')
         code = strip_directives(code + app)
         types = '''typedef int bool; typedef struct { int id; char name[256]; } MoonlightApplication;
         typedef struct { char name[256], internal[256], host_id[33]; int port; } MoonlightHost;
@@ -53,6 +54,7 @@ class LiveArea(unittest.TestCase):
         self.calls, self.sent = [], []
         self.status, self.submit_result, self.load_result, self.loaded = 0, 0, 0, False
         self.cache, self.cache_result = [], None
+        self.connection_state = 2
 
     @staticmethod
     def host(name='PC B', host_id='uuid-B'):
@@ -137,6 +139,8 @@ class LiveArea(unittest.TestCase):
         scope = dict(self.state, NULL=0, true=1, false=0, SCE_SYSMODULE_LIVEAREA=35,
                      SCE_SYSMODULE_LOADED=0, MOONLIGHT_EVENT_CONNECTION_READY=1,
                      MOONLIGHT_EVENT_APPLICATIONS_READY=2,
+                     MOONLIGHT_EVENT_PAIRING_FINISHED=3, MOONLIGHT_CONNECTION_PAIRED=2,
+                     connection_state=lambda: self.connection_state,
                      INT_MAX=2147483647, strncmp=lambda a, b, n: int(text(a)[:n] != text(b)[:n]),
                      sceSysmoduleIsLoaded=lambda module: self.call('is_loaded', 0 if self.loaded else -1),
                      sceSysmoduleLoadModule=lambda module: self.call('load', self.load_result),
@@ -379,6 +383,15 @@ class LiveArea(unittest.TestCase):
         self.cache_result = -9
         self.invoke('UpdateLiveArea', dict(type=2, result=3))
         self.assertTrue(all(not text(label) for label in self.state['m_labels'][:6]))
+
+    def test_livearea_waits_for_pairing_before_publishing_the_new_pc(self):
+        self.connection_state = 1
+        self.invoke('UpdateLiveArea', dict(type=1, result=0))
+        self.assertFalse(self.state['m_has_host'])
+        self.connection_state = 2
+        self.invoke('UpdateLiveArea', dict(type=3, result=0))
+        self.assertEqual(text(self.state['m_labels'][6]), 'PC B')
+        self.assertTrue(text(self.state['m_host_key']))
 
     def test_binding_build_and_native_only_boundary(self):
         binding = (ROOT / 'include/platform/livearea.h').read_text()

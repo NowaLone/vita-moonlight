@@ -211,16 +211,21 @@ policies, not recovered Sony behavior.
   templates. Selection checkboxes are resolved from currently generated items instead of
   keeping pointers across virtualization. After `SetName()` they must be resolved by their
   current row tokens, not original CXML IDs. Select/Clear All updates them without rebuilding.
-- Clicking a temporary row captures a value copy, stops discovery, saves it, reads the full
-  saved snapshot and resolves its exact address/port before ordinary Main connection. A save/
-  canonical-read failure opens the existing native error and never connects. Discovery alone
-  does not write storage or establish trust. Pairing/Apps return directly to Main, which
+- Clicking a temporary row captures a value copy and enters ordinary Main connection,
+  which stops discovery. It does not save the PC. Discovered/manual hosts stay temporary
+  through `/serverinfo` and the PIN page; only successful PIN/HTTPS pairing creates/updates
+  the paired record and then writes its server certificate **[code, 2026-10-28]**.
+  Cancel/error creates no new saved record; an already saved PC remains on failed re-pair.
+  Authenticated paired reconnections may update existing metadata. Persistence errors remain
+  separate from pairing success. LiveArea publishes the new saved UUID after pairing, before
+  the Apps snapshot. No new pairing-cancel record cleanup or storage migration is needed.
+  Pairing/Apps return directly to Main, which
   restores list activation and its callback. The completed successful PIN page remains removed.
 - Delete mode contains saved rows only; temporary rows return afterward. A deleted online PC
   can reappear as temporary, without a dot. Delete is not a network blocklist.
 
 Non-build checks interpret the actual worker/control/expiry/publication, Main eligibility,
-merge/token/selection/canonical lookup and cell-edit logic, plus main-thread event dispatch.
+merge/token/selection and cell-edit logic, plus main-thread event dispatch.
 Serial clock/kernel/socket/vector/UI mocks do not prove real concurrency, native ABI, PAF
 rendering or device responsiveness. Basic discovery is user-accepted (2026-10-27).
 Detailed cases without individual results remain **[open]**: empty and
@@ -228,6 +233,10 @@ Detailed cases without individual results remain **[open]**: empty and
 insertion/removal/reordering; temporary-to-saved; repeated paired connection and PIN cancel/error;
 Delete/IME/OptionMenu/Settings; system overlay/suspend/resume; no queries during streaming.
 No agent application/resource compilation, packaging or deployment.
+The 2026-10-28 persistence correction additionally requires maintainer validation of
+discovered/manual PIN cancel, wrong PIN/network failure, success and restart/reconnect.
+New checks cover deferred writes, pin destination/save ordering and persistence errors
+without converting proven pairing success into failure; the full source gate is 262 checks.
 The [regression reference](../tests/README.md#main-discovery-maintainer-vita-acceptance)
 specifies setup, observable results, frozen-age timing and the packet evidence needed to
 distinguish a paused worker from an unchanged list. Use it for relevant regressions or planned

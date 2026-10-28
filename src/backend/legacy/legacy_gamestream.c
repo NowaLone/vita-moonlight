@@ -657,10 +657,11 @@ static int load_pinned_certificate(LegacyGameStreamServer *server)
     return LEGACY_GAMESTREAM_OK;
 }
 
-static int save_pinned_certificate(LegacyGameStreamServer *server)
+static int save_certificate_worker(void *argument)
 {
+    LegacyGameStreamServer *server = (LegacyGameStreamServer *)argument;
     char temporary[sizeof(server->server_certificate_path) + 5];
-    if (!server->server_certificate_path[0] || !server->server_certificate)
+    if (!server || !server->server_certificate_path[0] || !server->server_certificate)
         return LEGACY_GAMESTREAM_IO_ERROR;
     snprintf(temporary, sizeof(temporary), "%s.tmp", server->server_certificate_path);
     FILE *file = fopen(temporary, "wb");
@@ -673,6 +674,14 @@ static int save_pinned_certificate(LegacyGameStreamServer *server)
         return LEGACY_GAMESTREAM_IO_ERROR;
     }
     return LEGACY_GAMESTREAM_OK;
+}
+
+int legacy_gamestream_save_certificate(LegacyGameStreamServer *server)
+{
+    pthread_mutex_lock(&s_pair_mutex);
+    int result = run_on_worker(save_certificate_worker, server);
+    pthread_mutex_unlock(&s_pair_mutex);
+    return result;
 }
 
 static int pairing_progress(void *userdata, curl_off_t download_total, curl_off_t downloaded,
@@ -1865,10 +1874,6 @@ static int pair(LegacyGameStreamServer *server, const char *pin, LegacyGameStrea
     http_buffer_free(&response);
 
     X509_free(previous);
-    if (save_pinned_certificate(server) != LEGACY_GAMESTREAM_OK) {
-        /* Protocol success is independent from persistence, just like device.ini. */
-        vita_debug_log("[GameStream] paired, but server.pem was not saved; re-pair required after restart");
-    }
     server->paired = true;
 
     for (step_result = 0; step_result < 3; ++step_result) {

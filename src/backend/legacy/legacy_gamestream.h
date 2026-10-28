@@ -72,6 +72,9 @@ int legacy_gamestream_quit_app(LegacyGameStreamServer *server);
 /* Assigns only the persistence destination for a newly saved host, never establishes trust. */
 int legacy_gamestream_set_certificate_path(LegacyGameStreamServer *server, const char *path);
 
+/* Host-control worker only, after successful pairing and host-store creation. */
+int legacy_gamestream_save_certificate(LegacyGameStreamServer *server);
+
 /* Caller owns the returned body; timeout and response callback are scoped to the request. */
 int legacy_gamestream_request(
     LegacyGameStreamServer *server, const char *endpoint, const char *query,

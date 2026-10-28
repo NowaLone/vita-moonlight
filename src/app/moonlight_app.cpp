@@ -391,7 +391,9 @@ void MoonlightApp::UpdateLiveArea(const MoonlightEvent &event)
 {
     /* Called after PrepareCompletion releases the worker, before the page can
      * launch the next workflow. GetAll with a non-NULL output reads the cache. */
-    if (event.type == MOONLIGHT_EVENT_CONNECTION_READY && event.result == 0) {
+    if ((event.type == MOONLIGHT_EVENT_CONNECTION_READY ||
+         event.type == MOONLIGHT_EVENT_PAIRING_FINISHED) && event.result == 0 &&
+        m_connection.State() == MOONLIGHT_CONNECTION_PAIRED) {
         MoonlightHost stored;
         const MoonlightHost &selected = m_connection.Host();
         m_livearea.Connected(m_hosts.Resolve(selected, &stored) ? &stored : &selected);

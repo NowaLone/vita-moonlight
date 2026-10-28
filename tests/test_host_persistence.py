@@ -86,6 +86,9 @@ class HostPersistence(unittest.TestCase):
         pair = function(api, 'moonlight_api_pair_current_host')
         success = pair[pair.index('    update_host_from_server();'):]
         cls.paired = parse_body('int paired_success(void) {\n' + success)
+        connect = function(api, 'moonlight_api_connect_host')
+        connect = connect[connect.index('    if (result == LEGACY_GAMESTREAM_OK'):connect.index('    s_game_stream_initialized = true;')]
+        cls.connected = parse_body('int connected(void) {\n' + connect + 'return 0;\n}')
 
     def write(self, *, open_result=1, write_failure=None, close_result=0, info=True):
         calls, lines, logs = [], [], []
@@ -341,19 +344,36 @@ class HostPersistence(unittest.TestCase):
                 self.assertEqual(snapshot(stored), expected)
 
     def test_metadata_failure_does_not_convert_proven_pairing_into_failure(self):
-        for status in (0, -1):
+        for status, path, assign, pin in product((0, -1), repeat=4):
             events, logs = [], []
+            calls = []
             values = dict(s_current_host=dict(id=1, internal='192.0.2.1'),
                           MOONLIGHT_CONNECTION_PAIRED=2, MOONLIGHT_PAIRING_SUCCESS=0,
-                          MOONLIGHT_EVENT_PAIRING_FINISHED=11,
+                          MOONLIGHT_EVENT_PAIRING_FINISHED=11, LEGACY_GAMESTREAM_OK=0,
                           update_host_from_server=lambda: None,
-                          legacy_device_store_mark_paired=lambda host: status,
+                          legacy_device_store_mark_paired=lambda host: calls.append('metadata') or status,
+                          legacy_device_store_get_server_certificate_path=lambda *args: calls.append('path') or path,
+                          legacy_gamestream_set_certificate_path=lambda *args: calls.append('assign') or assign,
+                          legacy_gamestream_save_certificate=lambda *args: calls.append('pin') or pin,
                           emit=lambda *args: events.append(args),
                           vita_debug_log=lambda *args: logs.append(args))
             self.assertEqual(run(self.paired, values), 0)
             self.assertEqual(values['s_connection_state'], 2)
             self.assertEqual(events, [(11, 0, 1, -1, '192.0.2.1')])
-            self.assertEqual(len(logs), int(status != 0))
+            self.assertEqual(calls, ['metadata', 'path'] + ([] if path else ['assign'] + ([] if assign else ['pin'])))
+            self.assertEqual(len(logs), int(status != 0) + int(bool(path or assign or pin)))
+
+    def test_connect_only_updates_metadata_for_an_authenticated_paired_host(self):
+        for result, paired in product((0, -1, -10), (0, 1)):
+            writes = []
+            values = dict(result=result, s_server=dict(paired=paired, unique_id=CString('uuid')),
+                          host=dict(id=1, internal='192.0.2.1'),
+                          LEGACY_GAMESTREAM_OK=0, MOONLIGHT_CONNECTION_DISCONNECTED=0,
+                          MOONLIGHT_EVENT_CONNECTION_FAILED=1, false=0,
+                          legacy_device_store_set_host_id=lambda *args: writes.append(args) or 0,
+                          legacy_gamestream_error=lambda: '', emit=lambda *args: None)
+            self.assertEqual(run(self.connected, values), result)
+            self.assertEqual(len(writes), int(result == 0 and paired))
 
     def test_new_device_terminates_full_length_strings_in_uninitialized_storage(self):
         source = (ROOT / 'src/backend/legacy/device.c').read_text()

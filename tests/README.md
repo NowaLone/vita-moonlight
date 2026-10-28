@@ -1,6 +1,6 @@
 # Focused checks
 
-Latest recorded source gate: **260 checks including Photos-style page navigation (2026-10-28)**.
+Latest recorded source gate: **262 checks including deferred host persistence (2026-10-28)**.
 See [the repeat Ponytail audit](../docs/PONYTAIL_REAUDIT_2026-10-23.md) for the latest
 baseline, per-change checks and native gates; [the earlier refactor audit](../docs/REFACTOR_AUDIT.md)
 records the preceding pass. Counts in the
@@ -11,6 +11,14 @@ cases are in the API audit and `runtime/README.md`; source checks do not replace
 Non-build checks (Python 3 and pycparser):
 
     PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -p 'test_*.py'
+
+Host persistence (2026-10-28): Main selection connects discovered/saved value copies without
+writing the host store. The API updates connection metadata only for authenticated paired
+hosts; new discovered/manual hosts stay temporary until PIN/HTTPS success. Pairing success
+creates the record before resolving/writing `server.pem`; metadata/path/assignment/pin-write
+failures remain separately logged protocol successes. LiveArea waits for paired state and
+captures the newly saved UUID on pairing completion. These serial source checks do not prove
+real crypto, PAF/thread ownership, Vita storage durability or restart behavior.
 
 `test_page_navigation.py` interprets the actual Apps animation helper, state,
 completion, input admission and destructor cleanup with serial PAF timer/widget
@@ -153,9 +161,9 @@ retry and final join, and interprets the Connect job's worker-only idle polling 
 condition waits on foreign PAF threads. The supplied core/local ELF establish the native failure
 separately (UI guide); the serial model cannot reproduce Vita pthread TLS/ABI itself.
 `test_host_lists.py` interprets actual Main eligibility, saved/discovered merging, identity,
-row-state/token preparation, incremental cell-edit planner, deletion and captured selection/
-canonicalization. It covers >8 rows, equal names, stronger conflicting identity/custom ports,
-retained tokens/selection, stale replaced tokens, temporary-to-saved, failed reads/save, discovery
+row-state/token preparation, incremental cell-edit planner, deletion and selection without saving.
+It covers >8 rows, equal names, stronger conflicting identity/custom ports,
+retained tokens/selection, stale replaced tokens, temporary-to-saved, failed reads, discovery
 growth and no edits for unchanged rows. The linker follow-up also interprets the actual
 PAF token-buffer mutation branches (front/middle/end insertion/deletion, move, singleton/empty)
 and rejects reintroducing `std::vector` or sized PAF scratch constructors. These serial array
@@ -465,8 +473,11 @@ remains present even when its availability indicator changes.
    scroll below the first screen and repeat; unchanged rows should retain their viewport.
    Equal names on distinct endpoints must not merge; repeated announcements of one endpoint
    must not add duplicates. Mark unavailable multi-PC cases as not tested.
-5. **Selection and persistence.** Select the temporary PC: it becomes one saved record before
-   ordinary Connect/PIN. Cancel PIN and return directly to Main; the saved record remains.
+5. **Selection and persistence.** Select the temporary PC: it remains unsaved through
+   Connect/PIN. Cancel PIN or fail pairing and return directly to Main: no new saved record;
+   it may still appear as a temporary discovery. Repeat through manual Add PC. Pair successfully:
+   exactly one saved PC appears, with its server certificate; restart and reconnect without
+   another PIN. An existing saved PC remains after cancelled/failed re-pairing.
    Reconnect to a paired PC, open Apps and return to Main: discovery resumes without duplicate
    rows. In Delete mode only saved PCs appear; row toggles and Select/Clear All must update
    visible and scrolled checkboxes. Delete confirmation Cancel preserves selection; OK removes

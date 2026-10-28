@@ -704,33 +704,8 @@ void Main::SelectHost(int index)
     if (m_connecting || m_selection_mode || m_ime_open || m_ime_retry_pending ||
         m_pending_action != Pending_None || app->Connection().IsBusy() ||
         index < 0 || index >= m_host_count) return;
-    /* Copy before any save/event/refresh can reorder the list. */
+    /* Keep discovered/manual PCs temporary until pairing authenticates them. */
     MoonlightHost host = m_hosts[index];
-    bool saved = m_rows[index].saved;
-    m_connecting = true;
-    SuspendBackground();
-    if (!saved) {
-        int result = app->Hosts().Add(host.internal, host.port,
-                                      host.name[0] ? host.name : host.internal);
-        if (result != 0) {
-            m_connecting = false;
-            app->Connection().ShowError("Unable to save PC.", result);
-            return;
-        }
-        paf::vector<MoonlightHost> saved_hosts;
-        if (!read_host_snapshot(app->Hosts(), saved_hosts)) {
-            m_connecting = false;
-            app->Connection().ShowError("Unable to read saved PCs.");
-            return;
-        }
-        int canonical = canonical_host_index(saved_hosts.data(), (int)saved_hosts.size(), host);
-        if (canonical < 0) {
-            m_connecting = false;
-            app->Connection().ShowError("Unable to find saved PC.");
-            return;
-        }
-        host = saved_hosts[canonical];
-    }
     ConnectHost(host);
 }
 

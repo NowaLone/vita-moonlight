@@ -84,7 +84,6 @@ class HostLists(unittest.TestCase):
         edits = edits[:edits.index('    }\n    list->UnblockSync();')]
         functions.append('void apply_cell_edit(int edit, int from, int to, Vector cells, Vector desired) {' + edits + '}')
         selection = function(cls.main, 'Main::SelectHost')
-        selection = selection[:selection.index('    ConnectHost(host);')] + '\n}'
         functions.append(selection)
         focus = cls.main[cls.main.index('    if (focused_index >= 0'):]
         focus = focus[:focus.index('    if (m_selection_mode)')]
@@ -113,6 +112,7 @@ class HostLists(unittest.TestCase):
                            get_hosts=self.get_hosts, strcmp=lambda a,b: 0 if a == b else 1,
                            HideStatus=lambda: self.trace.append('hide'),
                            SuspendBackground=lambda: self.trace.append('cancel'),
+                           ConnectHost=lambda entry: self.trace.append(('connect', copy.deepcopy(entry))),
                            show_error=lambda *args: self.trace.append('error'),
                            add_host=self.add_host, delete_host=self.delete_host,
                            UpdateSelectionActionBar=lambda: None,
@@ -316,20 +316,17 @@ class HostLists(unittest.TestCase):
         self.assertEqual(self.values['focused_index'], 10)
         self.assertEqual(self.values['focused_token'], self.values['m_rows'][10]['token'])
 
-    def test_selection_captures_value_before_save_and_resolves_full_canonical_list(self):
+    def test_selection_connects_temporary_and_saved_hosts_without_persistence(self):
         self.saved = [host(i) for i in range(20)]
         self.discovered = [host(50, host_id='\0')]
         self.refresh()
         self.invoke('Main_SelectHost', 20)
         self.assertEqual(self.values['host']['internal'], host(50)['internal'])
-        self.assertEqual(self.trace, ['cancel', 'add'])
-        self.setUp()
-        self.discovered = [host(50, host_id='\0')]
-        self.refresh()
-        self.values['add_host'] = lambda *args: -5
+        self.assertEqual(self.trace, [('connect', host(50, host_id='\0'))])
+        self.trace.clear()
         self.invoke('Main_SelectHost', 0)
-        self.assertEqual(self.trace, ['cancel', 'error'])
-        self.assertFalse(self.values['m_connecting'])
+        self.assertEqual(self.trace, [('connect', host(0))])
+        self.assertEqual(len(self.saved), 20)
 
     def test_cell_edits_are_minimal_for_unchanged_append_remove_move(self):
         for current, wanted, expected in (([1,2], [1,2], []), ([1,2], [1,2,3], [3]),

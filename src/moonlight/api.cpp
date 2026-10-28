@@ -390,17 +390,11 @@ int moonlight_api_connect_host(const MoonlightHost *host)
         server_certificate_path,
         true);
 
-    if (result == LEGACY_GAMESTREAM_OK && s_server.unique_id[0]) {
+    if (result == LEGACY_GAMESTREAM_OK && s_server.paired && s_server.unique_id[0]) {
         if (legacy_device_store_set_host_id(host, s_server.unique_id) != 0) {
             vita_debug_log(
                 "[GameStream] failed to persist server uniqueid=%s",
                 s_server.unique_id);
-        }
-        /* Manual hosts are saved only after connection; assign the future pairing pin destination. */
-        if (!s_server.server_certificate_path[0] &&
-            legacy_device_store_get_server_certificate_path(host, server_certificate_path,
-                sizeof(server_certificate_path)) == 0) {
-            legacy_gamestream_set_certificate_path(&s_server, server_certificate_path);
         }
     }
 
@@ -526,6 +520,15 @@ int moonlight_api_pair_current_host(const char pin[5], const MoonlightCancellati
         vita_debug_log(
             "[GameStream] pairing succeeded but device persistence failed: %d",
             save_result);
+    }
+
+    /* Only the successful PIN/HTTPS proof may create a host and its pin destination. */
+    char server_certificate_path[512];
+    if (legacy_device_store_get_server_certificate_path(&s_current_host,
+            server_certificate_path, sizeof(server_certificate_path)) != 0 ||
+        legacy_gamestream_set_certificate_path(&s_server, server_certificate_path) != LEGACY_GAMESTREAM_OK ||
+        legacy_gamestream_save_certificate(&s_server) != LEGACY_GAMESTREAM_OK) {
+        vita_debug_log("[GameStream] paired, but server.pem was not saved; re-pair required after restart");
     }
 
     /*
