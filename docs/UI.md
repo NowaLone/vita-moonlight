@@ -1525,7 +1525,7 @@ native appearance remains **[open]**; no agent build or Vita run.
 `960, 544`). Add a class deriving `page::Base` with `Base("page_x", "btn_close_x", open, close)`
 and add the `.cpp` to `add_executable` in `CMakeLists.txt` (sources are listed explicitly). Own the event
 callback and hand it back in the destructor. Open it with `new X(); if (!x->IsValid()) delete x;`. Add strings to
-`cxml/locale/en.xml`.
+both `cxml/locale/en.xml` and `cxml/locale/ru.xml` in the same commit.
 
 **Add a list row type.** Add a template with a 960 x 80 `list_item`, an `image_button` using
 `style_image_button_list_button` (keep `focus_hint focus_shape="3"`), and optional `text` / `check_box` children with
@@ -1540,7 +1540,7 @@ two or more right-hand buttons in a horizontal `box` so they follow each other w
 
 **Add a setting.** The settings UI is the system AppSettings plugin driven by `cxml/moonlight_settings.xml`:
 add a `list` or `toggle_switch` entry (`id`, `title`, optional `hint`, `key`, `default_value`), its strings in
-`en.xml`, a `MoonlightSettingKey` value in `include/moonlight/types.h`, the key name in `key_name()` and the field in
+both `en.xml` and `ru.xml`, a `MoonlightSettingKey` value in `include/moonlight/types.h`, the key name in `key_name()` and the field in
 `moonlight_settings_get_all()` (`src/moonlight/settings.cpp`), and a field in `MoonlightSettings` if the stream needs it.
 Do not introduce a settings file or a custom settings screen.
 

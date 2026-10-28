@@ -16,6 +16,18 @@ These maintainer rules apply to all work in this repository:
    Use `engineering-suite-ponytail:ponytail` in **full** mode by default unless the maintainer
    requests another mode. Reuse existing code and native platform features, and make the smallest
    complete change. Simplicity must preserve validation, error handling, security and explicit requirements.
+4. **Localize every interface change in the same commit.** Every new or changed user-facing
+   string must be implemented in all supported dictionaries (currently `cxml/locale/en.xml`
+   and `cxml/locale/ru.xml`) together with the feature or fix. This includes page labels,
+   Settings titles/hints/choices, native dialogs, errors/confirmations, IME titles, stream
+   overlays and LiveArea text. Reuse CXML string IDs, AppSettings' string callback and
+   `ui_string()` / `ui_text()`; do not add hard-coded user-facing prose or a separate translation
+   mechanism. Keep dictionary IDs and printf argument contracts consistent, preserve UTF-16/UTF-8
+   handling and check translated text lengths/layout. Remove obsolete keys from all dictionaries.
+   PC/app names, server-provided diagnostics, protocol identifiers and original third-party
+   notices retain their source text; console-only debug logs do not need translation.
+   Run the applicable non-build localization/resource checks. Localization is part of completion,
+   not a follow-up task; builds and translated Vita appearance still require maintainer validation.
 
 # Project Overview
 
