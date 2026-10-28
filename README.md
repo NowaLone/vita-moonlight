@@ -82,6 +82,14 @@ third_party/
 
 The UI is implemented with PAF CXML resources.
 
+English and Russian interface dictionaries are source-implemented. The application
+selects Russian when PAF reports the Russian system locale, and English otherwise.
+Pages, native Settings content, dialogs, IME titles, stream statistics and LiveArea
+welcome text use these resources. Keyboard layout remains a separate setting;
+PC/app names and server messages retain their original text. Third-party notices
+retain their original wording, and the existing PNG manual is unchanged.
+Build, language selection and translated layout on Vita remain unverified.
+
 The current list/title resources intentionally follow the real patterns used by `GrapheneCt/NetStream`, including:
 
 - `template_top_title_bar`
@@ -418,7 +426,7 @@ imports the Browser row using 7z/Pillow with decoded-pixel equality verification
 The install template starts with native
 “Moonlight” / “Open source game streaming client” text and no sample app/PC names
 or purple placeholders. Install the full rebuilt VPK when changing these assets;
-content revision is 11; frames1–7 are revision 6.
+content revision is 12; frame3 is revision 7 and the other frames remain revision 6.
 The installed display name is `Moonlight`. The original spotlight background has
 no painted caption; native welcome text lives in frames. Current `gd`/`gdc`
 categories skip the native top-left title. See the [LiveArea guide](docs/LIVEAREA.md)

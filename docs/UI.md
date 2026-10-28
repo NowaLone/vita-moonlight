@@ -1448,6 +1448,78 @@ these cases were not individually reported. No agent build or hardware run.
 
 ## 6. Recipes
 
+### Interface localization — 2026-10-28
+
+English and Russian dictionaries in `cxml/locale/` are complete peers **[code]**.
+The application plugin explicitly selects RU when the constructed PAF framework
+reports `Locale_RU`, otherwise EN. Common resources and Sony's own system controls
+keep their system locale. No custom language preference or settings-version change
+is introduced. Language changes are applied on application startup.
+
+Static CXML labels and AppSettings' `onGetStringCb` use the plugin's dictionary.
+`ui_string()` supplies plugin-owned UTF-16 for PAF and both IME titles; those
+resources outlive the dialogs. `ui_text()` uses native `Utf16ToUtf8` for copied
+SceMsgDialog messages, dynamic labels and statistics. It clears output and logs
+conversion failures. Transient UTF-8 results are consumed in the same expression
+or held in an owning `paf::string`; no temporary `c_str()` pointer is retained.
+Dialog ownership, busy/confirmation behavior and typed pairing results are unchanged.
+Main's Delete confirmation uses a count-neutral phrase in both languages.
+
+Connection/pairing messages and the statistics formatter remove incomplete final
+UTF-8 characters after bounded writes. Dictionary checks preserve printf argument
+types/order and ensure fixed dialog text fits the existing 512-byte buffers.
+Names and server diagnostics are external content and are not translated. Copyright
+holders, license names and upstream notices retain their original wording; the
+credits introduction and source-download instructions are translated. The PNG
+manual is unchanged.
+
+LiveArea's generated welcome text uses the selected dictionary. The packaged
+frame3 also has a native `<liveitem><lang>ru</lang>` variant with the same text,
+using the language-selection pattern present in the local Sony Live from
+PlayStation template. English remains the default. Content revision is 12;
+frame3 revision is 7, other frame revisions remain 6. Reinstalling/updating the full
+VPK is needed to validate packaged resources; no direct shell writes are used.
+
+To add a translation, supply the same IDs and format placeholders in a new locale
+XML, register it in the CXML stringtable, and add that language to `interface_locale()`.
+Use dictionary IDs for new user-facing text. Keyboard layout/URL address input
+policy is independent of interface language. Existing geometry, native fonts,
+selection bar and popup sizes are retained. Russian PIN paragraphs keep explicit
+line breaks inside the existing 790 px width **[code; layout open]**.
+
+Seven focused non-build checks cover dictionary/reference completeness, format and
+buffer contracts, actual locale-selection and conversion branches, every UTF-8
+truncation boundary (ASCII, Cyrillic, CJK and surrogate-pair output), typed pairing
+messages/server details, and generated/packaged Russian LiveArea consistency.
+Existing flow checks mock dictionary lookups with English text; LiveArea's mock
+models UTF-8 bytes for either dictionary. These checks do not establish native
+compilation/ABI, glyph rendering, resource selection or text fitting. Maintainer
+build/Vita validation remains **[open]**: Russian and English starts; another system
+language falling back to English; Main/selection/popup, PIN and Settings hints;
+native busy/error/remote-Quit dialogs; IME titles; statistics; fresh and updated
+LiveArea welcome. No agent build or hardware run.
+
+**Russian missing-text regression (2026-10-28):** the maintainer's 960×544
+screenshots `2026-10-28-144658.jpg`, `144702.jpg` and `144708.jpg` show Russian
+Delete, an empty Settings button/title/busy message, and AppSettings displaying
+`msg_*` IDs **[shot]**. This establishes partial Russian resource selection and
+Cyrillic rendering, not successful localization. Read-only inspection of the
+existing `build/vita_moonlight_ui.rco` finds both complete 155-entry dictionaries,
+but incorrect length metadata in 133 RU strings and one EN string (`código`).
+For example, `Настройки` occupies 18 UTF-16 bytes but is marked as 36. The local
+Sony Live from PlayStation RCO records actual UTF-16 byte lengths **[code]**.
+
+The pinned CXML compiler's `attr_type_wstring` uses `strlen(UTF-8) << 1`.
+`scripts/patches/psp2cxml-utf16-length.patch` instead counts the written UTF-16
+units, preserving offsets, string bytes and compression. CI applies this patch
+before building the tool; the existing local compiler source is patched too.
+The maintainer must rebuild **psp2cxml-tool first**, then the RCO/application,
+selecting that rebuilt tool with `PSP2CXML_TOOL`. No dictionary/layout or runtime
+lookup workaround is needed for the malformed length field. Two non-build
+checks apply the patch to a pinned source fixture and interpret its counting
+loop for ASCII, Cyrillic, accented Latin, CJK and surrogate pairs. Corrected
+native appearance remains **[open]**; no agent build or Vita run.
+
 **Add a page.** Add `<page id="page_x">` to the XML (first child: a `plane texture="_bg_texture"` of size
 `960, 544`). Add a class deriving `page::Base` with `Base("page_x", "btn_close_x", open, close)`
 and add the `.cpp` to `add_executable` in `CMakeLists.txt` (sources are listed explicitly). Own the event

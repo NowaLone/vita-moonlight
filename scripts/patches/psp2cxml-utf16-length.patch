@@ -1,0 +1,17 @@
+--- a/src/cxml/cxml.cpp
++++ b/src/cxml/cxml.cpp
+@@ -587,7 +587,13 @@
+ 				}
+ 
+ 				*(int *)((uintptr_t)ptr + 0x8) = offset >> 1;
+-				*(int *)((uintptr_t)ptr + 0xC) = strlen(attr->Value()) << 1;
++				// RCS lengths are UTF-16 bytes, independent of the input UTF-8 length.
++				const uint16_t *text = (const uint16_t *)((const uint8_t *)pCompiler->m_wstringtable.GetData() + offset);
++				uint32_t length = 0;
++				while(text[length] != 0){
++					length++;
++				}
++				*(int *)((uintptr_t)ptr + 0xC) = length << 1;
+ 			}
+ 			break;
+ 		case attr_type_hash:

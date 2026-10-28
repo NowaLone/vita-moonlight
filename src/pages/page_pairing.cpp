@@ -108,7 +108,7 @@ void Pairing::StartPairing()
 
     MoonlightApp *app = MoonlightApp::Instance();
     if (!app) {
-        ShowSystemError("Pairing unavailable.");
+        ShowSystemError(ui_text("msg_pairing_unavailable").c_str());
         return;
     }
 
@@ -121,23 +121,23 @@ void Pairing::StartPairing()
 void Pairing::ShowPairingError(int result, int server_status_code,
                               const char *server_status_message)
 {
-    const char *message = "Unable to complete pairing.";
+    paf::string message = ui_text("msg_pairing_failed");
 
     switch (result) {
     case MOONLIGHT_PAIRING_ERROR_INCORRECT_PIN:
-        message = "Incorrect PIN. Select the PC again to retry pairing.";
+        message = ui_text("msg_pairing_incorrect_pin");
         break;
 
     case MOONLIGHT_PAIRING_ERROR_NETWORK:
-        message = "Could not connect to the PC during pairing. Check the network connection and Sunshine.";
+        message = ui_text("msg_pairing_network");
         break;
 
     case MOONLIGHT_PAIRING_ERROR_SECURITY:
-        message = "Pairing failed security verification.";
+        message = ui_text("msg_pairing_security");
         break;
 
     case MOONLIGHT_PAIRING_ERROR_PROTOCOL:
-        message = "The PC rejected the pairing request.";
+        message = ui_text("msg_pairing_rejected");
         break;
 
     case MOONLIGHT_PAIRING_ERROR_INTERNAL:
@@ -151,14 +151,15 @@ void Pairing::ShowPairingError(int result, int server_status_code,
 
     if (result == MOONLIGHT_PAIRING_ERROR_PROTOCOL && server_status_code > 0) {
         snprintf(m_dialog_message, sizeof(m_dialog_message),
-                 "The PC returned a pairing error:\n%s (Error %d)",
+                 ui_text("msg_pairing_server_error").c_str(),
                  server_status_message && server_status_message[0]
-                     ? server_status_message : "The PC rejected the pairing request.",
+                     ? server_status_message : ui_text("msg_pairing_rejected").c_str(),
                  server_status_code);
     } else {
-        strncpy(m_dialog_message, message, sizeof(m_dialog_message) - 1);
+        strncpy(m_dialog_message, message.c_str(), sizeof(m_dialog_message) - 1);
     }
     m_dialog_message[sizeof(m_dialog_message) - 1] = '\0';
+    trim_incomplete_utf8(m_dialog_message);
 
     ShowSystemError(m_dialog_message);
 }
@@ -171,6 +172,7 @@ void Pairing::ShowSystemError(const char *message)
     if (message != m_dialog_message) {
         strncpy(m_dialog_message, message, sizeof(m_dialog_message) - 1);
         m_dialog_message[sizeof(m_dialog_message) - 1] = '\0';
+        trim_incomplete_utf8(m_dialog_message);
     }
     memset(&m_dialog_user, 0, sizeof(m_dialog_user));
     sceMsgDialogParamInit(&m_dialog_param);
@@ -241,7 +243,7 @@ void Pairing::OnMoonlightEvent(
                 Apps *apps = new Apps(pairing->m_livearea_application_id);
                 if (!apps->IsValid()) {
                     delete apps;
-                    pairing->ShowSystemError("Unable to open applications.");
+                    pairing->ShowSystemError(ui_text("msg_error_open_apps").c_str());
                     return;
                 }
 

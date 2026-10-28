@@ -28,12 +28,11 @@ static wchar_t s_about_description[256];
 
 static void build_about_description()
 {
-    const char *text = "Settings are stored by the Vita AppSettings service.\nBuild commit: "
-        MOONLIGHT_GIT_COMMIT;
+    paf::wstring text = paf::common::string_util::ToWString(paf::common::FormatString(
+        ui_text("msg_about_build_format").c_str(), MOONLIGHT_GIT_COMMIT));
     size_t i = 0;
-
-    while (text[i] && i + 1 < sizeof(s_about_description) / sizeof(s_about_description[0])) {
-        s_about_description[i] = (wchar_t)(unsigned char)text[i];
+    while (i < text.size() && i + 1 < sizeof(s_about_description) / sizeof(s_about_description[0])) {
+        s_about_description[i] = text.c_str()[i];
         ++i;
     }
 

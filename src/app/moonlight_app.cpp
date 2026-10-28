@@ -439,7 +439,7 @@ void MoonlightApp::PollLiveAreaEvents()
     }
     MoonlightHost host;
     if (!m_hosts.Resolve(identity, &host)) {
-        m_connection.ShowError("This PC is no longer saved. Select or add the PC again.");
+        m_connection.ShowError(ui_text("msg_pc_no_longer_saved").c_str());
         return;
     }
     vita_debug_log("[LiveArea] launch saved PC app=%d", application_id);

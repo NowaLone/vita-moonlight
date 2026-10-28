@@ -6,6 +6,7 @@
 #include "services/livearea_service.h"
 #include "platform/livearea.h"
 #include "debug.h"
+#include "common.h"
 
 namespace {
 
@@ -34,8 +35,13 @@ static int make_frame_xml(char *xml, unsigned int capacity, int frame, const cha
 {
     if (!xml || !label || frame < 1 || frame > 7) return -1;
     welcome = welcome && frame < 7;
-    if (welcome) label = frame == 2 ? "Moonlight" :
-        frame == 3 ? "Open source game streaming client" : "";
+    paf::string welcome_label;
+    if (welcome) {
+        if (frame == 2 || frame == 3) {
+            welcome_label = ui_text(frame == 2 ? "msg_moonlight_title" : "msg_livearea_welcome");
+        }
+        label = welcome_label.c_str();
+    }
     char escaped[256 * 6 + 1];
     int used = 0;
     for (int i = 0; i < 256 && label[i];) {

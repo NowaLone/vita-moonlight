@@ -28,10 +28,6 @@ namespace {
 static const int kGameStreamPort = 47989;
 static const int kMaxHostAddressLength = 255;
 
-static const SceWChar16 kImeTitle[] = {
-    'P', 'C', ' ', 'a', 'd', 'd', 'r', 'e', 's', 's', 0
-};
-
 static void ConvertAsciiToImeText(
     const char *input,
     SceWChar16 *output,
@@ -275,7 +271,7 @@ Main::Main()
     paf::ui::Widget *title = root->FindChild("text_top");
     if (title) {
         ((paf::ui::Text *)title)->SetString(
-            paf::common::string_util::ToWString("Computers"));
+            paf::wstring(ui_string("msg_computers")));
     }
 
     HideStatus();
@@ -522,9 +518,9 @@ void Main::UpdateHostItem(paf::ui::Widget *item, int index)
     const MoonlightHost &host = m_hosts[index];
     if (m_rows[index].saved) set_host_availability(item, host);
     set_child_text(item, m_selection_mode ? "text_host_select_title" : "text_host_title",
-                   host.name[0] ? host.name : "PC");
+                   host.name[0] ? host.name : ui_text("msg_pc").c_str());
     set_child_text(item, m_selection_mode ? "text_host_select_desc" : "text_host_desc",
-                   host.internal[0] ? host.internal : "Unknown host");
+                   host.internal[0] ? host.internal : ui_text("msg_unknown_host").c_str());
     /* SetName() replaced the template ID with this row's callback token. */
     paf::ui::Widget *checkbox = item->FindChild(m_rows[index].checkbox_token);
     if (checkbox) static_cast<paf::ui::CheckBox *>(checkbox)->SetCheck(
@@ -819,8 +815,8 @@ void Main::UpdateSelectionActionBar()
          * The button is auto-sized from its label (adjust "2, 0, 0" in the XML),
          * so no width is set here.
          */
-        select_all->SetString(paf::common::string_util::ToWString(
-            AllHostsSelected() ? "Clear All" : "Select All"));
+        select_all->SetString(paf::wstring(ui_string(
+            AllHostsSelected() ? "msg_clear_all" : "msg_select_all")));
     }
 }
 
@@ -896,8 +892,7 @@ void Main::StartDeleteConfirmation()
     snprintf(
         m_delete_message,
         sizeof(m_delete_message),
-        "Delete selected PC%s?",
-        m_selected_count == 1 ? "" : "s");
+        "%s", ui_text("msg_delete_confirmation").c_str());
 
     SceMsgDialogParam param;
     SceMsgDialogUserMessageParam user_message;
@@ -947,7 +942,7 @@ void Main::DeleteSelectedHosts()
     ExitSelectionMode();
 
     if (failed) {
-        MoonlightApp::Instance()->Connection().ShowError("Unable to delete one or more PCs.");
+        MoonlightApp::Instance()->Connection().ShowError(ui_text("msg_error_delete").c_str());
     }
 }
 
@@ -1082,7 +1077,7 @@ void Main::OpenAddPc()
             vita_debug_log(
                 "[Main] failed to load SceIme: 0x%08X",
                 (unsigned int)result);
-            MoonlightApp::Instance()->Connection().ShowError("Unable to open the system keyboard.");
+            MoonlightApp::Instance()->Connection().ShowError(ui_text("msg_error_keyboard").c_str());
             return;
         }
 
@@ -1112,7 +1107,7 @@ void Main::StartAddPcIme()
                           SCE_IME_OPTION_NO_ASSISTANCE;
     m_ime_param.dialogMode = SCE_IME_DIALOG_DIALOG_MODE_WITH_CANCEL;
     m_ime_param.textBoxMode = SCE_IME_DIALOG_TEXTBOX_MODE_DEFAULT;
-    m_ime_param.title = kImeTitle;
+    m_ime_param.title = reinterpret_cast<const SceWChar16 *>(ui_string("msg_pc_address"));
     m_ime_param.maxTextLength = kMaxHostAddressLength;
     m_ime_param.initialText = m_ime_initial_text;
     m_ime_param.inputTextBuffer = m_ime_input;
@@ -1128,7 +1123,7 @@ void Main::StartAddPcIme()
         vita_debug_log(
             "[Main] sceImeDialogInit failed: 0x%08X",
             (unsigned int)result);
-        MoonlightApp::Instance()->Connection().ShowError("Unable to open the system keyboard.");
+        MoonlightApp::Instance()->Connection().ShowError(ui_text("msg_error_keyboard").c_str());
         return;
     }
 
@@ -1154,7 +1149,7 @@ void Main::HandleAddPcImeResult()
     }
 
     if (get_result < 0) {
-        MoonlightApp::Instance()->Connection().ShowError("Unable to read the PC address.");
+        MoonlightApp::Instance()->Connection().ShowError(ui_text("msg_error_read_address").c_str());
         return;
     }
 
@@ -1164,13 +1159,13 @@ void Main::HandleAddPcImeResult()
     }
 
     if (result.button != SCE_IME_DIALOG_BUTTON_ENTER) {
-        MoonlightApp::Instance()->Connection().ShowError("Enter PC hostname or IP address.");
+        MoonlightApp::Instance()->Connection().ShowError(ui_text("msg_enter_address").c_str());
         return;
     }
 
     char address[kMaxHostAddressLength + 1];
     if (!ConvertImeTextToAddress(m_ime_input, address, sizeof(address))) {
-        MoonlightApp::Instance()->Connection().ShowError("Enter a valid PC address or host:port.");
+        MoonlightApp::Instance()->Connection().ShowError(ui_text("msg_invalid_address").c_str());
         RetryAddPcIme();
         return;
     }
@@ -1190,7 +1185,7 @@ void Main::StartManualConnection(const char *address)
     }
 
     if (!ParseHostPort(address, host_address, sizeof(host_address), &port)) {
-        MoonlightApp::Instance()->Connection().ShowError("Enter a valid PC address or host:port.");
+        MoonlightApp::Instance()->Connection().ShowError(ui_text("msg_invalid_address").c_str());
         RetryAddPcIme();
         return;
     }
@@ -1279,7 +1274,7 @@ void Main::OnMoonlightEvent(const MoonlightEvent *event, void *userdata)
                 Apps *apps = new Apps(application_id);
                 if (!apps->IsValid()) {
                     delete apps;
-                    MoonlightApp::Instance()->Connection().ShowError("Unable to open applications.");
+                    MoonlightApp::Instance()->Connection().ShowError(ui_text("msg_error_open_apps").c_str());
                 }
             }
             break;
@@ -1290,19 +1285,19 @@ void Main::OnMoonlightEvent(const MoonlightEvent *event, void *userdata)
             char pin[5] = {0};
             int prepare_result = MoonlightApp::Instance()->Pairing().Prepare(pin);
             if (prepare_result != 0) {
-                MoonlightApp::Instance()->Connection().ShowError("Unable to prepare pairing.", prepare_result);
+                MoonlightApp::Instance()->Connection().ShowError(ui_text("msg_error_prepare_pairing").c_str(), prepare_result);
                 return;
             }
 
             Pairing *pairing = new Pairing(pin, application_id);
             if (!pairing || !pairing->IsValid()) {
                 delete pairing;
-                MoonlightApp::Instance()->Connection().ShowError("Unable to open pairing screen.");
+                MoonlightApp::Instance()->Connection().ShowError(ui_text("msg_error_open_pairing").c_str());
             }
             return;
         }
 
-        MoonlightApp::Instance()->Connection().ShowError("Unable to connect to PC.");
+        MoonlightApp::Instance()->Connection().ShowError(ui_text("msg_error_connect").c_str());
         break;
     }
 
@@ -1329,7 +1324,7 @@ void Main::OnMoonlightEvent(const MoonlightEvent *event, void *userdata)
          * than silently doing nothing.
          */
         main->m_connecting = false;
-        MoonlightApp::Instance()->Connection().ShowError("This PC needs pairing. Select it again to pair.");
+        MoonlightApp::Instance()->Connection().ShowError(ui_text("msg_needs_pairing").c_str());
         {
             paf::ui::ListView *list = static_cast<paf::ui::ListView *>(
                 main->root->FindChild("list_view_main"));

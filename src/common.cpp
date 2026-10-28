@@ -6,6 +6,7 @@
 
 #include <stdarg.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "common.h"
 #include "debug.h"
@@ -13,6 +14,33 @@
 
 paf::Plugin *g_plugin = NULL;
 static int s_debug_log_enabled = 0;
+
+const wchar_t *ui_string(const char *id)
+{
+    const wchar_t *text = g_plugin ? g_plugin->GetString(id) : NULL;
+    return text ? text : L"";
+}
+
+paf::string ui_text(const char *id)
+{
+    paf::string text;
+    if (paf::common::Utf16ToUtf8(ui_string(id), &text) < 0) {
+        vita_debug_log("[Locale] UTF-8 conversion failed: %s", id);
+        text.clear();
+    }
+    return text;
+}
+
+void trim_incomplete_utf8(char *text)
+{
+    size_t end = strlen(text);
+    if (end == 0) return;
+    size_t start = end - 1;
+    while (start > 0 && ((unsigned char)text[start] & 0xc0) == 0x80) --start;
+    unsigned char first = (unsigned char)text[start];
+    size_t length = first < 0x80 ? 1 : first < 0xe0 ? 2 : first < 0xf0 ? 3 : 4;
+    if (end - start < length) text[start] = '\0';
+}
 
 extern "C" void vita_debug_log_set_enabled(int enabled)
 {

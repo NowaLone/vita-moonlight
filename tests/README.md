@@ -1,6 +1,6 @@
 # Focused checks
 
-Latest recorded source gate: **262 checks including deferred host persistence (2026-10-28)**.
+Latest recorded source gate: **271 checks including the CXML UTF-16 correction (2026-10-28)**.
 See [the repeat Ponytail audit](../docs/PONYTAIL_REAUDIT_2026-10-23.md) for the latest
 baseline, per-change checks and native gates; [the earlier refactor audit](../docs/REFACTOR_AUDIT.md)
 records the preceding pass. Counts in the
@@ -11,6 +11,23 @@ cases are in the API audit and `runtime/README.md`; source checks do not replace
 Non-build checks (Python 3 and pycparser):
 
     PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -p 'test_*.py'
+
+`test_localization.py` checks complete EN/RU keys and references, printf argument
+contracts and fixed-dialog UTF-8 sizes. It interprets the actual locale-selection,
+UTF-16 conversion failure/success, UTF-8 truncation and typed pairing-message bodies
+with native calls mocked, and compares generated Russian LiveArea welcome text to
+the packaged `<lang>ru</lang>` variant. Existing flow interpreters mock resource
+lookups using the English dictionary; the LiveArea mock uses encoded UTF-8 bytes.
+These checks do not compile CXML/C++, render glyphs, validate native language
+selection or establish Vita text fitting. See [UI localization](../docs/UI.md#interface-localization--2026-10-28)
+for the maintainer build/device gate and translation recipe.
+
+`test_cxml_utf16_patch.py` applies the compiler patch to a pinned source-block
+fixture and interprets the corrected length-counting loop. It covers Cyrillic,
+accented Latin, CJK, ASCII and surrogate pairs, and checks that CI applies the
+patch before building the tool. It does not execute the compiler or generate an
+RCO. The maintainer must rebuild the patched CXML tool before rebuilding the app;
+the existing binary otherwise continues to write malformed non-ASCII lengths.
 
 Host persistence (2026-10-28): Main selection connects discovered/saved value copies without
 writing the host store. The API updates connection metadata only for authenticated paired

@@ -6,6 +6,7 @@ import copy
 import re
 import unittest
 from unittest.mock import patch
+from ui_test_strings import mock_ui_text
 from pycparser import c_ast, c_parser
 import test_adapter_lifecycle as runtime
 from test_xml_source import ROOT, strip_directives
@@ -33,6 +34,7 @@ def function(source, name):
 
 
 def normalize(source):
+    source = mock_ui_text(source)
     source = strip_directives(re.sub(r'//[^\n]*', '', source))
     source = re.sub(r'template<class Service>\s*', '', source).replace('inline ', '')
     source = source.replace('Service &service', 'int service')

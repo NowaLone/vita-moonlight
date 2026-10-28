@@ -112,4 +112,56 @@
   <string src="Selects how the Vita front touchscreen is presented to the host: off, DS4-style touchpad, absolute mouse, or Sunshine tablet mode." id="msg_touchscreen_mode_hint" />
   <string src="Loads Cross, Circle, Square and Triangle mappings from ux0:data/moonlight/vita.conf. Overrides the X/O swap setting. Takes effect on the next stream." id="msg_mapping_enabled_hint" />
   <string src="Reserves a margin along this back-touchscreen edge, in pixels of the virtual 960x544 touch area. Higher values move the active area inward." id="msg_back_deadzone_hint" />
-    </stringset>
+
+  <string src="Computers" id="msg_computers" />
+  <string src="Applications" id="msg_applications" />
+  <string src="Application" id="msg_application" />
+  <string src="Unknown host" id="msg_unknown_host" />
+  <string src="Clear All" id="msg_clear_all" />
+  <string src="Delete selected computers?" id="msg_delete_confirmation" />
+  <string src="PC address" id="msg_pc_address" />
+  <string src="Keyboard" id="msg_keyboard" />
+  <string src="Connecting to PC..." id="msg_connecting" />
+  <string src="Loading applications..." id="msg_loading_apps" />
+  <string src="Starting stream..." id="msg_starting_stream" />
+  <string src="Unable to connect to PC. Check the address, network connection and Sunshine." id="msg_error_connection_help" />
+  <string src="Another application is running on the PC. Close it and try again." id="msg_error_running_app" />
+  <string src="Another application is running on the PC. Quit it and start the selected application? Any unsaved progress will be lost. This also ends other streaming sessions." id="msg_confirm_quit" />
+  <string src="Unable to quit the running application. Close it on the PC or from the device that started it, then try again." id="msg_error_quit" />
+  <string src="Unable to start stream." id="msg_error_stream" />
+  <string src="Unable to open the progress dialog." id="msg_error_progress" />
+  <string src="Unable to delete one or more PCs." id="msg_error_delete" />
+  <string src="Unable to open the system keyboard." id="msg_error_keyboard" />
+  <string src="Unable to read the PC address." id="msg_error_read_address" />
+  <string src="Enter PC hostname or IP address." id="msg_enter_address" />
+  <string src="Enter a valid PC address or host:port." id="msg_invalid_address" />
+  <string src="Unable to open applications." id="msg_error_open_apps" />
+  <string src="Unable to prepare pairing." id="msg_error_prepare_pairing" />
+  <string src="Unable to open pairing screen." id="msg_error_open_pairing" />
+  <string src="Unable to connect to PC." id="msg_error_connect" />
+  <string src="This PC needs pairing. Select it again to pair." id="msg_needs_pairing" />
+  <string src="Unable to load applications." id="msg_error_load_apps" />
+  <string src="Unable to launch application." id="msg_error_launch_app" />
+  <string src="This application is no longer available on the PC. Select another application." id="msg_app_unavailable" />
+  <string src="Unable to open the streaming page." id="msg_error_open_stream" />
+  <string src="Pairing unavailable." id="msg_pairing_unavailable" />
+  <string src="Unable to complete pairing." id="msg_pairing_failed" />
+  <string src="Incorrect PIN. Select the PC again to retry pairing." id="msg_pairing_incorrect_pin" />
+  <string src="Could not connect to the PC during pairing. Check the network connection and Sunshine." id="msg_pairing_network" />
+  <string src="Pairing failed security verification." id="msg_pairing_security" />
+  <string src="The PC rejected the pairing request." id="msg_pairing_rejected" />
+  <string src="The PC returned a pairing error:&#10;%s (Error %d)" id="msg_pairing_server_error" />
+  <string src="Settings are stored by the Vita AppSettings service.&#10;Build commit: %s" id="msg_about_build_format" />
+  <string src="Open source game streaming client" id="msg_livearea_welcome" />
+  <string src="Video: %dx%d | H.264 | %d FPS | %.2f Mbps&#10;FPS: incoming %.1f | decode %.1f | PAF %.1f" id="msg_stats_video" />
+  <string src="&#10;RTT: %u ms | variation: %u ms" id="msg_stats_rtt" />
+  <string src="&#10;Drops: missing %.2f%% | pacer %.2f%% | PAF %.2f%%" id="msg_stats_drops" />
+  <string src="Decode call: %.2f ms" id="msg_stats_decode" />
+  <string src="%sPAF queue: %.2f ms" id="msg_stats_queue" />
+  <string src="&#10;Host min/max/avg: %.1f / %.1f / %.1f ms" id="msg_stats_host" />
+  <string src="Stream stopped" id="msg_stats_stopped" />
+  <string src="Video stalled" id="msg_stats_stalled" />
+  <string src=" (%.0f s without frames)" id="msg_stats_age" />
+  <string src="This PC is no longer saved. Select or add the PC again." id="msg_pc_no_longer_saved" />
+  <string src="PC" id="msg_pc" />
+</stringset>

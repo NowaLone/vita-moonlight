@@ -122,6 +122,14 @@ before proceeding to PAF/application builds; fresh build/Vita acceptance remains
   to `/home/nowaru/bin/psp2cxml-tool` and the source-root copy (638704 bytes), SHA256
   `8a602caac3c9c7cc86098f15a496c372d103995157169f2df16a5e85883b55a0`.
   Pin the source for rebuilds; host compiler differences can change the executable hash.
+  **UTF-16 correction (2026-10-28):** apply the project's
+  `scripts/patches/psp2cxml-utf16-length.patch` before rebuilding this pinned tool.
+  Upstream records wide-string lengths as twice the UTF-8 input byte count;
+  the patch counts the actual UTF-16 units already written to the string table.
+  The executable hash above describes the original, unpatched tool. The local
+  source has been patched; the maintainer must rebuild its executable, then
+  rebuild the application's RCO/VPK. The agent did not run either build.
+  `scripts/ci_setup.sh` applies the same patch before its existing tool build.
 - Local [VDPM](https://github.com/vitasdk/vdpm/tree/e423be457622a9ba517858f4831566dcd263729a):
   `e423be457622a9ba517858f4831566dcd263729a` (clean checkout). Its installer fetches
   libraries from the mutable `vitasdk/packages` release named `master`. Pinning VDPM
@@ -187,6 +195,7 @@ candidate won before PATH lookup. No general dump of environment variables is ne
    git clone https://github.com/Princess-of-Sleeping/psp2cxml-tool.git
    cd psp2cxml-tool
    git checkout --detach d971a9a9892c122b4edef15d335326b2a551fec4
+   git apply ../vita-moonlight-paf/scripts/patches/psp2cxml-utf16-length.patch
    bash build_linux_macos.sh
    export PSP2CXML_TOOL="$PWD/build/psp2cxml-tool"
    cd ..

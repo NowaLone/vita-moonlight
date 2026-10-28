@@ -124,16 +124,16 @@ int ConnectionService::StartWaitDialog()
         vita_debug_log("[Workflow] PAF busy dialog unavailable: no application plugin");
         return -1;
     }
-    const char *message;
+    const char *message_id;
     switch (m_operation) {
     case Operation_Connect:
-        message = "Connecting to PC...";
+        message_id = "msg_connecting";
         break;
     case Operation_Applications:
-        message = "Loading applications...";
+        message_id = "msg_loading_apps";
         break;
     case Operation_Launch:
-        message = "Starting stream...";
+        message_id = "msg_starting_stream";
         break;
     default:
         return -1;
@@ -151,7 +151,7 @@ int ConnectionService::StartWaitDialog()
     }
 
     paf::wstring title;
-    paf::wstring text = paf::common::string_util::ToWString(message);
+    paf::wstring text(ui_string(message_id));
     int32_t slot = sce::CommonGuiDialog::Dialog::Show(
         g_plugin, &title, &text, &sce::CommonGuiDialog::Param::s_dialogTextSmallBusy,
         NULL, NULL);
@@ -183,7 +183,7 @@ void ConnectionService::CloseWaitDialog()
 
 void ConnectionService::ShowConnectionError()
 {
-    ShowError("Unable to connect to PC. Check the address, network connection and Sunshine.");
+    ShowError(ui_text("msg_error_connection_help").c_str());
 }
 
 void ConnectionService::ShowError(const char *message, int result)
@@ -199,6 +199,7 @@ void ConnectionService::ShowError(const char *message, int result)
         strncpy(m_error_message, message, sizeof(m_error_message) - 1);
     }
     m_error_message[sizeof(m_error_message) - 1] = '\0';
+    trim_incomplete_utf8(m_error_message);
     m_error_pending = true;
     if (!m_dialog_task_registered) {
         paf::common::MainThreadCallList::Register(DialogPollTask, this);
@@ -210,11 +211,10 @@ void ConnectionService::ConfirmQuitAndStart(int application_id, int running_appl
 {
     if (application_id <= 0 || running_application_id <= 0 ||
         application_id == running_application_id || IsBusy()) {
-        ShowError("Another application is running on the PC. Close it and try again.");
+        ShowError(ui_text("msg_error_running_app").c_str());
         return;
     }
-    ShowError("Another application is running on the PC. Quit it and start the selected application? "
-              "Any unsaved progress will be lost. This also ends other streaming sessions.");
+    ShowError(ui_text("msg_confirm_quit").c_str());
     m_confirm_application_id = application_id;
     m_confirm_running_id = running_application_id;
     vita_debug_log("[Workflow] remote quit confirmation selected=%d active=%d",
@@ -285,10 +285,9 @@ bool ConnectionService::PrepareCompletion(const MoonlightEvent &event)
             event.running_application_id > 0 && event.running_application_id != event.application_id) {
             ConfirmQuitAndStart(event.application_id, event.running_application_id);
         } else if (event.result == MOONLIGHT_STREAM_QUIT_FAILED) {
-            ShowError("Unable to quit the running application. Close it on the PC or "
-                      "from the device that started it, then try again.", event.result);
+            ShowError(ui_text("msg_error_quit").c_str(), event.result);
         } else {
-            ShowError("Unable to start stream.", event.result);
+            ShowError(ui_text("msg_error_stream").c_str(), event.result);
         }
     }
     /* Release before dispatch: success may immediately start the next step. */
@@ -357,7 +356,7 @@ void ConnectionService::DialogPollTask(void *userdata)
             result.buttonId == SCE_MSG_DIALOG_BUTTON_ID_YES) {
             int start_result = service->StartConfirmed(application_id, running_id);
             if (start_result != 0) {
-                service->ShowError("Unable to start stream.", start_result);
+                service->ShowError(ui_text("msg_error_stream").c_str(), start_result);
             }
         }
     }
@@ -405,7 +404,7 @@ int ConnectionService::Connect(const MoonlightHost &host)
 
     int begin_result = BeginOperation(Operation_Connect);
     if (begin_result != 0) {
-        if (!IsBusy()) ShowError("Unable to open the progress dialog.", begin_result);
+        if (!IsBusy()) ShowError(ui_text("msg_error_progress").c_str(), begin_result);
         return begin_result;
     }
 #ifdef MOONLIGHT_DISCONNECT_TEST

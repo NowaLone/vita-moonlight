@@ -8,6 +8,7 @@ import re
 import unittest
 from unittest.mock import patch
 
+from ui_test_strings import mock_ui_text
 from pycparser import c_ast, c_parser
 import test_adapter_lifecycle as runtime
 from test_xml_source import ROOT, strip_directives
@@ -72,6 +73,7 @@ class Harness:
         bodies += function(native, 'legacy_gamestream_quit_app')
         api = (ROOT / 'src/moonlight/api.cpp').read_text()
         bodies += function(api, 'on_stream_event')
+        bodies = mock_ui_text(bodies)
         preamble = '''typedef int bool, int32_t, ConnectionService, SceChar8;
         typedef unsigned int size_t;
         typedef enum {''' + operation + '''} ForegroundOperation;
@@ -124,7 +126,7 @@ class Harness:
             sceMsgDialogGetStatus=lambda: self.status,
             sceMsgDialogGetResult=self.read_dialog,
             sceMsgDialogTerm=self.term_dialog,
-            vita_debug_log=lambda *args: None)
+            vita_debug_log=lambda *args: None, trim_incomplete_utf8=lambda text: None)
         for name in self.functions:
             self.values[name] = lambda *args, name=name: self.invoke(name, *args)
 

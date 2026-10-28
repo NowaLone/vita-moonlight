@@ -62,47 +62,49 @@ static void append_statistics_line(char *text, size_t size, size_t *used,
 static void format_stream_statistics(const MoonlightStreamStats &stats,
     char *text, size_t size)
 {
+    if (size == 0) return;
+    text[0] = '\0';
     size_t used = 0;
     const bool fresh = stats.active && stats.has_video && stats.video_age_us < 2000000ull;
     append_statistics_line(text, size, &used,
-        "Video: %dx%d | H.264 | %d FPS | %.2f Mbps\n"
-        "FPS: incoming %.1f | decode %.1f | PAF %.1f",
+        ui_text("msg_stats_video").c_str(),
         stats.width, stats.height, stats.target_fps, stats.payload_mbps,
         stats.incoming_fps, stats.decoded_fps, stats.paf_submit_fps);
     if (stats.rtt_valid) {
-        append_statistics_line(text, size, &used, "\nRTT: %u ms | variation: %u ms",
+        append_statistics_line(text, size, &used, ui_text("msg_stats_rtt").c_str(),
             stats.rtt_ms, stats.rtt_variation_ms);
     }
     if (fresh) {
         if (stats.incoming_fps > 0 && stats.decoded_fps > 0) {
             append_statistics_line(text, size, &used,
-                "\nDrops: missing %.2f%% | pacer %.2f%% | PAF %.2f%%",
+                ui_text("msg_stats_drops").c_str(),
                 stats.missing_percent, stats.pacer_drop_percent, stats.replaced_percent);
         }
         if (stats.decoder_call.samples || stats.paf_queue.samples) {
             append_statistics_line(text, size, &used, "\n");
             if (stats.decoder_call.samples) {
-                append_statistics_line(text, size, &used, "Decode call: %.2f ms",
+                append_statistics_line(text, size, &used, ui_text("msg_stats_decode").c_str(),
                     stats.decoder_call.average_ms);
             }
             if (stats.paf_queue.samples) {
-                append_statistics_line(text, size, &used, "%sPAF queue: %.2f ms",
+                append_statistics_line(text, size, &used, ui_text("msg_stats_queue").c_str(),
                     stats.decoder_call.samples ? " | " : "", stats.paf_queue.average_ms);
             }
         }
         if (stats.host_latency_samples) {
-            append_statistics_line(text, size, &used, "\nHost min/max/avg: %.1f / %.1f / %.1f ms",
+            append_statistics_line(text, size, &used, ui_text("msg_stats_host").c_str(),
                 stats.host_latency_min_ms, stats.host_latency_max_ms, stats.host_latency_average_ms);
         }
     } else {
-        const char *status = !stats.active ? "Stream stopped" : !stats.has_video
-            ? "Waiting for video" : "Video stalled";
-        append_statistics_line(text, size, &used, "\n%s", status);
+        paf::string status = ui_text(!stats.active ? "msg_stats_stopped" : !stats.has_video
+            ? "msg_stream_video_stalled" : "msg_stats_stalled");
+        append_statistics_line(text, size, &used, "\n%s", status.c_str());
         if (stats.has_video && stats.active) {
-            append_statistics_line(text, size, &used, " (%.0f s without frames)",
+            append_statistics_line(text, size, &used, ui_text("msg_stats_age").c_str(),
                 (double)stats.video_age_us / 1000000.0);
         }
     }
+    trim_incomplete_utf8(text);
 }
 
 static_assert(sizeof(SceWChar16) == sizeof(wchar_t), "IME and PAF UTF-16 code units must match");
@@ -144,7 +146,6 @@ void Stream::OpenKeyboardIfRequested()
     static int dialog_open = 0;
     static SceImeDialogParam param;
     static SceWChar16 buffer[128];
-    static SceWChar16 title[] = { 'K', 'e', 'y', 'b', 'o', 'a', 'r', 'd', 0 };
 
     if (!dialog_open && vita_input_consume_keyboard_request()) {
         if (!module_loaded) {
@@ -161,7 +162,7 @@ void Stream::OpenKeyboardIfRequested()
         param.option = SCE_IME_OPTION_NO_AUTO_CAPITALIZATION;
         param.dialogMode = SCE_IME_DIALOG_DIALOG_MODE_WITH_CANCEL;
         param.textBoxMode = SCE_IME_DIALOG_TEXTBOX_MODE_DEFAULT;
-        param.title = title;
+        param.title = reinterpret_cast<const SceWChar16 *>(ui_string("msg_keyboard"));
         param.maxTextLength = 120;
         param.inputTextBuffer = buffer;
         param.enterLabel = SCE_IME_ENTER_LABEL_GO;

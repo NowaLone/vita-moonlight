@@ -9,6 +9,7 @@ import unittest
 import xml.etree.ElementTree as ET
 from unittest.mock import patch
 
+from ui_test_strings import STRINGS
 from pycparser import c_ast, c_parser
 import test_adapter_lifecycle as runtime
 from test_host_persistence import function, run
@@ -40,6 +41,8 @@ class LiveArea(unittest.TestCase):
         app = app.replace('m_hosts.Resolve', 'resolve_host').replace('m_applications.GetAll', 'get_apps')
         app = app.replace('m_connection.State()', 'connection_state()')
         code = strip_directives(code + app)
+        code = code.replace('paf::string welcome_label;', 'const char *welcome_label = "";')
+        code = code.replace('welcome_label.c_str()', 'welcome_label')
         types = '''typedef int bool; typedef struct { int id; char name[256]; } MoonlightApplication;
         typedef struct { char name[256], internal[256], host_id[33]; int port; } MoonlightHost;
         typedef struct { int type, result; } MoonlightEvent;'''
@@ -55,6 +58,7 @@ class LiveArea(unittest.TestCase):
         self.status, self.submit_result, self.load_result, self.loaded = 0, 0, 0, False
         self.cache, self.cache_result = [], None
         self.connection_state = 2
+        self.strings = STRINGS
 
     @staticmethod
     def host(name='PC B', host_id='uuid-B'):
@@ -144,6 +148,7 @@ class LiveArea(unittest.TestCase):
                      INT_MAX=2147483647, strncmp=lambda a, b, n: int(text(a)[:n] != text(b)[:n]),
                      sceSysmoduleIsLoaded=lambda module: self.call('is_loaded', 0 if self.loaded else -1),
                      sceSysmoduleLoadModule=lambda module: self.call('load', self.load_result),
+                     ui_text=lambda key: string(self.strings[key]),
                      sceLiveAreaGetStatus=lambda: self.call('status', self.status),
                      sceLiveAreaUpdateFrameAsync=self.submit,
                      vita_debug_log=lambda *args: None, snprintf=self.snprintf,

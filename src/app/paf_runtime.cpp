@@ -13,6 +13,11 @@ static void loadPluginCB(paf::Plugin *plugin)
     MoonlightApp::Instance()->Start(plugin);
 }
 
+static Locale interface_locale(Locale system_locale)
+{
+    return system_locale == Locale_RU ? Locale_RU : Locale_EN;
+}
+
 int paf_runtime_main(void)
 {
     paf::Framework::InitParam fwParam;
@@ -38,6 +43,8 @@ int paf_runtime_main(void)
     pluginParam.name = "vita_moonlight_ui";
     pluginParam.caller_name = "__main__";
     pluginParam.resource_file = "app0:/vita_moonlight_ui.rco";
+    // Keep common/system UI in the system locale; select a complete app dictionary.
+    pluginParam.locale = interface_locale(paf_fw->GetLocale());
     pluginParam.init_func = NULL;
     pluginParam.start_func = loadPluginCB;
     pluginParam.stop_func = NULL;

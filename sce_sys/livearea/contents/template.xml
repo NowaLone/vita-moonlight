@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<livearea style="a5" format-ver="01.00" content-rev="11">
+<livearea style="a5" format-ver="01.00" content-rev="12">
   <livearea-background>
     <image>bg0.png</image>
   </livearea-background>
@@ -20,10 +20,16 @@
       </text>
     </liveitem>
   </frame>
-  <frame id="frame3" multi="o" autoflip="0" rev="6">
+  <frame id="frame3" multi="o" autoflip="0" rev="7">
     <liveitem default="on">
       <text origin="frame" width="440" height="48" align="center" valign="center" text-align="center" text-valign="center" line-align="center" word-wrap="off" ellipsis="on">
         <str size="20" color="#d0d0d0" bold="off" shadow="off">Open source game streaming client</str>
+      </text>
+    </liveitem>
+    <liveitem>
+      <lang>ru</lang>
+      <text origin="frame" width="440" height="48" align="center" valign="center" text-align="center" text-valign="center" line-align="center" word-wrap="off" ellipsis="on">
+        <str size="20" color="#d0d0d0" bold="off" shadow="off">Клиент трансляции игр с открытым кодом</str>
       </text>
     </liveitem>
   </frame>

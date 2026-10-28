@@ -77,6 +77,7 @@ done
 
 cxml="$deps_dir/psp2cxml-tool"
 checkout_repository "$(lock_value cxml_tool repository)" "$(lock_value cxml_tool commit)" "$cxml"
+git -C "$cxml" apply "$project_dir/scripts/patches/psp2cxml-utf16-length.patch"
 (cd "$cxml" && bash -e build_linux_macos.sh)
 test -x "$cxml/build/psp2cxml-tool"
 

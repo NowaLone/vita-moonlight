@@ -3,6 +3,7 @@ import copy
 import unittest
 from unittest.mock import patch
 
+from ui_test_strings import mock_ui_text
 from pycparser import c_parser
 import test_adapter_lifecycle as runtime
 import test_livearea as frames
@@ -42,6 +43,7 @@ class LiveAreaLaunch(unittest.TestCase):
         typedef struct {int type;} SceAppUtilAppEventParam;
         typedef struct {char param[1019], reserved[32];} MoonlightLiveAreaEventParam;'''
         code = poll + admission + resolve + launch
+        code = mock_ui_text(code)
         for prefix in ('MoonlightApp::', 'Main::', 'HostService::', 'Apps::'): code = code.replace(prefix, '')
         unit = c_parser.CParser().parse(types + strip_directives(code))
         cls.bodies = {node.decl.name: node.body for node in unit.ext if hasattr(node, 'body')}

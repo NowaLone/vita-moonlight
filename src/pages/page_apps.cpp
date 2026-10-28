@@ -93,7 +93,7 @@ Apps::Apps(int application_id)
     paf::ui::Widget *title = root->FindChild("text_top");
     if (title) {
         ((paf::ui::Text *)title)->SetString(
-            paf::common::string_util::ToWString("Applications"));
+            paf::wstring(ui_string("msg_applications")));
     }
 
     HideStatus(); /* ApplicationService opens the native progress message. */
@@ -101,7 +101,7 @@ Apps::Apps(int application_id)
     int result = MoonlightApp::Instance()->Applications().Refresh();
     if (result != 0) {
         m_livearea_application_id = 0;
-        MoonlightApp::Instance()->Connection().ShowError("Unable to load applications.", result);
+        MoonlightApp::Instance()->Connection().ShowError(ui_text("msg_error_load_apps").c_str(), result);
         ShowEmptyState();
     }
 }
@@ -247,7 +247,7 @@ paf::ui::ListItem *Apps::CreateListItem(
 
     button->SetString(
         paf::common::string_util::ToWString(
-            app.name[0] ? app.name : "Application"));
+            app.name[0] ? app.name : ui_text("msg_application").c_str()));
 
     return item;
 }
@@ -285,7 +285,7 @@ void Apps::SelectApp(int index) {
 
     if (result != 0) {
         m_launching = false;
-        MoonlightApp::Instance()->Connection().ShowError("Unable to launch application.", result);
+        MoonlightApp::Instance()->Connection().ShowError(ui_text("msg_error_launch_app").c_str(), result);
         ShowEmptyState();
         return;
     }
@@ -304,7 +304,7 @@ void Apps::LaunchRequestedApplication()
         }
     }
     MoonlightApp::Instance()->Connection().ShowError(
-        "This application is no longer available on the PC. Select another application.");
+        ui_text("msg_app_unavailable").c_str());
 }
 
 void Apps::ShowEmptyState() {
@@ -342,7 +342,7 @@ void Apps::ShowApps(int count) {
     m_app_count = 0;
     m_apps.clear();
     if (count < 0 || count > MOONLIGHT_MAX_APPLICATIONS) {
-        MoonlightApp::Instance()->Connection().ShowError("Unable to load applications.");
+        MoonlightApp::Instance()->Connection().ShowError(ui_text("msg_error_load_apps").c_str());
         ShowEmptyState();
         return;
     }
@@ -355,7 +355,7 @@ void Apps::ShowApps(int count) {
         if (m_app_count < 0 || m_app_count > count) {
             m_app_count = 0;
             m_apps.clear();
-            MoonlightApp::Instance()->Connection().ShowError("Unable to load applications.");
+            MoonlightApp::Instance()->Connection().ShowError(ui_text("msg_error_load_apps").c_str());
             ShowEmptyState();
             return;
         }
@@ -394,7 +394,7 @@ void Apps::OnMoonlightEvent(
 
     case MOONLIGHT_EVENT_APPLICATIONS_FAILED: {
         apps->m_livearea_application_id = 0;
-        MoonlightApp::Instance()->Connection().ShowError("Unable to load applications.", event->result);
+        MoonlightApp::Instance()->Connection().ShowError(ui_text("msg_error_load_apps").c_str(), event->result);
         apps->ShowEmptyState();
         break;
     }
@@ -409,7 +409,7 @@ void Apps::OnMoonlightEvent(
             Stream *stream = new Stream();
             if (!stream->IsValid()) {
                 delete stream;
-                MoonlightApp::Instance()->Connection().ShowError("Unable to open the streaming page.");
+                MoonlightApp::Instance()->Connection().ShowError(ui_text("msg_error_open_stream").c_str());
             }
         }
 

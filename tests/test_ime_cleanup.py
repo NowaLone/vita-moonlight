@@ -1,6 +1,7 @@
 """Interpret Main's IME result/cleanup prefix with serial dialog/call-list mocks."""
 import unittest
 
+from ui_test_strings import mock_ui_text
 from pycparser import c_parser
 from test_host_persistence import function, run
 from test_xml_source import ROOT
@@ -13,6 +14,7 @@ class ImeCleanup(unittest.TestCase):
         code = code[:code.index('    char address[')] + '\n}'
         code = code.replace('MoonlightApp::Instance()->Connection().ShowError', 'show_error')
         code = code.replace('paf::common::MainThreadCallList::Unregister', 'unregister')
+        code = mock_ui_text(code)
         body = c_parser.CParser().parse(
             'typedef struct { int button; } SceImeDialogResult;' + code).ext[-1].body
         for status in (-1, 0):

@@ -5,6 +5,12 @@
 
 extern paf::Plugin *g_plugin;
 
+/* Application resource strings. Call on the PAF main thread. */
+const wchar_t *ui_string(const char *id);
+paf::string ui_text(const char *id);
+/* Remove a partial final code point after truncating a valid UTF-8 string. */
+void trim_incomplete_utf8(char *text);
+
 typedef void (*DecideCb)(int32_t type, paf::ui::Handler *self, paf::ui::Event *e, void *userdata);
 
 paf::Plugin::PageOpenParam make_open_param(paf::Plugin::TransitionType transition);

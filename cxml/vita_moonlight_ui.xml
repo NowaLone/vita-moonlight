@@ -375,6 +375,7 @@
 
   <stringtable>
     <locale src="locale/en.xml" compress="on" id="en" />
+    <locale src="locale/ru.xml" compress="on" id="ru" />
   </stringtable>
 
   <filetable>

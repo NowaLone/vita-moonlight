@@ -8,6 +8,7 @@ import unittest
 import xml.etree.ElementTree as ET
 from unittest.mock import patch
 
+from ui_test_strings import mock_ui_text
 from pycparser import c_ast, c_parser
 import test_adapter_lifecycle as runtime
 from test_host_lists import function
@@ -68,6 +69,7 @@ class PageNavigation(unittest.TestCase):
         code = code.replace('--apps->m_navigation_pending;',
                             'apps->m_navigation_pending = apps->m_navigation_pending - 1;')
         code = code.replace('HideStatus()', 'hide_status()').replace('ShowEmptyState()', 'show_empty()')
+        code = mock_ui_text(code)
         preamble = '''typedef int bool; typedef int int32_t;
         typedef struct {int id;} Application;
         typedef struct {int root, m_content, m_main_content, m_transitioning,
