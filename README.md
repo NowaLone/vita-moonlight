@@ -2,6 +2,13 @@
 
 Native PS Vita Moonlight frontend built with Sony's PAF framework.
 
+Development continues in [NowaLone/vita-moonlight](https://github.com/NowaLone/vita-moonlight),
+a fork of [xyzz/vita-moonlight](https://github.com/xyzz/vita-moonlight). The original
+Vita history through `984603b` is preserved; the PAF work is consolidated into
+50 logical commits, with completed experiments and follow-up fixes folded into
+their implementation. Earlier PAF commit IDs and the v1.00/v1.01 release evidence
+remain in [the previous repository](https://github.com/NowaLone/vita-moonlight-paf).
+
 The project provides a system-style PAF UI on top of the real Moonlight/GameStream stack used by Vita Moonlight. It is no longer just a UI shell: host discovery, persistence, pairing, application listing, streaming, video/audio output, and Vita input paths are implemented.
 
 For VPK/profile selection, Sunshine pairing, controls, updates and troubleshooting,

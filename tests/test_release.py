@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location('moonlight_release', ROOT / 'scripts/release.py')
 release = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(release)
-REPO = 'NowaLone/vita-moonlight-paf'
+REPO = 'NowaLone/vita-moonlight'
 ENV = {'GITHUB_REF': 'refs/tags/v1.01', 'GITHUB_EVENT_NAME': 'push',
        'SOURCE_SHA': 'a' * 40, 'GITHUB_RUN_ID': '123'}
 

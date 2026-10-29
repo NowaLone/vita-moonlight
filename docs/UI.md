@@ -1461,6 +1461,12 @@ these cases were not individually reported. No agent build or hardware run.
 
 ### Interface localization — 2026-10-28
 
+Repository migration, 2026-10-29 [code]: the native Licenses and credits
+source-download link uses `https://github.com/NowaLone/vita-moonlight/releases`
+in both EN/RU `msg_license_sources` strings. The shorter address preserves
+the existing paragraph structure. Historical release/evidence links retain
+the previous repository address.
+
 English and Russian dictionaries in `cxml/locale/` are complete peers **[code]**.
 The application plugin explicitly selects RU when the constructed PAF framework
 reports `Locale_RU`, otherwise EN. Common resources and Sony's own system controls

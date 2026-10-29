@@ -59,7 +59,7 @@ class UiResources(unittest.TestCase):
         self.assertIn('MIT o similar', text)
         self.assertIn('This product includes cryptographic software written by Eric Young', text)
         self.assertIn('This product includes software developed by the OpenSSL Project', text)
-        self.assertIn('https://github.com/NowaLone/vita-moonlight-paf/releases', text)
+        self.assertIn('https://github.com/NowaLone/vita-moonlight/releases', text)
 
 
 if __name__ == '__main__':

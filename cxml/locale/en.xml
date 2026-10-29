@@ -87,7 +87,7 @@
   <string src="GCC compiler runtime&#10;Free Software Foundation and contributors.&#10;GNU GPL version 3 with the GCC Runtime Library Exception for covered runtime files." id="msg_license_gcc" />
   <string src="vita-headers / VitaSDK import stubs&#10;Copyright 2017 vitasdk.&#10;MIT license." id="msg_license_vitasdk" />
   <string src="PAF integration&#10;vitasdk-paf-component: Copyright (c) 2025 Princess-of-Sleeping, MIT license.&#10;ScePaf-RE declarations: GrapheneCt, credited separately." id="msg_license_paf" />
-  <string src="Full license texts and source&#10;Download the source archive from:&#10;https://github.com/NowaLone/vita-moonlight-paf/releases&#10;&#10;The archive contains the component license files and attribution details. Each component retains its own terms and warranty disclaimers." id="msg_license_sources" />
+  <string src="Full license texts and source&#10;Download the source archive from:&#10;https://github.com/NowaLone/vita-moonlight/releases&#10;&#10;The archive contains the component license files and attribution details. Each component retains its own terms and warranty disclaimers." id="msg_license_sources" />
 
   <string src="Requests game graphics adjustments on the PC for the selected resolution and FPS, when supported by the host. Takes effect on the next stream." id="msg_optimize_graphics_hint" />
   <string src="Helps video recovery after lost or corrupted packets by invalidating unusable reference frames." id="msg_ref_frame_invalidation_hint" />

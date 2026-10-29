@@ -1,7 +1,7 @@
 ---
 name: vita-moonlight-paf
 description: "Work on the Vita Moonlight PAF repository: PS Vita PAF UI, CXML resources, Moonlight/GameStream services and backend, host persistence, streaming lifecycle, Vita input, builds, validation, and roadmap tasks. Use whenever implementing, debugging, reviewing, or documenting this project."
-compatibility: Repository-specific skill for NowaLone/vita-moonlight-paf; Vita hardware validation and builds require the appropriate PS Vita SDK/toolchain.
+compatibility: Repository-specific skill for NowaLone/vita-moonlight (native PAF frontend); Vita hardware validation and builds require the appropriate PS Vita SDK/toolchain.
 metadata:
   version: "1.0.0"
 ---

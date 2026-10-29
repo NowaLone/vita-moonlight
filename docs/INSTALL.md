@@ -1,6 +1,6 @@
 # Install and use Vita Moonlight PAF
 
-This is the user setup guide for `NowaLone/vita-moonlight-paf`, title ID
+This is the user setup guide for `NowaLone/vita-moonlight`, title ID
 `VLMP00001`, displayed as **Moonlight** on the Vita. Build instructions are in
 [BUILD_ENVIRONMENT.md](BUILD_ENVIRONMENT.md). Release preparation is in
 [RELEASE.md](RELEASE.md).
@@ -40,13 +40,16 @@ acceptance did not supply firmware or separate profile results.
 
 ## Download and install
 
-On 2026-10-26 the repository had no published GitHub Releases. Until a release
-is published, use only a maintainer-designated successful
-[Clean Vita build run](https://github.com/NowaLone/vita-moonlight-paf/actions),
-download its `vita-moonlight-paf-<full-commit>` artifact and unpack the ZIP.
-Record the run/commit and selected profile. An Actions artifact is a test build,
-not automatically a validated release. Future releases belong on the
-[project Releases page](https://github.com/NowaLone/vita-moonlight-paf/releases).
+New releases belong on the
+[project Releases page](https://github.com/NowaLone/vita-moonlight/releases).
+The earlier v1.00/v1.01 downloads and their validation evidence remain in
+[the previous repository](https://github.com/NowaLone/vita-moonlight-paf/releases).
+Until a new release is published, use those existing downloads or a
+maintainer-designated successful
+[Clean Vita build run](https://github.com/NowaLone/vita-moonlight/actions).
+For an Actions build, download `vita-moonlight-paf-<full-commit>` and unpack
+the ZIP. Record the run/commit and selected profile; an Actions artifact is
+a test build, not automatically a validated release.
 
 1. If updating, first follow the backup steps below. Fully close Moonlight.
 2. Transfer the chosen complete `.vpk` using VitaShell's USB or FTP support to

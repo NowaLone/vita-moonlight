@@ -1,5 +1,12 @@
 # Release procedure
 
+The current repository is `NowaLone/vita-moonlight`. The earlier v1.00/v1.01
+releases and their original source hashes remain in `NowaLone/vita-moonlight-paf`;
+the dated evidence links below deliberately point there. The rebased history
+starts without tags. Continue with a version newer than `01.01` for the next
+release; do not recreate the old release tags on rewritten commits. Existing
+installed VPKs retain their packaged update URL until replaced by a new VPK.
+
 Pushing a version tag starts **Clean Vita build** and automatically publishes a
 system-profile release after successful checks/build. There is no manual workflow
 trigger or release-mode input. The agent does not run builds, package/deploy the
@@ -118,7 +125,7 @@ remain available, all with 14-day Actions retention. Published release assets
 provide durable downloads outside that artifact retention period.
 
 The system VPK includes `sce_sys/homebrew_update.ini` pointing to
-`https://github.com/NowaLone/vita-moonlight-paf/releases/latest/download/VLMP00001-ver.xml`.
+`https://github.com/NowaLone/vita-moonlight/releases/latest/download/VLMP00001-ver.xml`.
 The XML references the VPK and CDATA changeinfo at that exact versioned release,
 so a newer publication cannot mix manifests and payloads. Only publishing the
 complete release changes the Latest feed; drafts do not. Package size/SHA-1 and
