@@ -4,6 +4,12 @@ This roadmap captures the agreed next steps for Vita Moonlight PAF. It is ordere
 
 ## Active remaining work (reconciled 2026-10-27)
 
+- [x] SPS/assembly bounds correction after the external audit (2026-10-29): validate
+  Annex B prefixes/SPS type, reject parser/writer errors, return a checked written
+  size and check fragment capacity before copying. A 128-byte temporary NAL keeps
+  failed rewrites from touching the output. Four serial source checks pass (284 total);
+  the h264 dependency internals and native decoder/playback remain unverified.
+
 - [x] Source correction after the external audit (2026-10-29): host-directory admission
   rejects path traversal, reserved client-identity aliases and truncated paths before
   create/read/write/pin/delete. Safe existing directories and display names are retained;

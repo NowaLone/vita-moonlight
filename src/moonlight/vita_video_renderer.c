@@ -7,6 +7,7 @@
 #include <Limelight.h>
 
 #include <stdio.h>
+#include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -215,7 +216,7 @@ static int vita_video_setup(
         (unsigned int)width,
         (unsigned int)height);
 
-    s_decoder_buffer_size = 128 * 1024 + 64;
+    s_decoder_buffer_size = 128 * 1024 + GS_SPS_MAX_SIZE;
     s_decoder_buffer = (char *)malloc(s_decoder_buffer_size);
     if (!s_decoder_buffer) {
         return -1;
@@ -615,12 +616,13 @@ static int vita_video_submit(PDECODE_UNIT decode_unit)
             decode_unit->receiveTimeUs, decode_unit->enqueueTimeUs);
     }
 
-    if (!decode_unit || !s_decoder ||
+    if (!decode_unit || !s_decoder || decode_unit->fullLength <= 0 ||
+        decode_unit->fullLength > INT_MAX - GS_SPS_MAX_SIZE ||
         !s_frame_buffers[s_frame_index]) {
         return vita_video_need_idr(generation);
     }
 
-    required = (size_t)decode_unit->fullLength + 64;
+    required = (size_t)decode_unit->fullLength + GS_SPS_MAX_SIZE;
     if (required > s_decoder_buffer_size) {
         char *new_buffer = (char *)realloc(
             s_decoder_buffer,
@@ -634,25 +636,31 @@ static int vita_video_submit(PDECODE_UNIT decode_unit)
 
     entry = decode_unit->bufferList;
     while (entry) {
-        if (entry->length > 0) {
-            if (entry->bufferType == BUFFER_TYPE_SPS) {
-                gs_sps_fix(
-                    entry,
-                    GS_SPS_BITSTREAM_FIXUP,
-                    (uint8_t *)s_decoder_buffer,
-                    (uint32_t *)&length);
-            } else {
-                memcpy(
-                    s_decoder_buffer + length,
-                    entry->data,
-                    (size_t)entry->length);
-                length += (size_t)entry->length;
+        if (!entry->data || entry->length <= 0 || length > required) {
+            return vita_video_need_idr(generation);
+        }
+        if (entry->bufferType == BUFFER_TYPE_SPS) {
+            result = gs_sps_fix(
+                entry,
+                GS_SPS_BITSTREAM_FIXUP,
+                (uint8_t *)s_decoder_buffer + length,
+                required - length);
+            if (result <= 0) return vita_video_need_idr(generation);
+            length += (size_t)result;
+        } else {
+            if ((size_t)entry->length > required - length) {
+                return vita_video_need_idr(generation);
             }
+            memcpy(
+                s_decoder_buffer + length,
+                entry->data,
+                (size_t)entry->length);
+            length += (size_t)entry->length;
         }
         entry = entry->next;
     }
 
-    if (length == 0 || length > (size_t)decode_unit->fullLength + 64) {
+    if (length == 0 || length > required) {
         vita_debug_log(
             "[Video] invalid assembled decode unit length=%u full=%u",
             (unsigned int)length,

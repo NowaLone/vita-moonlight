@@ -18,6 +18,7 @@
  */
 
 #include <Limelight.h>
+#include <stddef.h>
 
 #define GS_SPS_BITSTREAM_FIXUP  0x01
 #define GS_SPS_REMOVE_VST_FIXUP 0x02
@@ -25,4 +26,7 @@
 
 void gs_sps_init(int width, int height);
 void gs_sps_stop();
-void gs_sps_fix(PLENTRY sps, int flags, uint8_t* out_buf, uint32_t* out_offset);
+/* Maximum rewritten NAL payload; the Annex B prefix is returned separately in the size. */
+#define GS_SPS_MAX_SIZE 128
+/* Bytes written, including the prefix, or -1; failure leaves out_buf untouched. */
+int gs_sps_fix(PLENTRY sps, int flags, uint8_t* out_buf, size_t out_size);

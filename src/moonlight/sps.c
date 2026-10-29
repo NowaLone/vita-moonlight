@@ -37,10 +37,21 @@ void gs_sps_stop() {
   }
 }
 
-void gs_sps_fix(PLENTRY sps, int flags, uint8_t* out_buf, uint32_t* out_offset) {
-  int start_len = sps->data[2] == 0x01 ? 3 : 4;
-
-  read_nal_unit(h264_stream, sps->data+start_len, sps->length-start_len);
+int gs_sps_fix(PLENTRY sps, int flags, uint8_t* out_buf, size_t out_size) {
+  if (!h264_stream || !sps || !sps->data || !out_buf || sps->length < 4) return -1;
+  int start_len;
+  if (sps->data[0] == 0 && sps->data[1] == 0 && sps->data[2] == 1) {
+    start_len = 3;
+  } else if (sps->length >= 5 && sps->data[0] == 0 && sps->data[1] == 0 &&
+             sps->data[2] == 0 && sps->data[3] == 1) {
+    start_len = 4;
+  } else {
+    return -1;
+  }
+  if ((size_t)start_len >= out_size ||
+      ((unsigned char)sps->data[start_len] & 0x9f) != NAL_UNIT_TYPE_SPS) return -1;
+  if (read_nal_unit(h264_stream, sps->data + start_len, sps->length - start_len) <= 0)
+    return -1;
 
   // Some decoders rely on H264 level to decide how many buffers are needed
   // Since we only need one frame buffered, we'll set level as low as we can
@@ -83,8 +94,11 @@ void gs_sps_fix(PLENTRY sps, int flags, uint8_t* out_buf, uint32_t* out_offset) 
     h264_stream->sps->vui.max_bits_per_mb_denom = 1;
   }
 
-  memcpy(out_buf+*out_offset, sps->data, start_len);
-  *out_offset += start_len;
-
-  *out_offset += write_nal_unit(h264_stream, out_buf+*out_offset, 128);
+  uint8_t nal[GS_SPS_MAX_SIZE];
+  int written = write_nal_unit(h264_stream, nal, sizeof(nal));
+  if (written <= 0 || written > GS_SPS_MAX_SIZE ||
+      (size_t)written > out_size - start_len) return -1;
+  memcpy(out_buf, sps->data, start_len);
+  memcpy(out_buf + start_len, nal, written);
+  return start_len + written;
 }
