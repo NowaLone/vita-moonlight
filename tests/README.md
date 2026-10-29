@@ -1,6 +1,6 @@
 # Focused checks
 
-Latest recorded source gate: **301 checks including artwork binding/fallback visibility (2026-10-30)**.
+Latest recorded source gate: **303 checks including artwork loading failures/pixel reduction (2026-10-30)**.
 See [the repeat Ponytail audit](../docs/PONYTAIL_REAUDIT_2026-10-23.md) for the latest
 baseline, per-change checks and native gates; [the earlier refactor audit](../docs/REFACTOR_AUDIT.md)
 records the preceding pass. Counts in the
@@ -18,8 +18,13 @@ the cover before hiding the fallback. The resource gate requires both image
 planes as ListItem siblings, with an initialized cover texture. These do not
 establish Vita clipping, draw-object creation, decoding or final visibility.
 
-`test_app_artwork.py` also guards the public PAF pool/allocator accessors after the
-maintainer's private-Framework-member build failure. This is a source regression
+`test_app_artwork.py` also interprets the actual bounded rectangle-reduction helper
+(averaging, channel order, stride padding, enlargement and invalid storage) and
+loader failure/cancellation sequencing, including release of the full-size surface
+before thumbnail allocation. The job is normalized to serial native mocks; neither
+PAF decoding nor native texture allocation/Copy is executed. It guards the public
+pool accessor/default decoder heap and excludes the old direct DecodeImage path
+after the maintainer's build failure and worker crash. This is a source regression
 check, not C++ access/type checking or native compilation. It interprets actual
 PNG/aspect helpers, overflow-safe HTTP
 writes/response bounds, session/app-ID admission, late cancellation and image-job

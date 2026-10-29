@@ -1,7 +1,6 @@
 #include <paf.h>
-#include <paf/image/image.h>
 #include <paf/graphics/graphics.h>
-#include <paf/memory/heap_allocator.h>
+#include <psp2/gxm.h>
 #include <stdlib.h>
 
 #include "moonlight/app_artwork.h"
@@ -67,50 +66,84 @@ class ApplicationService::ArtworkJob : public paf::job::JobItem {
 public:
     ArtworkJob(MoonlightBackend &backend, int id)
         : JobItem("Application artwork", NULL), backend(backend), id(id), cancel(), done(0),
-          width(0), height(0), pool(paf::gutil::GetDefaultSurfacePool()),
-          heap(paf::memory::GetGlobalHeapAllocator()) {}
+          width(0), height(0), pool(paf::gutil::GetDefaultSurfacePool()) {}
 
     virtual void Run()
     {
         char *body = NULL;
         size_t length = 0;
         int w = 0, h = 0;
-        int phase = 0, decoded = -1, native_width = 0, native_height = 0;
+        int phase = 0, decoded = -1;
         vita_debug_log("[Artwork] fetch app=%d", id);
         int result = backend.GetApplicationArtwork(id, &cancel, &body, &length);
         int png = moonlight_artwork_extent((const unsigned char *)body, length, &w, &h);
         vita_debug_log("[Artwork] response app=%d result=%d bytes=%u png=%d source=%dx%d pool=%d",
                        id, result, (unsigned int)length, png, w, h, pool ? 1 : 0);
         if (result == 0 && !moonlight_is_cancelled(&cancel) && pool && png) {
-            phase = 1;
             moonlight_artwork_fit(w, h, &width, &height);
-            paf::common::SharedPtr<paf::image::Image> image = paf::image::Image::Open(
-                body, length, heap, paf::image::ImageFormat_Png);
-            if (image.get()) {
-                phase = 2;
-                image = image->Resize(paf::image::ImageExtent(width, height),
-                                      paf::image::ImageResizeType_Linear);
-                if (image.get() && !moonlight_is_cancelled(&cancel)) {
-                    phase = 3;
-                    paf::graph::Surface::LoadOption option;
-                    option.decode_heap = heap;
-                    decoded = paf::graph::Surface::DecodeImage(pool, &option, surface, image);
-                    if (surface.get()) {
-                        native_width = surface->GetWidth();
-                        native_height = surface->GetHeight();
+            /* Load owns decoder setup/default heaps. DecodeImage is an internal stage,
+             * not a loader for an independently opened/lazily resized Image. */
+            paf::graph::Surface::LoadOption option;
+            option.image_order = ImageOrder_Linear;
+            /* Check room for a conservatively padded source and allocator overhead.
+             * A large cover may fall back to the icon when the shared pool is busy. */
+            size_t required = (size_t)((w + 63) & ~63) * ((h + 63) & ~63) * 4 + 65536;
+            unsigned char *pixels = NULL;
+            ImageMode mode = ImageMode_RGBA8888;
+            size_t available = pool->GetFreeSize();
+            vita_debug_log("[Artwork] memory app=%d free=%u required=%u", id,
+                           (unsigned int)available, (unsigned int)required);
+            if (available >= required) {
+                phase = 1;
+                paf::intrusive_ptr<paf::graph::Surface> source = paf::graph::Surface::Load(
+                    pool, body, (SceInt64)length, &option);
+                decoded = option.error;
+                vita_debug_log("[Artwork] loaded app=%d surface=%d error=0x%08X size=%dx%d stride=%d format=0x%08X",
+                    id, source.get() ? 1 : 0, (unsigned int)decoded,
+                    source.get() ? source->GetWidth() : 0, source.get() ? source->GetHeight() : 0,
+                    source.get() ? source->GetStride() : 0,
+                    source.get() ? (unsigned int)sceGxmTextureGetFormat(source->GetRawTexture()) : 0);
+                if (source.get() && decoded >= 0 && !moonlight_is_cancelled(&cancel) &&
+                    source->GetWidth() == w && source->GetHeight() == h && source->GetPageSize() > 0 &&
+                    (sceGxmTextureGetType(source->GetRawTexture()) == SCE_GXM_TEXTURE_LINEAR ||
+                     sceGxmTextureGetType(source->GetRawTexture()) == SCE_GXM_TEXTURE_LINEAR_STRIDED)) {
+                    phase = 2;
+                    uint32_t format = sceGxmTextureGetFormat(source->GetRawTexture());
+                    if (format == SCE_GXM_TEXTURE_FORMAT_A8B8G8R8 ||
+                        format == SCE_GXM_TEXTURE_FORMAT_A8R8G8B8) {
+                        mode = format == SCE_GXM_TEXTURE_FORMAT_A8B8G8R8 ?
+                               ImageMode_RGBA8888 : ImageMode_BGRA8888;
+                        pixels = (unsigned char *)malloc((size_t)width * height * 4);
+                        if (pixels) {
+                            const unsigned char *data = (const unsigned char *)source->Lock();
+                            int reduced = moonlight_artwork_reduce(data, source->GetPageSize(),
+                                w, h, source->GetStride(), pixels, width, height);
+                            if (data) source->Unlock();
+                            if (!reduced) { free(pixels); pixels = NULL; }
+                            else phase = 3;
+                        }
                     }
-                    if (decoded < 0) surface.clear();
-                    if (surface.get() && (surface->GetWidth() > MOONLIGHT_ARTWORK_THUMB_SIZE ||
-                                          surface->GetHeight() > MOONLIGHT_ARTWORK_THUMB_SIZE))
-                        surface.clear();
                 }
+                source.clear();
+            } /* Release the full-size surface before allocating/caching the thumbnail. */
+            if (pixels && !moonlight_is_cancelled(&cancel)) {
+                phase = 4;
+                surface = new paf::graph::Surface(pool, width, height, mode,
+                    ImageOrder_Linear, 1, 1, false);
+                if (surface.get() && surface->GetPagePtr(0)) {
+                    decoded = surface->Copy(0, pixels, ImageOrder_Linear, width * 4, 0);
+                    if (decoded < 0) surface.clear();
+                } else surface.clear();
             }
+            free(pixels);
         }
         free(body);
         if (moonlight_is_cancelled(&cancel)) surface.clear();
         vita_debug_log("[Artwork] complete app=%d cancelled=%d surface=%d phase=%d decode=0x%08X size=%dx%d",
                        id, moonlight_is_cancelled(&cancel) ? 1 : 0, surface.get() ? 1 : 0,
-                       phase, (unsigned int)decoded, native_width, native_height);
+                       phase, (unsigned int)decoded,
+                       surface.get() ? surface->GetWidth() : 0,
+                       surface.get() ? surface->GetHeight() : 0);
         __atomic_store_n(&done, 1, __ATOMIC_RELEASE);
     }
     virtual void Finish() {}
@@ -122,7 +155,6 @@ public:
     int width, height;
     paf::intrusive_ptr<paf::graph::Surface> surface;
     paf::graph::SurfacePool *pool;
-    paf::memory::HeapAllocator *heap;
 };
 
 ApplicationService::~ApplicationService()

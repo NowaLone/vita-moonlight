@@ -4,14 +4,22 @@ This roadmap captures the agreed next steps for Vita Moonlight PAF. It is ordere
 
 ## Active remaining work (reconciled 2026-10-27)
 
+- [x] Artwork crash source correction (2026-10-30): the supplied truncated core
+  locates the worker failure in PAF during direct Surface::DecodeImage. Replace
+  independent Image open/resize/internal decode with public Surface::Load defaults,
+  validate linear RGBA/BGRA, release the full-size image before native thumbnail
+  allocation, and retain the bounded cache. All 303 non-build checks pass, including
+  reduction and loader-failure/cancellation cases.
+- [ ] Maintainer application rebuild/Vita gate for the crash correction: open the
+  same four apps, check `[Artwork] loaded/complete/bind` and actual covers, then
+  Back/launch/return/re-entry. Source checks do not prove native stability.
+
 - [x] Source correction/diagnostics for missing artwork (2026-10-30): place
   image planes directly in ListItem like Main, initialize the cover drawable,
   check native binding before hiding the fallback, and trace bounded artwork
   stages/page gate changes through the existing debug log. 301 source checks
-  pass; this is not evidence that the device rendering defect is resolved.
-- [ ] Maintainer RCO/application rebuild and Vita retest for missing artwork:
-  check fallback visibility and capture `[Artwork]` queue/response/decode/bind
-  records. The reported names-only state and its precise native cause remain open.
+  pass at that revision. The maintainer now confirms visible Moonlight icons;
+  successful real-cover rendering is still pending the crash correction above.
 
 - [x] Second artwork build correction (2026-10-30): pass a value-initialized
   `paf::math::v2()` to `SetGenerateMargin`; this SDK has no two-float constructor.

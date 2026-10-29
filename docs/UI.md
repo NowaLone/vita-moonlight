@@ -1483,7 +1483,7 @@ Reference evidence, inspected read-only without compilation:
   and `0x8109834c` use native ListView factories/cell sizing. The image path at
   `0x810ad0a0` calls `Surface::Load` on a memory buffer **[code]**. This is
   evidence of the native image/list path, not execution or a recovered public
-  Music browser API. Moonlight uses the installed typed PAF image/resize/surface API.
+  Music browser API. Moonlight uses the installed typed PAF surface loader.
 - Screenshot `2026-10-29-220904.jpg`, SHA256
   `2b20049e3f9f9b6f5bcd9cc2eeac666496678fc51e661cfb43f55c4efc0b7187`:
   cover strip approximately x=147…237, row boundaries y=96,186,276,366,456,
@@ -1499,9 +1499,10 @@ Reference evidence, inspected read-only without compilation:
 ApplicationService owns a single-worker 256 KiB PAF queue and one cancellable
 image job. The maintainer's first artwork build stopped at direct access to
 private `Framework::surface_pool` / `decode_heap` members. The source correction
-uses the installed public `gutil::GetDefaultSurfacePool()` and
-`memory::GetGlobalHeapAllocator()` accessors; no framework layout access or new
-allocator is introduced. Rebuild and native allocation/decode remain **[open]**.
+used the installed public pool/heap accessors. The crash correction below retains
+`gutil::GetDefaultSurfacePool()` and lets `Surface::Load` choose its default decoder
+heap; the global heap is no longer substituted for the private framework decode
+heap. No framework layout access or new allocator is introduced.
 The job fetches the current paired server's `/appasset` with the ordinary
 client identity and complete server-certificate pin; no plaintext fallback or
 administrative API is added. The host-control admission guard excludes other
@@ -1510,25 +1511,53 @@ The existing HTTP transfer gains an optional response bound; XML requests retain
 their existing policy. Artwork has a 512 KiB response limit and a five-second
 transfer timeout, with overflow-safe writes and a job-owned cancellation token.
 
-Visibility correction/diagnostics (2026-10-30): the maintainer reports app names
-without even the Moonlight fallback icon; the supplied log has no artwork events.
+Visibility correction/diagnostics (2026-10-30): the maintainer initially reported
+names without icons, then corrected this to white squares. After the resource fix,
+the maintainer confirms visible Moonlight fallback icons; actual covers still fail.
 The image planes now belong directly to ListItem, following Main's working PC-icon
 composition, outside ImageButton's label-margin layout. The cover plane starts with
 an explicit packaged texture so its drawable is initialized, is hidden by the row
 factory, and is shown only after successful SetTexture. Failed binding preserves
 the fallback; cleanup hides and detaches the cover before stream allocation.
-This corrects the resource/binding assumptions; the actual Vita cause and visible
-result still need the next device log. A serial source check covers failed/successful
-binding and fallback order, and a resource check requires sibling, initialized planes.
+Fallback visibility is now maintainer-observed; successful cover binding remains
+open. A serial source check covers failed/successful binding and fallback order, and a resource check requires sibling, initialized planes.
 
 Debug-log-only `[Artwork]` records now identify row creation, page gate/generation
 changes, enqueue/fetch, response bytes/PNG dimensions, decoder phase/result, and
 native texture binding. Page messages are deduplicated by gate/generated-row state;
 no per-frame/chunk/file logging is added. Gate bits: 1 list not ready, 2 missing list,
 4 transition, 8 launching, 16 inactive page, 32 foreground busy, 64 pending action.
-Decode phase 0 is before a valid PNG/pool, 1 before Image::Open succeeds, 2 before
-Resize succeeds, 3 at DecodeImage. Actual job/thread/decode/binding remain native gates.
-Rebuild the RCO as well as the application before the device retest.
+Current decode phases: 0 before native loading (including insufficient pool space),
+1 at Surface::Load, 2 at validated native dimensions/layout, 3 after pixel reduction,
+4 at thumbnail allocation/Copy. A `loaded` event records native error, dimensions,
+stride and GXM format; a `memory` event records pool free/required bytes.
+Actual allocation/decode/binding remain native gates.
+
+Crash correction (2026-10-30): the supplied log fetched valid-sized PNGs, failed the
+first at the old Resize phase, then crashed after fetching the second. The cancelled,
+truncated core `psp2core-1793317355-0x00003144ff-eboot.bin.psp2dmp.tmp` (SHA256
+`58c620b34cc517649ae174c6bd7e43755b8ae02b3caa4684dc5f70fef34f476a`)
+retains the faulting `Application artwork` thread: PC `0xe0259632` in ScePaf,
+module offset `0x4f932`. Its application return address `0x81080b9f` maps to the
+current ELF's return after `Surface::DecodeImage` at `0x81009b9a`. The worker SP
+is within its 256 KiB stack, near the top; this does not indicate stack exhaustion.
+The core is incomplete and does not prove a particular internal PAF assertion or
+allocator fault. Raw core memory is not committed.
+
+The job now uses the public memory-buffer `Surface::Load` entry point with default
+heap/setup, as observed in Music and the installed PAF image-to-texture sample;
+it no longer independently opens/resizes Image or calls DecodeImage. Linear RGBA/
+BGRA pixels are validated against native dimensions, stride and page size, reduced
+by bounded rectangle averaging into at most 90×90 pixels, then copied through
+PAF into a small native surface. This avoids passing a lazy resize operation into
+the internal decoder and keeps the twelve-entry thumbnail budget. The temporary
+full-size native surface is released before thumbnail allocation; no full-size
+surface enters the cache. Pool admission requires conservatively padded source
+storage plus 64 KiB overhead. This is a free-space preflight, not an atomic pool
+reservation or a guarantee against fragmentation; loader/allocator errors retain
+the fallback. Insufficient memory or unsupported native pixel layouts also retain
+it. Transient decoder allocation/latency and this crash correction require the
+maintainer's application rebuild/Vita retest; the agent did not build or run PAF.
 
 Only generated rows request images. The zero generation margin is passed as a
 value-initialized `paf::math::v2()`: the installed SDK exposes private x/y fields
@@ -1553,7 +1582,10 @@ the job owns no UI pointer. Application shutdown drains the image queue before
 backend/network teardown. Native image decoding itself is not preempted mid-call;
 completion/cancellation discards its result. Native cleanup latency remains **[open]**.
 
-Non-build checks interpret PNG/aspect/transfer bounds, paired-session/app-ID
+Non-build checks interpret the actual reduction helper (channel order, padding,
+averaging, enlargement, invalid dimensions/storage) and the job's loader/failure/
+cancellation/release-before-thumbnail sequence using serial native mocks. They also
+interpret PNG/aspect/transfer bounds, paired-session/app-ID
 admission, late cancellation, job-result ownership and launch/Back ordering, and
 validate resource references/localization. They do not execute PAF, native decode,
 TLS, threads or the Vita ABI. Maintainer gate: rebuild RCO/application, compare

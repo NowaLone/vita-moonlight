@@ -18,8 +18,151 @@ class Artwork(unittest.TestCase):
         # Source regression gate only: native compilation remains a maintainer check.
         source = (ROOT / 'src/services/application_service.cpp').read_text()
         self.assertIn('pool(paf::gutil::GetDefaultSurfacePool())', source)
-        self.assertIn('heap(paf::memory::GetGlobalHeapAllocator())', source)
+        self.assertNotIn('option.decode_heap =', source)  # Load selects the native decode heap.
+        self.assertNotIn('Surface::DecodeImage(', source)
+        self.assertNotIn('image::Image::Open(', source)
         self.assertNotRegex(source, r'Framework::Instance\(\)->(?:surface_pool|decode_heap)')
+
+    def test_bounded_thumbnail_pixels_padding_upscale_and_invalid_storage(self):
+        code = function((ROOT / 'include/moonlight/app_artwork.h').read_text().replace('static inline ', ''),
+                        'moonlight_artwork_reduce')
+        code = code.replace('MOONLIGHT_ARTWORK_THUMB_SIZE', '90')
+        node = c_parser.CParser().parse('typedef unsigned int size_t;' + strip_directives(code)).ext[-1]
+        original_expression, original_execute = runtime.expression, runtime.execute
+
+        def expression(node, values):
+            if isinstance(node, c_ast.InitList):
+                return [expression(n, values) for n in node.exprs]
+            if isinstance(node, c_ast.BinaryOp) and node.op in ('*', '/', '<='):
+                a, b = expression(node.left, values), expression(node.right, values)
+                return {'*': lambda: a * b, '/': lambda: a // b,
+                        '<=': lambda: int(a <= b)}[node.op]()
+            return original_expression(node, values)
+
+        def execute(node, values):
+            if isinstance(node, c_ast.DeclList):
+                for decl in node.decls: execute(decl, values)
+            elif isinstance(node, c_ast.UnaryOp) and node.op == '++':
+                values[node.expr.name] += 1
+            elif isinstance(node, c_ast.Assignment) and isinstance(node.lvalue, c_ast.ArrayRef):
+                expression(node.lvalue.name, values)[expression(node.lvalue.subscript, values)] = expression(node.rvalue, values)
+            else: original_execute(node, values)
+
+        def invoke(src, sw, sh, stride, dw, dh, size=None):
+            dst = [222] * (max(1, dw * dh) * 4)
+            values = dict(src=src, size=len(src) if size is None else size, sw=sw, sh=sh,
+                          stride=stride, dst=dst, dw=dw, dh=dh)
+            with patch.object(runtime, 'expression', expression), patch.object(runtime, 'execute', execute):
+                try: runtime.execute(node.body, values)
+                except runtime.Returned as result: return result.value, dst
+
+        # Two rows, non-pixel padding, distinct channels and alpha; average 2x2 blocks.
+        src = [0, 10, 20, 30, 100, 110, 120, 130, 200, 210, 220, 230, 0, 0, 0, 0, 255] * 2
+        result, dst = invoke(src, 4, 2, 17, 2, 1)
+        self.assertEqual((result, dst), (1, [50, 60, 70, 80, 100, 105, 110, 115]))
+        self.assertEqual(invoke([1, 2, 3, 4], 1, 1, 4, 3, 2), (1, [1, 2, 3, 4] * 6))
+        self.assertEqual(invoke(src, 4, 2, 17, 4, 2)[1], src[:16] + src[17:33])
+        for sw, sh, stride, dw, dh, size in ((0, 2, 17, 2, 1, 34),
+                (4, 0, 17, 2, 1, 34), (1025, 1, 4100, 1, 1, 4100),
+                (4, 2, 15, 2, 1, 34), (4, 2, 2147483647, 2, 1, 34),
+                (4, 2, 17, 0, 1, 34),
+                (4, 2, 17, 91, 1, 34), (4, 2, 17, 2, 91, 34),
+                (4, 2, 17, 2, 1, 32)):
+            result, dst = invoke(src, sw, sh, stride, dw, dh, size)
+            self.assertEqual(result, 0)
+            self.assertTrue(all(value == 222 for value in dst))
+
+    def test_loader_failures_cancellation_and_release_before_thumbnail_copy(self):
+        source = (ROOT / 'src/services/application_service.cpp').read_text()
+        source = source[source.index('class ApplicationService::ArtworkJob'):]
+        code = source[source.index('        char *body = NULL;'):source.index('        __atomic_store_n')]
+        replacements = {
+            'paf::graph::Surface::LoadOption option;': 'Option option = make_option();',
+            'paf::intrusive_ptr<paf::graph::Surface> source': 'int source',
+            'paf::graph::Surface::Load(': 'load_source(',
+            'new paf::graph::Surface(': 'new_thumbnail(',
+            'surface.get()': 'surface', 'source.get()': 'source',
+            'source.clear()': 'release_source(source)',
+            'surface.clear()': 'surface = 0',
+            'backend.GetApplicationArtwork(': 'fetch(',
+            'pool->GetFreeSize()': 'free_size()',
+            'source->GetWidth()': 'sw', 'source->GetHeight()': 'sh',
+            'source->GetRawTexture()': 'source',
+            'sceGxmTextureGetFormat(source)': 'format',
+            'source->Lock()': 'lock_source()',
+            'source->GetPageSize()': 'page_size', 'source->GetStride()': 'stride',
+            'source->Unlock()': 'unlock_source()',
+            'surface->GetPagePtr(0)': 'texture_data',
+            'surface->Copy(': 'copy_thumbnail(',
+            'surface->GetWidth()': 'width', 'surface->GetHeight()': 'height',
+            '&cancel': 'cancel', '&body': 'body', '&length': 'length',
+            '&w': 'w', '&h': 'h', '&option': 'option',
+        }
+        for before, after in replacements.items(): code = code.replace(before, after)
+        types = 'typedef int SceInt64, ImageMode, uint32_t, bool; typedef unsigned int size_t;'
+        types += 'typedef struct {int image_order, error;} Option;'
+        node = c_parser.CParser().parse(types + 'void run(){' + strip_directives(code) + '}').ext[-1]
+        original = runtime.expression
+        def expression(node, values):
+            if isinstance(node, c_ast.UnaryOp) and node.op == '~':
+                return ~expression(node.expr, values)
+            if isinstance(node, c_ast.BinaryOp) and node.op in ('*', '&'):
+                a, b = expression(node.left, values), expression(node.right, values)
+                return a * b if node.op == '*' else a & b
+            return original(node, values)
+
+        for failure in ('none', 'bgra', 'strided', 'fetch', 'cancel_before', 'pool', 'load', 'cancel_load',
+                        'dimensions', 'layout', 'format', 'malloc', 'lock', 'reduce',
+                        'cancel_reduce', 'new', 'texture', 'copy'):
+            with self.subTest(failure=failure):
+                calls, cancelled = [], [failure == 'cancel_before']
+                def load(*args):
+                    calls.append('load')
+                    if failure == 'cancel_load': cancelled[0] = True
+                    return 0 if failure == 'load' else 1
+                def reduce(*args):
+                    calls.append('reduce')
+                    if failure == 'cancel_reduce': cancelled[0] = True
+                    return failure not in ('lock', 'reduce')
+                values = dict(NULL=0, false=0, cancel=0, id=7, pool=1,
+                    surface=0, width=67, height=90, sw=0 if failure == 'dimensions' else 528,
+                    sh=704, page_size=528 * 704 * 4, stride=528 * 4,
+                    format=9 if failure == 'format' else 2 if failure == 'bgra' else 1,
+                    texture_data=failure != 'texture',
+                    ImageMode_RGBA8888=1, ImageMode_BGRA8888=2, ImageOrder_Linear=1,
+                    SCE_GXM_TEXTURE_LINEAR=1, SCE_GXM_TEXTURE_LINEAR_STRIDED=3,
+                    SCE_GXM_TEXTURE_FORMAT_A8B8G8R8=1,
+                    SCE_GXM_TEXTURE_FORMAT_A8R8G8B8=2,
+                    fetch=lambda *args: -1 if failure == 'fetch' else 0,
+                    moonlight_artwork_extent=lambda *args: 1,
+                    moonlight_artwork_fit=lambda *args: None,
+                    moonlight_is_cancelled=lambda *args: cancelled[0],
+                    make_option=lambda: dict(image_order=0, error=0),
+                    free_size=lambda: 0 if failure == 'pool' else 4 * 1024 * 1024,
+                    load_source=load,
+                    sceGxmTextureGetType=lambda source: 9 if failure == 'layout' else 3 if failure == 'strided' else 1,
+                    malloc=lambda *args: 0 if failure == 'malloc' else 2,
+                    lock_source=lambda: calls.append('lock') or (failure != 'lock'),
+                    unlock_source=lambda: calls.append('unlock'),
+                    moonlight_artwork_reduce=reduce,
+                    release_source=lambda source: calls.append('release'),
+                    new_thumbnail=lambda *args: calls.append('new') or (failure != 'new'),
+                    copy_thumbnail=lambda *args: calls.append('copy') or (-1 if failure == 'copy' else 0),
+                    free=lambda *args: calls.append('free'), vita_debug_log=lambda *args: None)
+                # Fetch/header output writes are mocked, not native pointer/RAII behavior.
+                def execute(node, scope):
+                    if isinstance(node, c_ast.Decl) and node.name in ('w', 'h'):
+                        scope[node.name] = 528 if node.name == 'w' else 704
+                    else: original_execute(node, scope)
+                original_execute = runtime.execute
+                with patch.object(runtime, 'expression', expression), patch.object(runtime, 'execute', execute):
+                    runtime.execute(node.body, values)
+                self.assertEqual(bool(values['surface']), failure in ('none', 'bgra', 'strided'))
+                if 'new' in calls: self.assertLess(calls.index('release'), calls.index('new'))
+                if 'load' in calls: self.assertIn('release', calls)
+                if 'lock' in calls and failure != 'lock': self.assertIn('unlock', calls)
+                if failure in ('cancel_before', 'pool', 'fetch'): self.assertNotIn('load', calls)
+                if failure not in ('none', 'bgra', 'strided', 'copy'): self.assertNotIn('copy', calls)
 
     def test_session_admission_app_identity_and_late_cancellation_fail_closed(self):
         source = function((ROOT / 'src/moonlight/api.cpp').read_text(),
