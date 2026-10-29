@@ -1510,7 +1510,12 @@ The existing HTTP transfer gains an optional response bound; XML requests retain
 their existing policy. Artwork has a 512 KiB response limit and a five-second
 transfer timeout, with overflow-safe writes and a job-owned cancellation token.
 
-Only generated rows request images. PNG headers are bounded to 1024×1024 before
+Only generated rows request images. The zero generation margin is passed as a
+value-initialized `paf::math::v2()`: the installed SDK exposes private x/y fields
+and no two-float constructor, so `{0.0f, 0.0f}` is not a valid argument. The
+maintainer's second build compiled ApplicationService and stopped at that Apps
+argument; the source correction retains the same zero-margin policy. Rebuild
+remains **[open]**. PNG headers are bounded to 1024×1024 before
 native decoding, resized to fit the 90×90 slot without cropping/stretching, and
 published through an acquire/release completion flag. Unsupported/malformed,
 missing, oversized or failed images leave the app launchable with its icon;

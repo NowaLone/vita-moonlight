@@ -19,7 +19,10 @@ PNG/aspect helpers, overflow-safe HTTP
 writes/response bounds, session/app-ID admission, late cancellation and image-job
 result ownership. `test_page_navigation.py` also exercises launch/Back while artwork
 cleanup is pending. Resource checks cover the Music-style 90 px row/cover geometry,
-native focus and fallback. These use serial mocks; no decoder, TLS, thread, ABI or
+native focus and fallback. The navigation resource check also requires the zero
+margin's value-initialized PAF `v2()` after the second maintainer build failure;
+this remains a source check rather than C++ type/access validation.
+These use serial mocks; no decoder, TLS, thread, ABI or
 Vita rendering is executed. See [UI §5.7](../docs/UI.md#57-music-style-application-artwork--2026-10-30)
 for measured reference provenance and maintainer acceptance cases.
 

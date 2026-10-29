@@ -86,7 +86,7 @@ Apps::Apps(int application_id)
         m_list->SetItemFactory(new ListViewFactory(this));
         m_list->InsertSegment(0, 1);
         m_list->SetCellSizeDefault(0, { 730.0f, 90.0f });
-        m_list->SetGenerateMargin({ 0.0f, 0.0f });
+        m_list->SetGenerateMargin(paf::math::v2());
         m_list->SetSegmentLayoutType(0, paf::ui::ListView::LAYOUT_TYPE_LIST);
     }
 

@@ -324,6 +324,7 @@ class PageNavigation(unittest.TestCase):
                                ('template_app_list_item', '730, 90')):
             hint = resource.find(f"./templatetable/template[@id='{template}']/*/layout_hint")
             self.assertEqual(hint.get('size'), size)
+        self.assertIn('m_list->SetGenerateMargin(paf::math::v2());', SOURCE)
         self.assertIn('Base::Find("page_main")', SOURCE)
         self.assertIn('if (!IsValid()) return;', SOURCE[:SOURCE.index('StartNavigation(false);')])
 

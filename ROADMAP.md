@@ -4,6 +4,12 @@ This roadmap captures the agreed next steps for Vita Moonlight PAF. It is ordere
 
 ## Active remaining work (reconciled 2026-10-27)
 
+- [x] Second artwork build correction (2026-10-30): pass a value-initialized
+  `paf::math::v2()` to `SetGenerateMargin`; this SDK has no two-float constructor.
+  The maintainer's log reaches Apps after compiling the corrected artwork service.
+  The existing resource/source check guards the zero-margin call (300 checks);
+  complete rebuild and Vita validation remain pending.
+
 - [x] Artwork build correction (2026-10-30): replace direct access to private
   PAF Framework pool/heap fields with public `gutil::GetDefaultSurfacePool()`
   and `memory::GetGlobalHeapAllocator()` accessors. The source regression gate
