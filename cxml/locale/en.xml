@@ -124,6 +124,7 @@
   <string src="Unable to quit the running application. Close it on the PC or from the device that started it, then try again." id="msg_error_quit" />
   <string src="Unable to start stream." id="msg_error_stream" />
   <string src="Unable to open the progress dialog." id="msg_error_progress" />
+  <string src="Unable to start Moonlight. The application will close." id="msg_error_startup" />
   <string src="Unable to delete one or more PCs." id="msg_error_delete" />
   <string src="Unable to open the system keyboard." id="msg_error_keyboard" />
   <string src="Unable to read the PC address." id="msg_error_read_address" />

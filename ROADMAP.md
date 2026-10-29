@@ -4,6 +4,12 @@ This roadmap captures the agreed next steps for Vita Moonlight PAF. It is ordere
 
 ## Active remaining work (reconciled 2026-10-27)
 
+- [x] Startup failure handling after the external audit (2026-10-29): retain and
+  propagate `Start()` failure, show the existing native OK error path with EN/RU
+  text when the UI plugin exists, and request PAF shutdown after the dialog ends
+  or cannot open. Missing app/plugin requests shutdown directly. Three serial source
+  checks pass (287 total); native loader/dialog/teardown validation remains open.
+
 - [x] SPS/assembly bounds correction after the external audit (2026-10-29): validate
   Annex B prefixes/SPS type, reject parser/writer errors, return a checked written
   size and check fragment capacity before copying. A 128-byte temporary NAL keeps

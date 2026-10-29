@@ -155,10 +155,10 @@ int module_start(SceSize args, void *argp){
 		return SCE_KERNEL_START_FAILED;
 	}
 
-	paf_runtime_main();
+	int result = paf_runtime_main();
 
 	_free_vita_newlib();
-	return SCE_KERNEL_START_SUCCESS;
+	return result == 0 ? SCE_KERNEL_START_SUCCESS : SCE_KERNEL_START_FAILED;
 }
 
 }

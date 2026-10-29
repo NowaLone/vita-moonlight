@@ -7,10 +7,24 @@
 #include <paf.h>
 
 #include "app/moonlight_app.h"
+#include "common.h"
+#include "debug.h"
+
+static int s_startup_result = -1;
+static MoonlightApp *s_startup_app = NULL;
 
 static void loadPluginCB(paf::Plugin *plugin)
 {
-    MoonlightApp::Instance()->Start(plugin);
+    s_startup_app = MoonlightApp::Instance();
+    if (s_startup_app) s_startup_result = s_startup_app->Start(plugin);
+}
+
+static void StartupErrorTask(void *userdata)
+{
+    MoonlightApp *app = static_cast<MoonlightApp *>(userdata);
+    if (app->Connection().IsBusy()) return;
+    paf::common::MainThreadCallList::Unregister(StartupErrorTask, userdata);
+    paf::Framework::Instance()->RequestShutdown();
 }
 
 static Locale interface_locale(Locale system_locale)
@@ -50,8 +64,19 @@ int paf_runtime_main(void)
     pluginParam.stop_func = NULL;
     pluginParam.exit_func = NULL;
 
+    s_startup_result = -1;
+    s_startup_app = NULL;
     paf::Plugin::LoadSync(pluginParam);
+    if (s_startup_result != 0) {
+        vita_debug_log("[App] startup failed result=0x%08X", (unsigned int)s_startup_result);
+        if (s_startup_app && paf::Plugin::Find("vita_moonlight_ui")) {
+            s_startup_app->Connection().ShowError(ui_text("msg_error_startup").c_str(), s_startup_result);
+            paf::common::MainThreadCallList::Register(StartupErrorTask, s_startup_app);
+        } else {
+            paf_fw->RequestShutdown();
+        }
+    }
     paf_fw->Run();
-    MoonlightApp::Instance()->Shutdown();
-    return 0;
+    if (s_startup_app) s_startup_app->Shutdown();
+    return s_startup_result;
 }

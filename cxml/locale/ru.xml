@@ -115,6 +115,7 @@
   <string src="Не удалось завершить запущенное приложение. Закройте его на ПК или с устройства, которое его запустило, и повторите попытку." id="msg_error_quit" />
   <string src="Не удалось запустить трансляцию." id="msg_error_stream" />
   <string src="Не удалось открыть окно ожидания." id="msg_error_progress" />
+  <string src="Не удалось запустить Moonlight. Приложение будет закрыто." id="msg_error_startup" />
   <string src="Не удалось удалить один или несколько компьютеров." id="msg_error_delete" />
   <string src="Не удалось открыть системную клавиатуру." id="msg_error_keyboard" />
   <string src="Не удалось прочитать адрес компьютера." id="msg_error_read_address" />

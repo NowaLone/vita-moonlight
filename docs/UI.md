@@ -1461,6 +1461,14 @@ these cases were not individually reported. No agent build or hardware run.
 
 ### Interface localization — 2026-10-28
 
+Startup failure handling (2026-10-29) **[code]**: bootstrap retains `Start()`'s
+result. With an available UI plugin it uses ConnectionService's existing native
+OK error dialog (`msg_error_startup`, EN/RU), then requests PAF shutdown after the
+owned dialog has terminated or failed to open. A missing plugin skips the dialog
+and requests shutdown directly. The module reports failure after runtime cleanup.
+No inline fallback or extra page is created. Native startup/failure-dialog behavior
+and translated appearance remain **[open]**; serial source checks are not Vita proof.
+
 Repository migration, 2026-10-29 [code]: the native Licenses and credits
 source-download link uses `https://github.com/NowaLone/vita-moonlight/releases`
 in both EN/RU `msg_license_sources` strings. The shorter address preserves
