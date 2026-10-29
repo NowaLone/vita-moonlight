@@ -103,7 +103,7 @@ class HostPersistence(unittest.TestCase):
             return -1 if error else len(lines[-1])
 
         values = dict(info=record() if info else None, errno=28,
-                      device_file_path=lambda *args: None,
+                      device_file_path=lambda *args: True,
                       fopen=lambda *args: calls.append('open') or open_result,
                       fprintf=fprintf, ferror=lambda fd: int(error),
                       fclose=lambda fd: calls.append('close') or close_result,

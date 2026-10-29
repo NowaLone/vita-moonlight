@@ -4,6 +4,12 @@ This roadmap captures the agreed next steps for Vita Moonlight PAF. It is ordere
 
 ## Active remaining work (reconciled 2026-10-27)
 
+- [x] Source correction after the external audit (2026-10-29): host-directory admission
+  rejects path traversal, reserved client-identity aliases and truncated paths before
+  create/read/write/pin/delete. Safe existing directories and display names are retained;
+  new unsafe names use a valid server UUID directory. Five new serial source checks
+  pass (280 total); no application/resource build or Vita filesystem test was run.
+
 - [x] Replace the placeholder LiveArea manual with 12 English and 12 Russian
   pages (2026-10-29), using the existing locale dictionaries and an editable
   PNG authoring tool. All 275 non-build checks pass; exact render comparison

@@ -6,6 +6,7 @@ extern "C" {
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <stddef.h>
 
 typedef struct device_info device_info_t;
 struct device_info {
@@ -38,7 +39,9 @@ bool load_device_info(device_info_t *info);
 /* 0 only after all writes and fclose succeed; -1 on failure (logged). */
 int save_device_info(const device_info_t *info);
 bool remove_device_by_info(const device_info_t *device);
-void device_file_path(char *out, const char *dir);
+/* Host directories are single components and cannot alias the client identity. */
+bool device_storage_name_valid(const char *name);
+bool device_file_path(char *out, const char *dir);
 
 #ifdef __cplusplus
 }

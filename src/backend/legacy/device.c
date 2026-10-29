@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
+#include <strings.h>
 #include <dirent.h>
 #include <unistd.h>
 #include <sys/stat.h>
@@ -31,7 +32,7 @@ static void ensure_host_identity(device_info_t *info) {
    * /serverinfo has been queried. It must never be generated on the client.
    */
   if (info->storage_name[0] == '\0') {
-    const char *storage_name = info->name[0] ? info->name : info->host_id;
+    const char *storage_name = device_storage_name_valid(info->name) ? info->name : info->host_id;
     strncpy(info->storage_name, storage_name, sizeof(info->storage_name) - 1);
     info->storage_name[sizeof(info->storage_name) - 1] = '\0';
   }
@@ -205,6 +206,12 @@ static bool remove_device_index(int idx) {
       sizeof(storage_name) - 1);
   storage_name[sizeof(storage_name) - 1] = '\0';
 
+  char dir_path[512];
+  char file_path[512];
+  if (!device_file_path(file_path, storage_name)) return false;
+  int length = snprintf(dir_path, sizeof(dir_path), "%s%s", config.key_dir, storage_name);
+  if (length < 0 || (size_t)length >= sizeof(dir_path)) return false;
+
   // Remove from the in-memory array.
   for (int i = idx; i < known_devices.count - 1; i++) {
     known_devices.devices[i] = known_devices.devices[i + 1];
@@ -212,10 +219,6 @@ static bool remove_device_index(int idx) {
   known_devices.count--;
 
   // Remove from disk.
-  char dir_path[512];
-  snprintf(dir_path, sizeof(dir_path), "%s%s", config.key_dir, storage_name);
-  char file_path[512];
-  device_file_path(file_path, storage_name);
   sceIoRemove(file_path);
 
   // Remove all files inside the device directory before removing the directory.
@@ -229,7 +232,8 @@ static bool remove_device_index(int idx) {
       }
 
       char full_path[512];
-      snprintf(full_path, sizeof(full_path), "%s/%s", dir_path, dirent.d_name);
+      int file_length = snprintf(full_path, sizeof(full_path), "%s/%s", dir_path, dirent.d_name);
+      if (file_length < 0 || (size_t)file_length >= sizeof(full_path)) continue;
       sceIoRemove(full_path);
     }
     sceIoDclose(dfd);
@@ -339,8 +343,28 @@ static device_info_t* find_device_by_identity(const device_info_t *info) {
   return NULL;
 }
 
-void device_file_path(char *out, const char *dir) {
-  snprintf(out, 512, "%s%s/%s", config.key_dir, dir, DEVICE_FILE);
+bool device_storage_name_valid(const char *name) {
+  if (!name || !name[0]) return false;
+  size_t length = strlen(name);
+  if (length >= 256 || name[length - 1] == '.' || name[length - 1] == ' ' ||
+      strcasecmp(name, "client") == 0) return false;
+  for (size_t i = 0; i < length; ++i) {
+    unsigned char c = (unsigned char)name[i];
+    if (c < 32 || c == 127 || strchr("/\\:*?\"<>|", c)) return false;
+  }
+  return true;
+}
+
+bool device_file_path(char *out, const char *dir) {
+  if (!out) return false;
+  out[0] = '\0';
+  if (!device_storage_name_valid(dir)) return false;
+  int length = snprintf(out, 512, "%s%s/%s", config.key_dir, dir, DEVICE_FILE);
+  if (length < 0 || length >= 512) {
+    out[0] = '\0';
+    return false;
+  }
+  return true;
 }
 
 static int device_ini_handle(void *out, const char *section, const char *name,
@@ -390,6 +414,12 @@ device_info_t* append_device(device_info_t *info) {
     return existing;
   }
 
+  ensure_host_identity(info);
+  if (!device_storage_name_valid(info->storage_name)) {
+    vita_debug_log("append_device: rejected unsafe host directory");
+    return NULL;
+  }
+
   // FIXME: need mutex
   if (known_devices.size == 0) {
     vita_debug_log("append_device: allocating memory for the initial device list...\n");
@@ -414,8 +444,6 @@ device_info_t* append_device(device_info_t *info) {
     known_devices.size *= 2;
   }
   device_info_t *p = &known_devices.devices[known_devices.count];
-
-  ensure_host_identity(info);
 
   strncpy(p->name, info->name, 255);
   p->name[255] = '\0';
@@ -451,7 +479,7 @@ void load_all_known_devices() {
     if (sceIoDread(dfd, &ent) <= 0) {
       break;
     }
-    if (strcmp(".", ent.d_name) == 0 || strcmp("..", ent.d_name) == 0) {
+    if (!device_storage_name_valid(ent.d_name)) {
       continue;
     }
     if (!SCE_S_ISDIR(ent.d_stat.st_mode)) {
@@ -479,7 +507,8 @@ void load_all_known_devices() {
 
 bool load_device_info(device_info_t *info) {
   char path[512] = {0};
-  device_file_path(path, info->name);
+  if (!info || !device_file_path(path, info->storage_name[0] ? info->storage_name : info->name))
+    return false;
   vita_debug_log("load_device_info: reading %s\n", path);
 
   // for backward compatibility
@@ -505,7 +534,7 @@ int save_device_info(const device_info_t *info) {
   const char *storage_name;
   if (!info) return -1;
   storage_name = info->storage_name[0] ? info->storage_name : info->name;
-  device_file_path(path, storage_name);
+  if (!device_file_path(path, storage_name)) return -1;
   vita_debug_log("save_device_info: device file path: %s\n", path);
 
   // Ya no se intenta obtener la MAC por ARP. Solo se guarda la que esté en info->mac.

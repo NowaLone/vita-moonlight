@@ -1,6 +1,6 @@
 # Focused checks
 
-Latest recorded source gate: **275 checks including the localized offline manual (2026-10-29)**.
+Latest recorded source gate: **280 checks including host storage path admission (2026-10-29)**.
 See [the repeat Ponytail audit](../docs/PONYTAIL_REAUDIT_2026-10-23.md) for the latest
 baseline, per-change checks and native gates; [the earlier refactor audit](../docs/REFACTOR_AUDIT.md)
 records the preceding pass. Counts in the
@@ -11,6 +11,14 @@ cases are in the API audit and `runtime/README.md`; source checks do not replace
 Non-build checks (Python 3 and pycparser):
 
     PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -p 'test_*.py'
+
+`test_host_storage_paths.py` interprets the shared host-directory validator and actual
+path/create/read/delete/pin admission with serial string/storage mocks. It rejects traversal,
+volume/separator/control characters, case-insensitive `client` aliases and truncated paths,
+preserves Unicode display names and safe existing directories, and checks new unsafe names
+fall back to the server UUID. Unsafe records are rejected without file operations; no host
+storage migration is performed. This does not establish Vita filesystem canonicalization,
+real I/O, compiler/ABI or restart durability. Build/Vita validation remains with the maintainer.
 
 `test_manual.py` checks the complete EN/RU manual, root/Russian `08` paths,
 explicit VPK file list, PNG format/chunk CRCs/image streams and per-page source

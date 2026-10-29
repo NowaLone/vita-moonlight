@@ -23,7 +23,9 @@ static bool ensure_directory(const char *path)
 static bool ensure_device_directory(const char *name)
 {
     char path[512];
-    snprintf(path, sizeof(path), "%s%s", config.key_dir, name);
+    if (!device_storage_name_valid(name)) return false;
+    int length = snprintf(path, sizeof(path), "%s%s", config.key_dir, name);
+    if (length < 0 || (size_t)length >= sizeof(path)) return false;
     if (!ensure_directory(path)) {
         vita_debug_log("[HostStore] cannot create host directory: %s", path);
         return false;
@@ -321,7 +323,7 @@ int legacy_device_store_get_client_directory(
         return -1;
     }
 
-    return ensure_device_directory(client_directory_name) ? 0 : -1;
+    return ensure_directory(out) ? 0 : -1;
 }
 
 int legacy_device_store_get_server_certificate_path(
@@ -332,6 +334,7 @@ int legacy_device_store_get_server_certificate_path(
     device_info_t *stored = find_stored_host(host);
     if (!stored) return -1;
     const char *directory = stored->storage_name[0] ? stored->storage_name : stored->name;
+    if (!device_storage_name_valid(directory)) return -1;
     int length = snprintf(out, size, "%s%s/server.pem", config.key_dir, directory);
     if (length < 0 || (size_t)length >= size) {
         out[0] = '\0';
