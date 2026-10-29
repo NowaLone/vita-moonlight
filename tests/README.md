@@ -1,6 +1,6 @@
 # Focused checks
 
-Latest recorded source gate: **300 checks including the public PAF artwork allocator correction (2026-10-30)**.
+Latest recorded source gate: **301 checks including artwork binding/fallback visibility (2026-10-30)**.
 See [the repeat Ponytail audit](../docs/PONYTAIL_REAUDIT_2026-10-23.md) for the latest
 baseline, per-change checks and native gates; [the earlier refactor audit](../docs/REFACTOR_AUDIT.md)
 records the preceding pass. Counts in the
@@ -11,6 +11,12 @@ cases are in the API audit and `runtime/README.md`; source checks do not replace
 Non-build checks (Python 3 and pycparser):
 
     PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -p 'test_*.py'
+
+`test_app_artwork.py` interprets actual native-binding admission with mocked
+widgets: a failed SetTexture must retain the fallback, while success sizes/shows
+the cover before hiding the fallback. The resource gate requires both image
+planes as ListItem siblings, with an initialized cover texture. These do not
+establish Vita clipping, draw-object creation, decoding or final visibility.
 
 `test_app_artwork.py` also guards the public PAF pool/allocator accessors after the
 maintainer's private-Framework-member build failure. This is a source regression

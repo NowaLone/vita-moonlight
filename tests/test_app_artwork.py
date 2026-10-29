@@ -193,6 +193,43 @@ class Artwork(unittest.TestCase):
                 self.assertEqual(resets, [])
                 self.assertEqual(out['surface'], -1)
 
+    def test_native_bind_failure_keeps_fallback_and_success_shows_cover_in_order(self):
+        source = function((ROOT / 'src/pages/page_apps.cpp').read_text(), 'Apps::UpdateArtwork')
+        source = source.replace('Apps::UpdateArtwork', 'update_artwork')
+        source = source.replace('paf::ui::Widget *', 'int ')
+        source = source.replace('item->FindChild(', 'find_child(item, ')
+        source = source.replace('m_artwork[cached].surface.get()', 'm_artwork[cached].surface')
+        source = source.replace('cover->SetTexture(', 'set_texture(cover, ')
+        source = source.replace('cover->SetSize(', 'set_size(cover, ')
+        source = source.replace('paf::math::v4(', 'make_size(')
+        source = source.replace('cover->Show(paf::common::transition::Type_Reset)', 'show_cover(cover)')
+        source = source.replace('fallback->Hide()', 'hide_fallback(fallback)')
+        preamble = '''typedef struct {int id;} App;
+        typedef struct {int surface, width, height;} Artwork;'''
+        body = c_parser.CParser().parse(preamble + strip_directives(source)).ext[-1].body
+        for bind_result, cached, plane in ((0, 0, 11), (-1, 0, 11), (0, -1, 11), (0, 0, 0)):
+            with self.subTest(bind_result=bind_result, cached=cached, plane=plane):
+                calls = []
+                values = dict(item=1, index=0, m_app_count=1, m_apps=[dict(id=7)],
+                              m_artwork=[dict(surface=99, width=67, height=90)],
+                              FindArtwork=lambda app_id: cached,
+                              find_child=lambda item, name: plane if name == 'plane_app_cover' else 12,
+                              set_texture=lambda cover, texture: calls.append(('bind', cover, texture)) or bind_result,
+                              set_size=lambda cover, size: calls.append(('size', cover, size)),
+                              make_size=lambda w, h: (w, h),
+                              show_cover=lambda cover: calls.append(('show', cover)),
+                              hide_fallback=lambda fallback: calls.append(('hide', fallback)),
+                              vita_debug_log=lambda *args: None)
+                try: runtime.execute(body, values)
+                except runtime.Returned: pass
+                if not plane or cached < 0:
+                    self.assertEqual(calls, [])
+                elif bind_result < 0:
+                    self.assertEqual(calls, [('bind', 11, 99)])
+                else:
+                    self.assertEqual(calls, [('bind', 11, 99), ('size', 11, (67, 90)),
+                                             ('show', 11), ('hide', 12)])
+
     def test_music_row_geometry_and_fallback_use_native_list_controls(self):
         root = ET.parse(ROOT / 'cxml/vita_moonlight_ui.xml').getroot()
         row = root.find("./templatetable/template[@id='template_app_list_item']/list_item")
@@ -201,9 +238,14 @@ class Artwork(unittest.TestCase):
         self.assertEqual(button.find('focus_hint').get('focus_shape'), '3')
         self.assertEqual(button.find('focus_hint').get('focus_size'), '730, 90')
         self.assertEqual(button.get('enable_long_press_text_auto_scroll'), '1')
-        cover = button.find("plane[@id='plane_app_cover']/layout_hint")
+        plane = row.find("plane[@id='plane_app_cover']")
+        self.assertIsNotNone(plane)
+        self.assertEqual(plane.get('texture'), 'tex_application')
+        self.assertIsNone(button.find("plane[@id='plane_app_cover']"))
+        cover = plane.find('layout_hint')
         self.assertEqual((cover.get('size'), cover.get('pos')), ('90, 90', '77, 0'))
-        self.assertIsNotNone(button.find("plane[@id='plane_app_fallback']"))
+        self.assertIsNotNone(row.find("plane[@id='plane_app_fallback']"))
+        self.assertIsNone(button.find("plane[@id='plane_app_fallback']"))
         style = root.find("./styletable/style_image_button[@id='style_image_button_app']")
         self.assertEqual(style.get('left_margin'), '137')  # x=115+137=252, 15 after the cover.
         self.assertEqual(style.find('textobj').get('font_size'), '32')

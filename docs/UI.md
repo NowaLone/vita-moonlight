@@ -1510,6 +1510,26 @@ The existing HTTP transfer gains an optional response bound; XML requests retain
 their existing policy. Artwork has a 512 KiB response limit and a five-second
 transfer timeout, with overflow-safe writes and a job-owned cancellation token.
 
+Visibility correction/diagnostics (2026-10-30): the maintainer reports app names
+without even the Moonlight fallback icon; the supplied log has no artwork events.
+The image planes now belong directly to ListItem, following Main's working PC-icon
+composition, outside ImageButton's label-margin layout. The cover plane starts with
+an explicit packaged texture so its drawable is initialized, is hidden by the row
+factory, and is shown only after successful SetTexture. Failed binding preserves
+the fallback; cleanup hides and detaches the cover before stream allocation.
+This corrects the resource/binding assumptions; the actual Vita cause and visible
+result still need the next device log. A serial source check covers failed/successful
+binding and fallback order, and a resource check requires sibling, initialized planes.
+
+Debug-log-only `[Artwork]` records now identify row creation, page gate/generation
+changes, enqueue/fetch, response bytes/PNG dimensions, decoder phase/result, and
+native texture binding. Page messages are deduplicated by gate/generated-row state;
+no per-frame/chunk/file logging is added. Gate bits: 1 list not ready, 2 missing list,
+4 transition, 8 launching, 16 inactive page, 32 foreground busy, 64 pending action.
+Decode phase 0 is before a valid PNG/pool, 1 before Image::Open succeeds, 2 before
+Resize succeeds, 3 at DecodeImage. Actual job/thread/decode/binding remain native gates.
+Rebuild the RCO as well as the application before the device retest.
+
 Only generated rows request images. The zero generation margin is passed as a
 value-initialized `paf::math::v2()`: the installed SDK exposes private x/y fields
 and no two-float constructor, so `{0.0f, 0.0f}` is not a valid argument. The

@@ -61,6 +61,7 @@ Apps::Apps(int application_id)
     : Base("page_apps", "btn_close_apps",
            paf::Plugin::TransitionType_None,
            paf::Plugin::TransitionType_None),
+      m_artwork_trace(-1),
       m_pending_app(0),
       m_app_count(0),
       m_livearea_application_id(application_id),
@@ -244,8 +245,15 @@ paf::ui::ListItem *Apps::CreateListItem(
 
     paf::ui::Widget *button = item->FindChild("image_button_app");
     if (!button || param.cell_index < 0 || param.cell_index >= m_app_count) {
+        vita_debug_log("[Artwork] invalid row cell=%d button=%d", param.cell_index, button ? 1 : 0);
         return item;
     }
+    paf::ui::Widget *cover = item->FindChild("plane_app_cover");
+    if (cover) cover->Hide(paf::common::transition::Type_Reset);
+    bool fallback_texture = g_plugin->GetTexture("tex_application").get() != NULL;
+    vita_debug_log("[Artwork] row cell=%d cover=%d fallback=%d texture=%d", param.cell_index,
+                   cover ? 1 : 0, item->FindChild("plane_app_fallback") ? 1 : 0,
+                   fallback_texture ? 1 : 0);
 
     const MoonlightApplication &app = m_apps[param.cell_index];
     button->SetName((uint32_t)app.id);
@@ -416,11 +424,18 @@ void Apps::UpdateArtwork(paf::ui::Widget *item, int index)
 {
     if (!item || index < 0 || index >= m_app_count) return;
     paf::ui::Widget *cover = item->FindChild("plane_app_cover");
-    if (!cover) return;
+    if (!cover) {
+        vita_debug_log("[Artwork] row has no image plane app=%d", m_apps[index].id);
+        return;
+    }
     int cached = FindArtwork(m_apps[index].id);
     if (cached >= 0 && m_artwork[cached].surface.get()) {
-        cover->SetTexture(m_artwork[cached].surface);
+        int result = cover->SetTexture(m_artwork[cached].surface);
+        vita_debug_log("[Artwork] bind app=%d result=0x%08X size=%dx%d", m_apps[index].id,
+                       (unsigned int)result, m_artwork[cached].width, m_artwork[cached].height);
+        if (result < 0) return; /* Keep the fallback visible if native binding fails. */
         cover->SetSize(paf::math::v4(m_artwork[cached].width, m_artwork[cached].height));
+        cover->Show(paf::common::transition::Type_Reset);
         paf::ui::Widget *fallback = item->FindChild("plane_app_fallback");
         if (fallback) fallback->Hide();
     }
@@ -434,6 +449,7 @@ void Apps::ClearArtwork()
         paf::ui::ListItem *item = m_list->GetListItem(0, i);
         paf::ui::Widget *cover = item ? item->FindChild("plane_app_cover") : NULL;
         if (cover) {
+            cover->Hide(paf::common::transition::Type_Reset);
             cover->SetTexture(paf::intrusive_ptr<paf::graph::Surface>());
             cover->SetSize(paf::math::v4(90.0f, 90.0f));
             paf::ui::Widget *fallback = item->FindChild("plane_app_fallback");
@@ -466,6 +482,21 @@ void Apps::ArtworkTask(void *userdata)
 {
     Apps *apps = static_cast<Apps *>(userdata);
     ApplicationService &service = MoonlightApp::Instance()->Applications();
+    int gates = (!apps->m_apps_ready ? 1 : 0) | (!apps->m_list ? 2 : 0) |
+                (apps->m_transitioning ? 4 : 0) | (apps->m_launching ? 8 : 0) |
+                (Base::GetCurrent() != apps ? 16 : 0) |
+                (MoonlightApp::Instance()->Connection().IsBusy() ? 32 : 0) |
+                (apps->m_pending_app ? 64 : 0);
+    int generated = apps->m_list ? apps->m_list->GetGeneratedNum() : 0;
+    int rows = 0;
+    for (int i = 0; !gates && i < apps->m_app_count; ++i)
+        if (apps->m_list->GetListItem(0, i)) ++rows;
+    int trace = gates | ((generated & 255) << 8) | (rows << 16);
+    if (trace != apps->m_artwork_trace) {
+        apps->m_artwork_trace = trace;
+        vita_debug_log("[Artwork] page gates=0x%02X apps=%d generated=%d rows=%d", gates,
+                       apps->m_app_count, generated, rows);
+    }
     int id = 0, width = 0, height = 0;
     paf::intrusive_ptr<paf::graph::Surface> surface;
     bool received = service.TakeArtwork(&id, &surface, &width, &height);

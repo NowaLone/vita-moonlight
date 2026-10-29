@@ -292,13 +292,14 @@
           <image_button sound="_common_sound_image_button" enable_long_press_text_auto_scroll="1" style="style_image_button_app" id="image_button_app">
             <focus_hint focus_shape="3" focus_size="730, 90" />
             <layout_hint size="730, 90" />
-            <plane texture="tex_application" id="plane_app_fallback">
-              <layout_hint anchor="1, 0" align="0, 0" size="64, 64" pos="77, 0" />
-            </plane>
-            <plane id="plane_app_cover">
-              <layout_hint anchor="1, 0" align="0, 0" size="90, 90" pos="77, 0" />
-            </plane>
           </image_button>
+          <!-- Match Main: image planes are row siblings, outside button label margins. -->
+          <plane texture="tex_application" id="plane_app_fallback">
+            <layout_hint anchor="1, 0" align="0, 0" size="64, 64" pos="77, 0" />
+          </plane>
+          <plane texture="tex_application" id="plane_app_cover">
+            <layout_hint anchor="1, 0" align="0, 0" size="90, 90" pos="77, 0" />
+          </plane>
         </list_item>
       </template>
 

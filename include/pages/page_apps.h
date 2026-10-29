@@ -53,6 +53,7 @@ private:
     };
     ArtworkEntry m_artwork[ArtworkCacheSize];
     paf::vector<bool> m_artwork_attempted;
+    int m_artwork_trace;
     int m_pending_app; /* Positive ID launches after artwork cleanup, -1 means Back. */
     paf::vector<MoonlightApplication> m_apps;
     int m_app_count;

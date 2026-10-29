@@ -75,20 +75,31 @@ public:
         char *body = NULL;
         size_t length = 0;
         int w = 0, h = 0;
+        int phase = 0, decoded = -1, native_width = 0, native_height = 0;
+        vita_debug_log("[Artwork] fetch app=%d", id);
         int result = backend.GetApplicationArtwork(id, &cancel, &body, &length);
-        if (result == 0 && !moonlight_is_cancelled(&cancel) && pool &&
-            moonlight_artwork_extent((const unsigned char *)body, length, &w, &h)) {
+        int png = moonlight_artwork_extent((const unsigned char *)body, length, &w, &h);
+        vita_debug_log("[Artwork] response app=%d result=%d bytes=%u png=%d source=%dx%d pool=%d",
+                       id, result, (unsigned int)length, png, w, h, pool ? 1 : 0);
+        if (result == 0 && !moonlight_is_cancelled(&cancel) && pool && png) {
+            phase = 1;
             moonlight_artwork_fit(w, h, &width, &height);
             paf::common::SharedPtr<paf::image::Image> image = paf::image::Image::Open(
                 body, length, heap, paf::image::ImageFormat_Png);
             if (image.get()) {
+                phase = 2;
                 image = image->Resize(paf::image::ImageExtent(width, height),
                                       paf::image::ImageResizeType_Linear);
                 if (image.get() && !moonlight_is_cancelled(&cancel)) {
+                    phase = 3;
                     paf::graph::Surface::LoadOption option;
                     option.decode_heap = heap;
-                    if (paf::graph::Surface::DecodeImage(pool, &option, surface, image) < 0)
-                        surface.clear();
+                    decoded = paf::graph::Surface::DecodeImage(pool, &option, surface, image);
+                    if (surface.get()) {
+                        native_width = surface->GetWidth();
+                        native_height = surface->GetHeight();
+                    }
+                    if (decoded < 0) surface.clear();
                     if (surface.get() && (surface->GetWidth() > MOONLIGHT_ARTWORK_THUMB_SIZE ||
                                           surface->GetHeight() > MOONLIGHT_ARTWORK_THUMB_SIZE))
                         surface.clear();
@@ -97,9 +108,9 @@ public:
         }
         free(body);
         if (moonlight_is_cancelled(&cancel)) surface.clear();
-        if (!surface.get() && !moonlight_is_cancelled(&cancel))
-            vita_debug_log("[Artwork] unavailable app=%d result=%d bytes=%u", id, result,
-                           (unsigned int)length);
+        vita_debug_log("[Artwork] complete app=%d cancelled=%d surface=%d phase=%d decode=0x%08X size=%dx%d",
+                       id, moonlight_is_cancelled(&cancel) ? 1 : 0, surface.get() ? 1 : 0,
+                       phase, (unsigned int)decoded, native_width, native_height);
         __atomic_store_n(&done, 1, __ATOMIC_RELEASE);
     }
     virtual void Finish() {}
@@ -121,17 +132,29 @@ ApplicationService::~ApplicationService()
 
 bool ApplicationService::RequestArtwork(int application_id)
 {
-    if (application_id <= 0 || m_artwork_job.get() || m_connection.IsBusy()) return false;
+    if (application_id <= 0 || m_artwork_job.get() || m_connection.IsBusy()) {
+        vita_debug_log("[Artwork] request rejected app=%d job=%d busy=%d", application_id,
+                       m_artwork_job.get() ? 1 : 0, m_connection.IsBusy() ? 1 : 0);
+        return false;
+    }
     if (!m_artwork_queue) {
         paf::job::JobQueue::Option option;
         option.workerNum = 1;
         option.workerStackSize = 256 * 1024; /* libcurl/OpenSSL and native image decoding. */
         m_artwork_queue = new paf::job::JobQueue("Application artwork", &option);
-        if (!m_artwork_queue) return false;
+        if (!m_artwork_queue) {
+            vita_debug_log("[Artwork] queue allocation failed");
+            return false;
+        }
     }
     m_artwork_job = paf::common::SharedPtr<paf::job::JobItem>(new ArtworkJob(m_backend, application_id));
-    if (!m_artwork_job.get()) return false;
-    if (m_artwork_queue->Enqueue(m_artwork_job) < 0) {
+    if (!m_artwork_job.get()) {
+        vita_debug_log("[Artwork] job allocation failed app=%d", application_id);
+        return false;
+    }
+    int result = m_artwork_queue->Enqueue(m_artwork_job);
+    vita_debug_log("[Artwork] queued app=%d result=0x%08X", application_id, (unsigned int)result);
+    if (result < 0) {
         m_artwork_job.reset();
         return false;
     }
