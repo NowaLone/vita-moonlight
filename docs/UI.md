@@ -1497,7 +1497,12 @@ Reference evidence, inspected read-only without compilation:
   as a 64×64 fallback. See [asset provenance](LICENSING.md).
 
 ApplicationService owns a single-worker 256 KiB PAF queue and one cancellable
-image job. It fetches the current paired server's `/appasset` with the ordinary
+image job. The maintainer's first artwork build stopped at direct access to
+private `Framework::surface_pool` / `decode_heap` members. The source correction
+uses the installed public `gutil::GetDefaultSurfacePool()` and
+`memory::GetGlobalHeapAllocator()` accessors; no framework layout access or new
+allocator is introduced. Rebuild and native allocation/decode remain **[open]**.
+The job fetches the current paired server's `/appasset` with the ordinary
 client identity and complete server-certificate pin; no plaintext fallback or
 administrative API is added. The host-control admission guard excludes other
 session requests. Only IDs in the current valid application list are accepted.

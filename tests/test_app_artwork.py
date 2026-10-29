@@ -14,6 +14,13 @@ from test_xml_source import ROOT, strip_directives
 
 
 class Artwork(unittest.TestCase):
+    def test_artwork_resources_use_public_paf_accessors(self):
+        # Source regression gate only: native compilation remains a maintainer check.
+        source = (ROOT / 'src/services/application_service.cpp').read_text()
+        self.assertIn('pool(paf::gutil::GetDefaultSurfacePool())', source)
+        self.assertIn('heap(paf::memory::GetGlobalHeapAllocator())', source)
+        self.assertNotRegex(source, r'Framework::Instance\(\)->(?:surface_pool|decode_heap)')
+
     def test_session_admission_app_identity_and_late_cancellation_fail_closed(self):
         source = function((ROOT / 'src/moonlight/api.cpp').read_text(),
                           'moonlight_api_get_application_artwork')

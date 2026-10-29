@@ -1,6 +1,6 @@
 # Focused checks
 
-Latest recorded source gate: **299 checks including Music-style application artwork (2026-10-30)**.
+Latest recorded source gate: **300 checks including the public PAF artwork allocator correction (2026-10-30)**.
 See [the repeat Ponytail audit](../docs/PONYTAIL_REAUDIT_2026-10-23.md) for the latest
 baseline, per-change checks and native gates; [the earlier refactor audit](../docs/REFACTOR_AUDIT.md)
 records the preceding pass. Counts in the
@@ -12,7 +12,10 @@ Non-build checks (Python 3 and pycparser):
 
     PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -p 'test_*.py'
 
-`test_app_artwork.py` interprets actual PNG/aspect helpers, overflow-safe HTTP
+`test_app_artwork.py` also guards the public PAF pool/allocator accessors after the
+maintainer's private-Framework-member build failure. This is a source regression
+check, not C++ access/type checking or native compilation. It interprets actual
+PNG/aspect helpers, overflow-safe HTTP
 writes/response bounds, session/app-ID admission, late cancellation and image-job
 result ownership. `test_page_navigation.py` also exercises launch/Back while artwork
 cleanup is pending. Resource checks cover the Music-style 90 px row/cover geometry,

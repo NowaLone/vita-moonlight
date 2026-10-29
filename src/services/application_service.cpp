@@ -1,5 +1,7 @@
 #include <paf.h>
 #include <paf/image/image.h>
+#include <paf/graphics/graphics.h>
+#include <paf/memory/heap_allocator.h>
 #include <stdlib.h>
 
 #include "moonlight/app_artwork.h"
@@ -65,8 +67,8 @@ class ApplicationService::ArtworkJob : public paf::job::JobItem {
 public:
     ArtworkJob(MoonlightBackend &backend, int id)
         : JobItem("Application artwork", NULL), backend(backend), id(id), cancel(), done(0),
-          width(0), height(0), pool(paf::Framework::Instance()->surface_pool),
-          heap(paf::Framework::Instance()->decode_heap) {}
+          width(0), height(0), pool(paf::gutil::GetDefaultSurfacePool()),
+          heap(paf::memory::GetGlobalHeapAllocator()) {}
 
     virtual void Run()
     {

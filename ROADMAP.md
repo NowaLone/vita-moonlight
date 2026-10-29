@@ -4,6 +4,11 @@ This roadmap captures the agreed next steps for Vita Moonlight PAF. It is ordere
 
 ## Active remaining work (reconciled 2026-10-27)
 
+- [x] Artwork build correction (2026-10-30): replace direct access to private
+  PAF Framework pool/heap fields with public `gutil::GetDefaultSurfacePool()`
+  and `memory::GetGlobalHeapAllocator()` accessors. The source regression gate
+  passes (300 checks); maintainer rebuild/Vita validation remains pending.
+
 - [x] Source-implement Music-style app rows and optional paired HTTPS artwork
   on `codex/music-app-covers` (2026-10-30): measured 90 px rows/cover slot,
   native focus, bounded cancellable loading, page-scoped cache and pre-stream
