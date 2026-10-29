@@ -1,6 +1,6 @@
 # Focused checks
 
-Latest recorded source gate: **290 checks including settings read validation (2026-10-29)**.
+Latest recorded source gate: **291 checks including normal decoder cleanup (2026-10-29)**.
 See [the repeat Ponytail audit](../docs/PONYTAIL_REAUDIT_2026-10-23.md) for the latest
 baseline, per-change checks and native gates; [the earlier refactor audit](../docs/REFACTOR_AUDIT.md)
 records the preceding pass. Counts in the
@@ -11,6 +11,11 @@ cases are in the API audit and `runtime/README.md`; source checks do not replace
 Non-build checks (Python 3 and pycparser):
 
     PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -p 'test_*.py'
+
+`test_video_cleanup.py` interprets both actual profile branches with mocked allocator/decoder
+calls. Its normal-profile case fails before freeing the app-owned decoder control structure;
+then passes, including repeated cleanup. System-owned static control is never freed, and a
+failed native destroy keeps resources for retry. No native decoder, allocator or GPU is run.
 
 `test_settings_values.py` compares actual default/validation helper results against every
 current XML key/choice, then interprets reads with missing/invalid data and native errors.

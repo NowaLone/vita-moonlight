@@ -4,6 +4,12 @@ This roadmap captures the agreed next steps for Vita Moonlight PAF. It is ordere
 
 ## Active remaining work (reconciled 2026-10-27)
 
+- [x] Normal-profile decoder leak correction after the external audit (2026-10-29):
+  free the app-allocated control structure after native decoder deletion. System
+  profile keeps its static-control ownership and failure-retention behavior.
+  One serial source check fails before the correction and passes after it (291 total),
+  including repeated cleanup. Native allocator/decoder and Vita validation remain open.
+
 - [x] Settings read validation after the external audit (2026-10-29): every key uses
   its existing XML default after read failure or an out-of-choice value. Stored keys,
   version and values are unchanged. Dependency module loads now check errors/reuse

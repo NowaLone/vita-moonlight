@@ -489,6 +489,7 @@ static void vita_video_cleanup(void)
         }
 #else
         sceAvcdecDeleteDecoder(s_decoder);
+        free(s_decoder);
 #endif
         s_decoder = NULL;
     }
