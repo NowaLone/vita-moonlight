@@ -4,6 +4,12 @@ This roadmap captures the agreed next steps for Vita Moonlight PAF. It is ordere
 
 ## Active remaining work (reconciled 2026-10-27)
 
+- [x] Settings read validation after the external audit (2026-10-29): every key uses
+  its existing XML default after read failure or an out-of-choice value. Stored keys,
+  version and values are unchanged. Dependency module loads now check errors/reuse
+  loaded modules. Three source checks compare all XML choices/defaults and inject
+  read/module failures (290 total); native persistence/recovery remains unverified.
+
 - [x] Startup failure handling after the external audit (2026-10-29): retain and
   propagate `Start()` failure, show the existing native OK error path with EN/RU
   text when the UI plugin exists, and request PAF shutdown after the dialog ends

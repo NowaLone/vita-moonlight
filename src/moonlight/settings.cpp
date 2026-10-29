@@ -72,6 +72,44 @@ static const char *key_name(MoonlightSettingKey key)
     }
 }
 
+static int default_value(MoonlightSettingKey key)
+{
+    switch (key) {
+    case MOONLIGHT_SETTING_RESOLUTION: return 5;
+    case MOONLIGHT_SETTING_FPS: return 60;
+    case MOONLIGHT_SETTING_BITRATE: return 5000;
+    case MOONLIGHT_SETTING_CONTROLLER_TYPE: return 2;
+    case MOONLIGHT_SETTING_MOUSE_ACCELERATION: return 150;
+    case MOONLIGHT_SETTING_SOPS:
+    case MOONLIGHT_SETTING_FRAME_PACER:
+    case MOONLIGHT_SETTING_PS_BUTTON_CAPTURE: return 1;
+    default: return 0;
+    }
+}
+
+static bool valid_value(MoonlightSettingKey key, int value)
+{
+    switch (key) {
+    case MOONLIGHT_SETTING_RESOLUTION: return value >= 0 && value <= 8;
+    case MOONLIGHT_SETTING_FPS:
+        return value == 24 || value == 30 || value == 40 || value == 50 || value == 60;
+    case MOONLIGHT_SETTING_BITRATE:
+        return value == 2000 || value == 4000 || value == 5000 || value == 8000 ||
+               value == 10000 || value == 15000 || value == 20000 || value == 30000;
+    case MOONLIGHT_SETTING_CONTROLLER_TYPE: return value >= 1 && value <= 4;
+    case MOONLIGHT_SETTING_CONTROLLER_LIGHT: return value >= 0 && value <= 2;
+    case MOONLIGHT_SETTING_TOUCHSCREEN_MODE: return value >= 0 && value <= 3;
+    case MOONLIGHT_SETTING_MOUSE_ACCELERATION:
+        return value >= 0 && value <= 300 && value % 15 == 0;
+    case MOONLIGHT_SETTING_BACK_DEADZONE_TOP:
+    case MOONLIGHT_SETTING_BACK_DEADZONE_RIGHT:
+    case MOONLIGHT_SETTING_BACK_DEADZONE_BOTTOM:
+    case MOONLIGHT_SETTING_BACK_DEADZONE_LEFT:
+        return value >= 0 && value <= 40 && value % 5 == 0;
+    default: return value == 0 || value == 1;
+    }
+}
+
 static void emit(MoonlightEventType type, int result)
 {
     if (!s_event_callback) {
@@ -152,9 +190,17 @@ static int32_t on_get_surface(paf::graph::Surface **, const char *)
 
 static int load_plugin()
 {
-    sceSysmoduleLoadModuleInternal(SCE_SYSMODULE_INTERNAL_BXCE);
-    sceSysmoduleLoadModuleInternal(SCE_SYSMODULE_INTERNAL_INI_FILE_PROCESSOR);
-    sceSysmoduleLoadModuleInternal(SCE_SYSMODULE_INTERNAL_COMMON_GUI_DIALOG);
+    static const int modules[] = {
+        SCE_SYSMODULE_INTERNAL_BXCE,
+        SCE_SYSMODULE_INTERNAL_INI_FILE_PROCESSOR,
+        SCE_SYSMODULE_INTERNAL_COMMON_GUI_DIALOG
+    };
+    for (size_t i = 0; i < sizeof(modules) / sizeof(modules[0]); ++i) {
+        if (sceSysmoduleIsLoadedInternal(modules[i]) != SCE_SYSMODULE_LOADED) {
+            int result = sceSysmoduleLoadModuleInternal(modules[i]);
+            if (result < 0) return result;
+        }
+    }
 
     paf::Plugin::InitParam param;
     param.name = "app_settings_plugin";
@@ -181,7 +227,8 @@ int moonlight_settings_init(void)
 
     build_about_description();
 
-    if (load_plugin() < 0) return -1;
+    int result = load_plugin();
+    if (result < 0) return result;
 
     size_t file_size = 0;
     const char *mime = NULL;
@@ -266,7 +313,14 @@ int moonlight_settings_get_value(MoonlightSettingKey key, int *out_value)
     const char *name = key_name(key);
     if (!name) return -1;
 
-    s_settings->GetInt(name, out_value, 0);
+    const int fallback = default_value(key);
+    *out_value = fallback;
+    int result = s_settings->GetInt(name, out_value, fallback);
+    if (result < 0 || !valid_value(key, *out_value)) {
+        vita_debug_log("[Settings] using default for %s: result=0x%08X value=%d",
+            name, (unsigned int)result, *out_value);
+        *out_value = fallback;
+    }
     return 0;
 }
 

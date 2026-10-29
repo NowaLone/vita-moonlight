@@ -1,6 +1,6 @@
 # Focused checks
 
-Latest recorded source gate: **287 checks including startup failure handling (2026-10-29)**.
+Latest recorded source gate: **290 checks including settings read validation (2026-10-29)**.
 See [the repeat Ponytail audit](../docs/PONYTAIL_REAUDIT_2026-10-23.md) for the latest
 baseline, per-change checks and native gates; [the earlier refactor audit](../docs/REFACTOR_AUDIT.md)
 records the preceding pass. Counts in the
@@ -11,6 +11,12 @@ cases are in the API audit and `runtime/README.md`; source checks do not replace
 Non-build checks (Python 3 and pycparser):
 
     PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -p 'test_*.py'
+
+`test_settings_values.py` compares actual default/validation helper results against every
+current XML key/choice, then interprets reads with missing/invalid data and native errors.
+It also injects dependency-module load failures and checks already loaded modules are reused.
+Fallbacks are read-only: stored preferences/version and XML are unchanged. This does not
+execute AppSettings, establish its missing-key return contract or validate native persistence.
 
 `test_startup_failure.py` interprets bootstrap callback/result handling, failed/successful
 load paths, native error admission and deferred PAF shutdown with serial app/plugin/dialog
