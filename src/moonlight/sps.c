@@ -50,7 +50,7 @@ int gs_sps_fix(PLENTRY sps, int flags, uint8_t* out_buf, size_t out_size) {
   }
   if ((size_t)start_len >= out_size ||
       ((unsigned char)sps->data[start_len] & 0x9f) != NAL_UNIT_TYPE_SPS) return -1;
-  if (read_nal_unit(h264_stream, sps->data + start_len, sps->length - start_len) <= 0)
+  if (read_nal_unit(h264_stream, (uint8_t *)sps->data + start_len, sps->length - start_len) <= 0)
     return -1;
 
   // Some decoders rely on H264 level to decide how many buffers are needed

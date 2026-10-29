@@ -20,6 +20,10 @@ failed native destroy keeps resources for retry. No native decoder, allocator or
 `test_settings_values.py` compares actual default/validation helper results against every
 current XML key/choice, then interprets reads with missing/invalid data and native errors.
 It also injects dependency-module load failures and checks already loaded modules are reused.
+After the maintainer's 2026-10-29 compile failure, that check additionally requires the
+actual array's `SceSysmoduleInternalModuleId` declaration and uses the three SDK IDs above
+`INT_MAX`; the declaration assertion fails before the fix. The interpreter typedef and
+values remain mocks, not C++ type checking or a substitute for a maintainer rebuild.
 Fallbacks are read-only: stored preferences/version and XML are unchanged. This does not
 execute AppSettings, establish its missing-key return contract or validate native persistence.
 

@@ -29,7 +29,7 @@ class SettingsValues(unittest.TestCase):
             code = extract(source, name).replace('s_settings->GetInt', 'get_int').replace('*out_value', 'out_value[0]')
             cls.functions[name] = c_parser.CParser().parse('typedef int bool;' + enum + strip_directives(code)).ext[-1]
         load = extract(source, 'load_plugin').split('    paf::Plugin::InitParam')[0] + '    return 0;\n}'
-        cls.modules = c_parser.CParser().parse('typedef unsigned int size_t;' + load).ext[-1].body
+        cls.modules = c_parser.CParser().parse('typedef unsigned int size_t, SceSysmoduleInternalModuleId;' + load).ext[-1].body
         cls.xml = {node.get('key'): node for node in ET.parse(ROOT / 'cxml/moonlight_settings.xml').iter()
                    if node.get('key') is not None}
 
@@ -101,18 +101,21 @@ class SettingsValues(unittest.TestCase):
         self.assertNotIn('SetInt', source)
 
     def test_module_loader_reuses_loaded_modules_and_preserves_failures(self):
-        for loaded in (set(), {1, 2, 3}):
-            for failure in (None, 1, 2, 3):
+        declaration = self.modules.block_items[0]
+        self.assertEqual(declaration.type.type.type.names, ['SceSysmoduleInternalModuleId'])
+        module_ids = (0x80000005, 0x80000006, 0x8000000C)
+        for loaded in (set(), set(module_ids)):
+            for failure in (None, *module_ids):
                 with self.subTest(loaded=loaded, failure=failure):
                     calls = []
-                    values = dict(SCE_SYSMODULE_INTERNAL_BXCE=1, SCE_SYSMODULE_INTERNAL_INI_FILE_PROCESSOR=2,
-                                  SCE_SYSMODULE_INTERNAL_COMMON_GUI_DIALOG=3, SCE_SYSMODULE_LOADED=0,
+                    values = dict(SCE_SYSMODULE_INTERNAL_BXCE=module_ids[0], SCE_SYSMODULE_INTERNAL_INI_FILE_PROCESSOR=module_ids[1],
+                                  SCE_SYSMODULE_INTERNAL_COMMON_GUI_DIALOG=module_ids[2], SCE_SYSMODULE_LOADED=0,
                                   sceSysmoduleIsLoadedInternal=lambda module: 0 if module in loaded else -1,
                                   sceSysmoduleLoadModuleInternal=lambda module: calls.append(module) or
                                       (-9 if module == failure else 0))
                     with patch.object(runtime, 'expression', self.expression), patch.object(runtime, 'execute', self.harness.execute):
                         result = run(self.modules, values)
-                    expected = [] if loaded else list(range(1, (failure or 3) + 1))
+                    expected = [] if loaded else list(module_ids[:module_ids.index(failure) + 1] if failure else module_ids)
                     self.assertEqual(calls, expected)
                     self.assertEqual(result, -9 if failure and not loaded else 0)
 

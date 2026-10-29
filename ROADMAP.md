@@ -4,6 +4,13 @@ This roadmap captures the agreed next steps for Vita Moonlight PAF. It is ordere
 
 ## Active remaining work (reconciled 2026-10-27)
 
+- [x] Source correction for the maintainer's failed build (2026-10-29): the Settings
+  dependency array now retains `SceSysmoduleInternalModuleId`, avoiding unsigned-to-int
+  narrowing and int-to-enum call errors. The existing loader check fails before the
+  fix and passes after it with the real high-bit SDK IDs (291 checks total). The SPS
+  parser call also explicitly passes `uint8_t *`, matching its byte-buffer contract.
+  The supplied build stopped in Settings; a successful rebuild/Vita check is still pending.
+
 - [x] Normal-profile decoder leak correction after the external audit (2026-10-29):
   free the app-allocated control structure after native decoder deletion. System
   profile keeps its static-control ownership and failure-retention behavior.

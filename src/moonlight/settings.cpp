@@ -190,7 +190,7 @@ static int32_t on_get_surface(paf::graph::Surface **, const char *)
 
 static int load_plugin()
 {
-    static const int modules[] = {
+    static const SceSysmoduleInternalModuleId modules[] = {
         SCE_SYSMODULE_INTERNAL_BXCE,
         SCE_SYSMODULE_INTERNAL_INI_FILE_PROCESSOR,
         SCE_SYSMODULE_INTERNAL_COMMON_GUI_DIALOG
