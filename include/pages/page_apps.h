@@ -25,6 +25,12 @@ public:
     paf::ui::ListItem *CreateListItem(paf::ui::listview::ItemFactory::CreateParam &param);
 
 private:
+    static void ArtworkTask(void *userdata);
+    void ClearArtwork();
+    void CompleteArtworkAction();
+    void UpdateArtwork(paf::ui::Widget *item, int index);
+    int FindArtwork(int application_id) const;
+    void StartSelectedApp(int index);
     static void OnBack(int32_t type, paf::ui::Handler *self, paf::ui::Event *event, void *userdata);
     static void NavigationFinished(paf::Timer *timer, paf::ui::AnimListener *listener,
                                    void *widget, void *userdata, void *unused);
@@ -38,6 +44,16 @@ private:
     void SelectApp(int index);
     void LaunchRequestedApplication();
 
+    enum { ArtworkCacheSize = 12 };
+    struct ArtworkEntry {
+        ArtworkEntry() : application_id(0), width(0), height(0) {}
+        int application_id;
+        int width, height;
+        paf::intrusive_ptr<paf::graph::Surface> surface;
+    };
+    ArtworkEntry m_artwork[ArtworkCacheSize];
+    paf::vector<bool> m_artwork_attempted;
+    int m_pending_app; /* Positive ID launches after artwork cleanup, -1 means Back. */
     paf::vector<MoonlightApplication> m_apps;
     int m_app_count;
     int m_livearea_application_id;

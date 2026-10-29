@@ -22,13 +22,15 @@ class PageNavigation(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         methods = []
-        for name in ('StartNavigation', 'LaunchRequestedApplication', 'SelectApp'):
+        for name in ('StartNavigation', 'LaunchRequestedApplication', 'SelectApp', 'StartSelectedApp', 'CompleteArtworkAction'):
             text = function(SOURCE, 'Apps::' + name)
             text = re.sub(r'\b(m_\w+|root)\b', r'apps->\1', text)
             text = text.replace('this', 'apps')
             text = text.replace('Apps::' + name + '(', name + '(Apps *apps, ')
             text = text.replace('Apps *apps, )', 'Apps *apps)')
             text = text.replace('SelectApp(i)', 'SelectApp(apps, i)')
+            text = text.replace('StartSelectedApp(i)', 'StartSelectedApp(apps, i)')
+            text = text.replace('StartNavigation(true)', 'StartNavigation(apps, true)')
             methods.append(text)
         for name in ('NavigationFinished', 'NavigationTask', 'OnBack'):
             methods.append(function(SOURCE, 'Apps::' + name).replace('Apps::', ''))
@@ -48,6 +50,8 @@ class PageNavigation(unittest.TestCase):
         code = code.replace('MoonlightApp::Instance()->Connection().IsBusy()', 'is_busy()')
         code = code.replace('MoonlightApp::Instance()->Connection().Start', 'start_stream')
         code = code.replace('MoonlightApp::Instance()->Connection().ShowError', 'show_error')
+        code = code.replace('MoonlightApp::Instance()->Applications().CancelArtwork()', 'cancel_artwork()')
+        code = code.replace('MoonlightApp::Instance()->Applications().IsArtworkIdle()', 'artwork_idle()')
         code = code.replace('Base::GetCurrent()', 'current_page()').replace('Base::CloseCurrent()', 'force_close()')
         code = code.replace('paf::common::MainThreadCallList::Register', 'register_task')
         code = code.replace('paf::common::MainThreadCallList::Unregister', 'unregister_task')
@@ -68,13 +72,14 @@ class PageNavigation(unittest.TestCase):
         code = re.sub(r'delete (\w+);', r'free_timer(\1);', code)
         code = code.replace('--apps->m_navigation_pending;',
                             'apps->m_navigation_pending = apps->m_navigation_pending - 1;')
+        code = code.replace('ClearArtwork()', 'clear_artwork()')
         code = code.replace('HideStatus()', 'hide_status()').replace('ShowEmptyState()', 'show_empty()')
         code = mock_ui_text(code)
         preamble = '''typedef int bool; typedef int int32_t;
         typedef struct {int id;} Application;
         typedef struct {int root, m_content, m_main_content, m_transitioning,
         m_closing, m_navigation_pending, m_apps_ready, m_livearea_application_id,
-        m_launching, m_app_count; Application m_apps[2];} Apps;'''
+        m_launching, m_app_count, m_pending_app; Application m_apps[2];} Apps;'''
         unit = c_parser.CParser().parse(preamble + strip_directives(code))
         cls.functions = {node.decl.name: node for node in unit.ext if isinstance(node, c_ast.FuncDef)}
         cls.constants = {name: float(value) for name, value in
@@ -83,19 +88,25 @@ class PageNavigation(unittest.TestCase):
     def setUp(self):
         self.apps = dict(root=3, m_content=1, m_main_content=2, m_transitioning=0,
                          m_closing=0, m_navigation_pending=0, m_apps_ready=0,
-                         m_livearea_application_id=42, m_launching=0, m_app_count=1,
+                         m_livearea_application_id=42, m_launching=0, m_app_count=1, m_pending_app=0,
                          m_apps=[dict(id=42)])
         self.main = dict(root=4, m_transitioning=0)
         self.current = self.apps
         self.active, self.callbacks, self.tasks, self.transforms = {}, {}, {}, {}
         self.timers, self.freed, self.calls = [], [], []
         self.fail_timer, self.fail_property, self.busy = 0, None, False
+        self.artwork_running = False
+        self.artwork_cancelled = False
+        self.artwork_cleared = 0
         self.values = dict(self.constants, NULL=0, false=0, true=1,
-                           FUNC_CIRQ_OUT=23, FUNC_LINEAR=0,
+                           FUNC_CIRQ_OUT=23, FUNC_LINEAR=0, ArtworkTask=991,
                            ANIM_MOVE=0x10000, ANIM_ROT=0x10006, ANIM_META_ALPHA=0x10003,
                            make_timer=self.make_timer, free_timer=self.freed.append,
                            make_vector=lambda *args: args, current_page=lambda: self.current,
-                           is_busy=lambda: self.busy, vita_debug_log=lambda *args: None,
+                           is_busy=lambda: self.busy,
+                           cancel_artwork=lambda: setattr(self, 'artwork_cancelled', True),
+                           clear_artwork=lambda: setattr(self, 'artwork_cleared', self.artwork_cleared + 1),
+                           artwork_idle=lambda: not self.artwork_running, vita_debug_log=lambda *args: None,
                            register_task=lambda task, app: self.tasks.update({task: app}),
                            unregister_task=lambda task, app: self.tasks.pop(task, None),
                            set_active=lambda root, active: self.active.update({root: active}),
@@ -171,6 +182,7 @@ class PageNavigation(unittest.TestCase):
 
     def poll(self):
         self.invoke('NavigationTask', self.apps)
+        if self.apps['m_pending_app']: self.invoke('CompleteArtworkAction', self.apps)
 
     def destroy(self, app):
         self.invoke('cleanup', app)
@@ -198,6 +210,7 @@ class PageNavigation(unittest.TestCase):
             self.apps['m_apps_ready'] = 1
             self.invoke('LaunchRequestedApplication', self.apps)
             self.invoke('LaunchRequestedApplication', self.apps)
+            self.invoke('CompleteArtworkAction', self.apps)
             self.assertEqual(self.calls, [('launch', 42)])
             self.assertEqual(self.transforms[2, 'alpha'], 0.15)
             self.assertEqual(self.timers, [(500, 23), (500, 23), (400, 0)] * 2)
@@ -215,6 +228,7 @@ class PageNavigation(unittest.TestCase):
         self.assertFalse(self.apps['m_closing'])
         self.busy = False
         self.invoke('OnBack', 0, 0, 0, self.apps)
+        self.invoke('CompleteArtworkAction', self.apps)
         self.assertTrue(self.apps['m_closing'])
         self.finish(2)
         self.poll()
@@ -261,6 +275,39 @@ class PageNavigation(unittest.TestCase):
         self.invoke('NavigationFinished', 0, 0, 0, self.apps, 0)
         self.assertEqual(self.apps['m_navigation_pending'], 2)  # Cancelled completion ignored.
 
+    def test_launch_and_back_wait_for_cancelled_artwork_cleanup(self):
+        for pending in (42, -1):
+            with self.subTest(pending=pending):
+                self.setUp()
+                self.artwork_running = True
+                self.apps['m_livearea_application_id'] = 0
+                if pending > 0: self.invoke('SelectApp', self.apps, 0)
+                else: self.invoke('OnBack', 0, 0, 0, self.apps)
+                self.assertTrue(self.artwork_cancelled)
+                self.assertTrue(self.apps['m_transitioning'])
+                self.assertFalse(self.active[3])
+                self.invoke('CompleteArtworkAction', self.apps)
+                self.assertEqual(self.apps['m_pending_app'], pending)
+                self.assertEqual(self.calls, [])
+                self.assertEqual(self.artwork_cleared, 0)
+                self.artwork_running = False
+                self.invoke('CompleteArtworkAction', self.apps)
+                self.assertEqual(self.apps['m_pending_app'], 0)
+                self.assertEqual(self.artwork_cleared, 1)
+                self.assertEqual(self.calls, [('launch', 42)] if pending > 0 else [])
+                self.assertEqual(bool(self.apps['m_closing']), pending == -1)
+                self.invoke('CompleteArtworkAction', self.apps)
+                self.assertEqual(self.artwork_cleared, 1)
+
+    def test_invalid_app_id_never_strands_input_in_artwork_wait(self):
+        self.apps['m_apps'][0]['id'] = 0
+        self.active[3] = True
+        self.invoke('SelectApp', self.apps, 0)
+        self.assertEqual(self.calls, ['error'])
+        self.assertTrue(self.active[3])
+        self.assertFalse(self.apps['m_pending_app'])
+        self.assertFalse(self.apps['m_transitioning'])
+
     def test_resource_pivot_backdrop_and_list_bounds_preserve_the_parent_strip(self):
         resource = ET.parse(ROOT / 'cxml/vita_moonlight_ui.xml').getroot()
         for page, content in (('page_main', 'plane_main_content'), ('page_apps', 'plane_apps_content')):
@@ -274,7 +321,7 @@ class PageNavigation(unittest.TestCase):
         self.assertIsNotNone(content.find("template_ref[@id='apps_title_ref']"))
         self.assertIsNone(apps.find("template_ref[@id='apps_title_ref']"))
         for template, size in (('template_list_view_generic', '730, 448'),
-                               ('template_list_item_generic', '730, 80')):
+                               ('template_app_list_item', '730, 90')):
             hint = resource.find(f"./templatetable/template[@id='{template}']/*/layout_hint")
             self.assertEqual(hint.get('size'), size)
         self.assertIn('Base::Find("page_main")', SOURCE)

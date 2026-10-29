@@ -48,6 +48,8 @@ The current application supports:
 - Native delete confirmation and persistent host removal.
 - Moonlight PIN pairing.
 - Retrieving the application list from a paired PC.
+- Music-style application rows with optional PC-provided covers, native focus and
+  non-blocking image loading (source implemented; maintainer build/Vita validation pending).
 - Confirmed remote Quit when another application blocks launch, followed by the selected app
   (maintainer reports successful Vita testing, 2026-10-23; fault/race cases remain open).
 - H.264 video streaming and Vita AVC presentation.
@@ -105,11 +107,11 @@ The current list/title resources intentionally follow the real patterns used by 
 - `template_flow_bar` (pairing bottom bar, sharing Main's translucent selection-bar styles)
 - `template_list_view_generic`
 - `template_list_view_main` (main-page host list, shorter so it clears the bottom bar)
-- `template_list_item_generic`
+- `template_app_list_item` (Music-style cover/title row)
 - `template_host_list_item` (saved-PC row with a title and a description)
 - `template_host_list_item_select` (saved-PC row with a checkbox, used only in selection mode)
 - `style_list_view_generic`
-- `style_image_button_list_button`
+- `style_image_button_app` (Music-style native row focus/title)
 
 The full UI reference (screen zones, layout language, pages, templates, styles, helpers, measured values from PS4 Link and Photos, recipes and pitfalls) is [`docs/UI.md`](docs/UI.md).
 

@@ -175,7 +175,7 @@ recipes for common UI changes live in [`docs/UI.md`](docs/UI.md). Read it before
 - Saved-host management follows the observed Vita system-app selection/action pattern: the standard bottom-right `corner_button` opens the `OptionMenu`; Delete enters multi-selection mode; selection-mode rows come from `template_host_list_item_select` and expose a native `paf::ui::CheckBox`; activating a row toggles its selection while the checkbox mirrors the state; the bottom action bar provides Cancel, Select All / Clear All, and Delete. Do not replace this with long-press/context menus or custom per-item popups.
 - The app deliberately has no saved-host Copy/clipboard action and no `SceClipboard` dependency. Do not restore clipboard-based host-selection logic unless explicitly requested.
 - Match system-app references by measuring screenshots, not by eye (`docs/UI.md` section 7). Tag numbers `[hw]`, `[shot]`, `[code]` or `[open]`; a screenshot measurement is not hardware verification.
-- Layout and appearance belong in `cxml/vita_moonlight_ui.xml`; code fills content, state and events. Choose a row template by mode; never show/hide a checkbox on a shared row template (Apps uses `template_list_item_generic`).
+- Layout and appearance belong in `cxml/vita_moonlight_ui.xml`; code fills content, state and events. Choose a row template by mode; never show/hide a checkbox on a shared row template (Apps uses its own `template_app_list_item` with Music-style artwork rows).
 - Disable buttons only with `set_button_enabled()`. Return Main to its idle status only with `Main::ShowIdleStatus()`; a direct `SetStatus("Select a PC to connect.")` draws over the rows.
 - `ListView::DeleteCell()` takes a cell count. Main applies single-row edits; Apps passes the full
   existing count on replacement. `existing - 1` leaves a stale duplicate row.
@@ -235,6 +235,12 @@ recipes for common UI changes live in [`docs/UI.md`](docs/UI.md). Read it before
   success, failure or completed cancellation/cleanup. Show native PAF CommonGuiDialog busy windows
   for long steps, block conflicting actions, and close the owned wait slot before navigating or showing an error.
   This is the maintainer's target workflow (2026-10-20); current coverage/gaps are in `docs/UI.md`.
+- Optional Apps artwork is a scoped background exception: one cancellable ApplicationService
+  job fetches paired HTTPS `/appasset` for generated rows only. Back/launch cancel it and poll
+  completion on the main thread before navigation/control; no UI join. Cache thumbnails only
+  for the current Apps/host lifetime, clear widget/cache/job references before streaming,
+  and drain the service before backend/network teardown. Image failure leaves a launchable
+  native row with the existing app icon, with no dialog or inline status.
 - Keep blocking GameStream calls within the operation's worker/job so PAF can update dialogs and process
   lifecycle/cancellation. Main-thread completion delivery is an internal implementation mechanism; it
   does not authorize overlapping foreground flows. Preserve the threaded streaming transport/renderers.

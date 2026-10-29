@@ -590,6 +590,33 @@ int moonlight_api_get_applications(MoonlightApplication *out, int capacity)
     return s_application_count;
 }
 
+int moonlight_api_get_application_artwork(int application_id,
+    const MoonlightCancellation *cancel, char **body, size_t *length)
+{
+    if (!body || !length) return -1;
+    *body = NULL;
+    *length = 0;
+    HostControlRequest request(false);
+    if (!request.Acquired() || moonlight_is_cancelled(cancel) ||
+        !s_has_current_host || !s_game_stream_initialized || !s_applications_valid ||
+        disconnect_pending() || s_stream_pending || moonlight_stream_is_running() ||
+        s_connection_state != MOONLIGHT_CONNECTION_PAIRED) return -1;
+
+    bool found = false;
+    for (int i = 0; i < s_application_count; ++i) {
+        if (s_applications[i].id == application_id) { found = true; break; }
+    }
+    if (!found) return -1;
+    int result = legacy_gamestream_get_artwork(&s_server, application_id, cancel, body, length);
+    if (result != 0 || moonlight_is_cancelled(cancel) || disconnect_pending()) {
+        free(*body);
+        *body = NULL;
+        *length = 0;
+        return -1;
+    }
+    return 0;
+}
+
 int moonlight_api_start_application(int application_id, int quit_application_id)
 {
     HostControlRequest request(false);

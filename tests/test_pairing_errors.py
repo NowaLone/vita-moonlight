@@ -142,6 +142,9 @@ class Harness:
         return 1
 
     def expression(self, node, values):
+        if (isinstance(node, c_ast.Cast) and isinstance(node.to_type.type, c_ast.TypeDecl)
+                and node.to_type.type.type.names == ['size_t']):
+            return self.expression(node.expr, values) & 0xffffffff  # Vita's unsigned size_t.
         if isinstance(node, c_ast.Constant) and node.type == 'char':
             return ord(ast.literal_eval(node.value))
         if isinstance(node, c_ast.UnaryOp):
@@ -318,7 +321,7 @@ class PairingErrors(unittest.TestCase):
             with self.subTest(failure=failure):
                 h = Harness()
                 h.values['http_write_callback'] = 1  # curl option gets a function pointer.
-                buffer = dict(memory=Memory(1), size=0, allocation_failed=0)
+                buffer = dict(memory=Memory(1), size=0, allocation_failed=0, limit=0)
                 def transfer(*args):
                     if failure in ('realloc', 'cancel'):
                         h.values['realloc'] = lambda *args: 0

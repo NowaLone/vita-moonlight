@@ -80,6 +80,11 @@ int legacy_gamestream_request(
     LegacyGameStreamServer *server, const char *endpoint, const char *query,
     long timeout_seconds, char **body, size_t *length);
 
+/* Optional pinned HTTPS image, bounded to 512 KiB and five seconds. Caller frees body. */
+int legacy_gamestream_get_artwork(
+    LegacyGameStreamServer *server, int application_id, const MoonlightCancellation *cancel,
+    char **body, size_t *length);
+
 void legacy_gamestream_shutdown(LegacyGameStreamServer *server);
 
 const char *legacy_gamestream_error(void);

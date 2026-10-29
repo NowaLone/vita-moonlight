@@ -714,6 +714,7 @@ bool Main::CanConnectFromLiveArea() const
         !m_connecting && !m_selection_mode && !m_ime_open && !m_ime_retry_pending &&
         !m_settings_suspended && !m_delete_dialog_open && m_pending_action == Pending_None &&
         !app->Connection().IsBusy() &&
+        app->Applications().IsArtworkIdle() &&
         app->Connection().State() != MOONLIGHT_CONNECTION_STREAMING &&
         app->Connection().State() != MOONLIGHT_CONNECTION_PAUSED;
 }

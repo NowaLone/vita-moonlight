@@ -12,6 +12,7 @@
 
 #include "legacy_gamestream.h"
 #include "moonlight/gamestream_xml.h"
+#include "moonlight/app_artwork.h"
 #ifdef MOONLIGHT_HTTP_DISCONNECT_TEST
 #include "moonlight/http_disconnect_test.h"
 #endif
@@ -123,6 +124,7 @@ typedef struct HttpBuffer {
     char *memory;
     size_t size;
     bool allocation_failed;
+    size_t limit; /* Zero keeps the existing XML response policy. */
 } HttpBuffer;
 
 typedef struct XmlFindContext {
@@ -573,7 +575,11 @@ static int load_certificate(const char *client_directory)
 static size_t http_write_callback(void *contents, size_t size, size_t count, void *userdata)
 {
     HttpBuffer *buffer = (HttpBuffer *)userdata;
+    if (count && size > (size_t)-1 / count) return 0;
     size_t length = size * count;
+    if (buffer->size == (size_t)-1 || length > (size_t)-1 - buffer->size - 1 ||
+        (buffer->limit && (buffer->size > buffer->limit ||
+                          length > buffer->limit - buffer->size))) return 0;
     char *new_memory = (char *)realloc(buffer->memory, buffer->size + length + 1);
 
     if (!new_memory) {
@@ -593,6 +599,7 @@ static void http_buffer_init(HttpBuffer *buffer)
 {
     buffer->memory = (char *)malloc(1);
     buffer->size = 0;
+    buffer->limit = 0;
     buffer->allocation_failed = !buffer->memory;
 
     if (buffer->memory) {
@@ -744,8 +751,10 @@ static int http_request(
     curl_easy_setopt((CURL *)server->curl, CURLOPT_FRESH_CONNECT, 1L);
     curl_easy_setopt((CURL *)server->curl, CURLOPT_FORBID_REUSE, 1L);
 
+    size_t response_limit = response->limit;
     http_buffer_free(response);
     http_buffer_init(response);
+    response->limit = response_limit;
 
     if (!response->memory) {
         set_error("Unable to allocate GameStream response");
@@ -812,9 +821,33 @@ static int http_request(
     return LEGACY_GAMESTREAM_OK;
 }
 
+static int request_bounded(
+    LegacyGameStreamServer *server, const char *endpoint, const char *query,
+    long timeout_seconds, char **body, size_t *length,
+    const MoonlightCancellation *cancel, size_t limit);
+
 int legacy_gamestream_request(
     LegacyGameStreamServer *server, const char *endpoint, const char *query,
     long timeout_seconds, char **body, size_t *length)
+{
+    return request_bounded(server, endpoint, query, timeout_seconds, body, length, NULL, 0);
+}
+
+int legacy_gamestream_get_artwork(
+    LegacyGameStreamServer *server, int application_id, const MoonlightCancellation *cancel,
+    char **body, size_t *length)
+{
+    if (application_id <= 0) return LEGACY_GAMESTREAM_INVALID;
+    char query[80];
+    snprintf(query, sizeof(query), "appid=%d&AssetType=2&AssetIdx=0", application_id);
+    return request_bounded(server, "appasset", query, 5L, body, length, cancel,
+                           MOONLIGHT_ARTWORK_MAX_BYTES);
+}
+
+static int request_bounded(
+    LegacyGameStreamServer *server, const char *endpoint, const char *query,
+    long timeout_seconds, char **body, size_t *length,
+    const MoonlightCancellation *cancel, size_t limit)
 {
     char uuid[UUID_STRLEN];
     char *url;
@@ -836,7 +869,8 @@ int legacy_gamestream_request(
         return LEGACY_GAMESTREAM_INVALID;
     }
     http_buffer_init(&response);
-    result = http_request(server, url, &response, timeout_seconds, NULL);
+    response.limit = limit;
+    result = http_request(server, url, &response, timeout_seconds, cancel);
     free(url);
     if (result == LEGACY_GAMESTREAM_OK) {
         *body = response.memory;

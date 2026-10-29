@@ -175,6 +175,12 @@ int LegacyMoonlightAdapter::GetApplications(MoonlightApplication *out, int capac
     return moonlight_api_get_applications(out, capacity);
 }
 
+int LegacyMoonlightAdapter::GetApplicationArtwork(int application_id,
+    const MoonlightCancellation *cancel, char **body, size_t *length)
+{
+    return moonlight_api_get_application_artwork(application_id, cancel, body, length);
+}
+
 int LegacyMoonlightAdapter::StartApplication(int application_id, int quit_application_id)
 {
     vita_debug_log(

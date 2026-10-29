@@ -840,7 +840,7 @@ ownership remains in ConnectionService.
 | `template_top_title_bar` | `plane_top`, `box_top_title`, `text_top`, `plane_top_separator` | Main, Apps | Settings-style plane/box/text header, centred 32 px bold title over the system ruled-line separator |
 | `template_list_view_generic` | `list_view_generic` (730 x 448) | Apps | list that runs to the bottom of the screen |
 | `template_list_view_main` | `list_view_main` (960 x 384) | Main | list that ends where the bar starts (y = 480) |
-| `template_list_item_generic` | `list_item_generic`, `image_button_list_item` | Apps | 730 x 80 single-label row |
+| `template_app_list_item` | `list_item_app`, `image_button_app`, `plane_app_cover`, `plane_app_fallback` | Apps | Music-style 730 x 90 cover/title row |
 | `template_host_list_item` | `list_item_host`, `image_button_host`, `plane_host_pc`, `text_host_title`, `text_host_desc` | Main | saved PC row: availability dot, PC icon, title and description |
 | `template_host_list_item_discovered` | same scoped ids as the normal host row, without `plane_host_availability` | Main | temporary PC; same columns, no dot |
 | `template_host_list_item_select` | `list_item_host_select`, `image_button_host_select`, `plane_host_select_pc`, `text_host_select_title`, `text_host_select_desc`, `checkbox_host_select` | Main (selection mode) | same row with a checkbox |
@@ -902,7 +902,7 @@ Thresholds, appearance and fault/recovery behavior require maintainer RCO/applic
 Vita validation **[open]**. Source checks interpret policy, receive counters with statistics off,
 generation/stop guards and the UI hold/recovery path with mocked time, mutexes and widgets.
 
-Buttons and lists: `style_image_button_list_button` (list row button with the empty 102 x 70 icon slot),
+Buttons and lists: `style_image_button_app` (Music-style app row, 32 px title and native focus),
 `style_image_button_host` (shared PC-row background/glow; `tex_pc` is a separate 80 x 80 plane),
 `style_button_option_top` / `style_button_option_bottom` (popup buttons), `style_list_view_generic`,
 `style_list_view_item_generic`.
@@ -1013,7 +1013,7 @@ Only these `_common_*` names appear in the XML and are known to resolve: `_commo
   dynamic per-row selection/checkbox state, remaps selection by UUID, then MAC, then address/port or
   addressless name, and rejects conflicting stronger identities. Search resolves its selected PC against
   the complete saved snapshot by address/port, with no duplicate-name fallback **[code]**. The existing
-  `template_list_item_generic`/native ListView scrolling and 80 px row geometry remain in use.
+  native ListView scrolling remains; Apps now uses the 90 px Music-style row in §5.7.
 - `[Apps] ShowApps count=... cells before=... after_delete=... after_insert=...` is emitted once per successful
   list population through the existing console debug toggle. Verify `after_delete=0`, `after_insert=count`,
   scrolling/selection and correct app ID at launch on Vita. A supplied 2026-10-20 log verifies
@@ -1421,7 +1421,8 @@ log was supplied, and the separate cases below were not individually reported.
   to the CXML foreground transform. Geometry uses 500 ms `FUNC_CIRQ_OUT` timers;
   alpha uses 400 ms linear timers. These targets follow Photos' recovered
   defaults; perspective and actual strip width remain **[open]**.
-- Apps' list/cell/button are now 730 px wide with 80 px rows. Their intended
+- Apps' list/cell/button are 730 px wide (the initial 80 px rows are replaced by
+  the 90 px Music-style rows in §5.7). Their intended
   bounds x=115…845 match the supplied Photos grid's horizontal reference
   **[shot-derived layout, native appearance open]**. Main's 960 px list/rows,
   generic title bar, selection geometry and row identity logic are unchanged.
@@ -1456,6 +1457,80 @@ The basic transition/title-return has tentative maintainer Vita evidence above.
 PIN → Apps → Back, early LiveArea app readiness, empty/error lists, repeated
 entry/Back, focus/scroll retention and Stream → Apps → Main remain **[open]**;
 these cases were not individually reported. No agent build or hardware run.
+
+### 5.7 Music-style application artwork — 2026-10-30
+
+**[code; build and Vita appearance open]** Apps uses a dedicated native ListView
+row based on the maintainer's official Music application reference. The existing
+Moonlight background, title, Back corner and Photos-style folded-parent navigation
+remain. An application has one vertically centred 32 px regular title, with native
+ellipsis/long-press text scrolling; no artist or synthetic second-line metadata is
+invented. Application names remain server text; existing EN/RU application/empty/error
+strings are reused without adding dictionary keys.
+
+Reference evidence, inspected read-only without compilation:
+
+- `musicbrowser_plugin.rco` SHA256
+  `f5a84d00c75e5e443a55468a3f37e3d8de0f9875d0248a2d93d49a22226d0bf2`.
+  The CXML tables contain 650 nodes. Album template `ac52b58e`, node `0x1044`,
+  has a 90 px row, a 90×90 child cover at `0x1248`, and focus shape 3
+  with 900×90 focus bounds **[code]**. The image-button style `eb731fb1`
+  uses 92×92 image geometry; the visible square slot is 90×90. Its row backdrop
+  has meta-alpha 0.6. Shared text object `01f875b1` uses 32 px text.
+- ELF `SceMusicBrowser`, SHA256
+  `618aa1b0d828cd620f922debb979512cc7175dde639e5b9f08cf09061bb56392`.
+  Import NIDs resolve through the installed PAF database. Calls at `0x81098308`
+  and `0x8109834c` use native ListView factories/cell sizing. The image path at
+  `0x810ad0a0` calls `Surface::Load` on a memory buffer **[code]**. This is
+  evidence of the native image/list path, not execution or a recovered public
+  Music browser API. Moonlight uses the installed typed PAF image/resize/surface API.
+- Screenshot `2026-10-29-220904.jpg`, SHA256
+  `2b20049e3f9f9b6f5bcd9cc2eeac666496678fc51e661cfb43f55c4efc0b7187`:
+  cover strip approximately x=147…237, row boundaries y=96,186,276,366,456,
+  title starts around x=252 **[shot]**. Geometry is adapted to Apps' existing
+  730 px width: square centre x=192, title offset 137 from list x=115,
+  giving a 15 px cover/title gap. Main's rows/selection geometry do not change.
+- `texture/music_row.png` and `music_row_glow.png` are lossless RGBA exports
+  of Music texture IDs `5b971d4f` and `c0176b51`: 680×92 pixels each **[code]**.
+  CXML scales them to 730×90, preserving the original backdrop alpha and
+  native additive-focus treatment. The existing packaged app icon is reused
+  as a 64×64 fallback. See [asset provenance](LICENSING.md).
+
+ApplicationService owns a single-worker 256 KiB PAF queue and one cancellable
+image job. It fetches the current paired server's `/appasset` with the ordinary
+client identity and complete server-certificate pin; no plaintext fallback or
+administrative API is added. The host-control admission guard excludes other
+session requests. Only IDs in the current valid application list are accepted.
+The existing HTTP transfer gains an optional response bound; XML requests retain
+their existing policy. Artwork has a 512 KiB response limit and a five-second
+transfer timeout, with overflow-safe writes and a job-owned cancellation token.
+
+Only generated rows request images. PNG headers are bounded to 1024×1024 before
+native decoding, resized to fit the 90×90 slot without cropping/stretching, and
+published through an acquire/release completion flag. Unsupported/malformed,
+missing, oversized or failed images leave the app launchable with its icon;
+failures are console-only and are not retried every frame. The page caches at
+most twelve thumbnails (nominal RGBA pixels under 380 KiB, excluding native
+alignment/decoder overhead), evicting only ungenerated rows. Cache identity is
+scoped to this Apps page/current host; nothing is persisted to disk.
+
+Back and launch disable page input, mark the existing page transition guard,
+cancel artwork and poll completion before starting navigation/control. LiveArea
+admission also rejects an active artwork job; busy frame taps follow the existing
+consume-without-replay policy. Widgets and cached/job surfaces release image
+references before stream setup. Forced page destruction cancels without joining;
+the job owns no UI pointer. Application shutdown drains the image queue before
+backend/network teardown. Native image decoding itself is not preempted mid-call;
+completion/cancellation discards its result. Native cleanup latency remains **[open]**.
+
+Non-build checks interpret PNG/aspect/transfer bounds, paired-session/app-ID
+admission, late cancellation, job-result ownership and launch/Back ordering, and
+validate resource references/localization. They do not execute PAF, native decode,
+TLS, threads or the Vita ABI. Maintainer gate: rebuild RCO/application, compare
+row/highlight/title placement and long names, scroll more than twelve apps, try
+portrait/square/missing covers, Back/launch during downloading, stream stop/return,
+repeated page entry, and shutdown with a pending request. Appearance, focus,
+real memory/latency and server compatibility remain **[open]**.
 
 ## 6. Recipes
 
@@ -1552,7 +1627,7 @@ callback and hand it back in the destructor. Open it with `new X(); if (!x->IsVa
 both `cxml/locale/en.xml` and `cxml/locale/ru.xml` in the same commit.
 
 **Add a list row type.** Add a template with a 960 x 80 `list_item`, an `image_button` using
-`style_image_button_list_button` (keep `focus_hint focus_shape="3"`), and optional `text` / `check_box` children with
+`style_image_button_host` or a dedicated row style (keep `focus_hint focus_shape="3"`), and optional `text` / `check_box` children with
 ids that are unique to that template. Choose the template in the factory by state and fill it with
 `set_child_text()`.
 

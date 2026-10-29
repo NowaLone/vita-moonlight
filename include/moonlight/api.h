@@ -1,6 +1,7 @@
 #ifndef VITA_MOONLIGHT_API_H
 #define VITA_MOONLIGHT_API_H
 
+#include <stddef.h>
 #include "moonlight/types.h"
 #include "moonlight/cancellation.h"
 #include "moonlight/stream_stats.h"
@@ -39,6 +40,8 @@ int moonlight_api_prepare_pairing(char out_pin[5]);
 int moonlight_api_pair_current_host(const char pin[5], const MoonlightCancellation *cancel);
 
 int moonlight_api_get_applications(MoonlightApplication *out, int capacity);
+int moonlight_api_get_application_artwork(int application_id,
+    const MoonlightCancellation *cancel, char **body, size_t *length);
 int moonlight_api_start_application(int application_id, int quit_application_id);
 int moonlight_api_stop_application(void);
 /* Zero accepts deferred cleanup (or an idle/duplicate no-op), not final closure.

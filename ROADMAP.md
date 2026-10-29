@@ -4,6 +4,15 @@ This roadmap captures the agreed next steps for Vita Moonlight PAF. It is ordere
 
 ## Active remaining work (reconciled 2026-10-27)
 
+- [x] Source-implement Music-style app rows and optional paired HTTPS artwork
+  on `codex/music-app-covers` (2026-10-30): measured 90 px rows/cover slot,
+  native focus, bounded cancellable loading, page-scoped cache and pre-stream
+  cleanup. No build, resource compilation or deployment was run by the agent.
+- [ ] Maintainer build/Vita gate for the artwork branch: reference appearance,
+  portrait/missing images, long names, scrolling, cancellation/Back/launch,
+  stream-return memory and repeated entry/shutdown. See
+  [UI §5.7](docs/UI.md#57-music-style-application-artwork--2026-10-30).
+
 - [x] Source correction for the maintainer's failed build (2026-10-29): the Settings
   dependency array now retains `SceSysmoduleInternalModuleId`, avoiding unsigned-to-int
   narrowing and int-to-enum call errors. The existing loader check fails before the

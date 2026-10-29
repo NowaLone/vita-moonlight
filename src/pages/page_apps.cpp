@@ -61,6 +61,7 @@ Apps::Apps(int application_id)
     : Base("page_apps", "btn_close_apps",
            paf::Plugin::TransitionType_None,
            paf::Plugin::TransitionType_None),
+      m_pending_app(0),
       m_app_count(0),
       m_livearea_application_id(application_id),
       m_launching(false),
@@ -84,10 +85,12 @@ Apps::Apps(int application_id)
     if (m_list) {
         m_list->SetItemFactory(new ListViewFactory(this));
         m_list->InsertSegment(0, 1);
-        m_list->SetCellSizeDefault(0, { 730.0f, 80.0f });
+        m_list->SetCellSizeDefault(0, { 730.0f, 90.0f });
+        m_list->SetGenerateMargin({ 0.0f, 0.0f });
         m_list->SetSegmentLayoutType(0, paf::ui::ListView::LAYOUT_TYPE_LIST);
     }
 
+    paf::common::MainThreadCallList::Register(ArtworkTask, this);
     MoonlightApp::Instance()->SetEventCallback(OnMoonlightEvent, this);
 
     paf::ui::Widget *title = root->FindChild("text_top");
@@ -115,6 +118,9 @@ Apps::~Apps() {
     if (m_main_content && m_content) {
         set_navigation(m_main_content, kNavigationOriginX, 0.0f, 0.0f, 1.0f);
     }
+
+    paf::common::MainThreadCallList::Unregister(ArtworkTask, this);
+    ClearArtwork();
 
     if (!MoonlightApp::Instance() ||
         !MoonlightApp::Instance()->IsInitialized()) {
@@ -214,9 +220,12 @@ void Apps::OnBack(int32_t type, paf::ui::Handler *self, paf::ui::Event *event, v
     (void)self;
     (void)event;
     Apps *apps = static_cast<Apps *>(userdata);
-    if (!apps || Base::GetCurrent() != apps || apps->IsTransitioning() ||
+    if (!apps || Base::GetCurrent() != apps || apps->IsTransitioning() || apps->m_pending_app ||
         MoonlightApp::Instance()->Connection().IsBusy()) return;
-    apps->StartNavigation(true);
+    apps->m_pending_app = -1;
+    apps->m_transitioning = true;
+    apps->root->SetActivate(false);
+    MoonlightApp::Instance()->Applications().CancelArtwork();
 }
 
 void Apps::RestoreEventCallback() {
@@ -228,12 +237,12 @@ void Apps::RestoreEventCallback() {
 paf::ui::ListItem *Apps::CreateListItem(
     paf::ui::listview::ItemFactory::CreateParam &param) {
     paf::Plugin::TemplateOpenParam tmp;
-    g_plugin->TemplateOpen(param.parent, "template_list_item_generic", tmp);
+    g_plugin->TemplateOpen(param.parent, "template_app_list_item", tmp);
 
     paf::ui::ListItem *item = static_cast<paf::ui::ListItem *>(
         param.parent->GetChild(param.parent->GetChildrenNum() - 1));
 
-    paf::ui::Widget *button = item->FindChild("image_button_list_item");
+    paf::ui::Widget *button = item->FindChild("image_button_app");
     if (!button || param.cell_index < 0 || param.cell_index >= m_app_count) {
         return item;
     }
@@ -249,6 +258,7 @@ paf::ui::ListItem *Apps::CreateListItem(
         paf::common::string_util::ToWString(
             app.name[0] ? app.name : ui_text("msg_application").c_str()));
 
+    UpdateArtwork(item, param.cell_index);
     return item;
 }
 
@@ -277,6 +287,19 @@ void Apps::SelectApp(int index) {
         MoonlightApp::Instance()->Connection().IsBusy() ||
         index < 0 || index >= m_app_count) return;
 
+    if (m_pending_app) return;
+    if (m_apps[index].id <= 0) {
+        MoonlightApp::Instance()->Connection().ShowError(ui_text("msg_error_launch_app").c_str());
+        return;
+    }
+    m_pending_app = m_apps[index].id;
+    m_transitioning = true;
+    root->SetActivate(false);
+    MoonlightApp::Instance()->Applications().CancelArtwork();
+}
+
+void Apps::StartSelectedApp(int index)
+{
     m_launching = true;
     HideStatus();
 
@@ -330,6 +353,7 @@ void Apps::HideStatus() {
 void Apps::ShowApps(int count) {
     if (!root || !m_list) return;
 
+    ClearArtwork();
     m_apps_ready = false;
     const int existing = m_list->GetCellNum(0);
     if (existing > 0) {
@@ -362,6 +386,8 @@ void Apps::ShowApps(int count) {
         m_apps.resize(m_app_count);
     }
 
+    m_artwork_attempted.resize(m_app_count);
+    for (int i = 0; i < m_app_count; ++i) m_artwork_attempted[i] = false;
     if (m_app_count > 0) {
         m_list->InsertCell(0, 0, m_app_count);
 
@@ -377,6 +403,121 @@ void Apps::ShowApps(int count) {
     m_apps_ready = true;
     vita_debug_log("[Apps] ShowApps count=%d cells before=%d after_delete=%d after_insert=%d",
         m_app_count, existing, cells_after_delete, m_list->GetCellNum(0));
+}
+
+int Apps::FindArtwork(int application_id) const
+{
+    for (int i = 0; i < ArtworkCacheSize; ++i)
+        if (m_artwork[i].application_id == application_id) return i;
+    return -1;
+}
+
+void Apps::UpdateArtwork(paf::ui::Widget *item, int index)
+{
+    if (!item || index < 0 || index >= m_app_count) return;
+    paf::ui::Widget *cover = item->FindChild("plane_app_cover");
+    if (!cover) return;
+    int cached = FindArtwork(m_apps[index].id);
+    if (cached >= 0 && m_artwork[cached].surface.get()) {
+        cover->SetTexture(m_artwork[cached].surface);
+        cover->SetSize(paf::math::v4(m_artwork[cached].width, m_artwork[cached].height));
+        paf::ui::Widget *fallback = item->FindChild("plane_app_fallback");
+        if (fallback) fallback->Hide();
+    }
+}
+
+void Apps::ClearArtwork()
+{
+    if (MoonlightApp::Instance()) MoonlightApp::Instance()->Applications().CancelArtwork();
+    /* Drop widget references too: Apps remains behind Stream while video needs the pool. */
+    for (int i = 0; m_list && i < m_app_count; ++i) {
+        paf::ui::ListItem *item = m_list->GetListItem(0, i);
+        paf::ui::Widget *cover = item ? item->FindChild("plane_app_cover") : NULL;
+        if (cover) {
+            cover->SetTexture(paf::intrusive_ptr<paf::graph::Surface>());
+            cover->SetSize(paf::math::v4(90.0f, 90.0f));
+            paf::ui::Widget *fallback = item->FindChild("plane_app_fallback");
+            if (fallback) fallback->Show();
+        }
+    }
+    for (int i = 0; i < ArtworkCacheSize; ++i) {
+        m_artwork[i].surface.clear();
+        m_artwork[i].application_id = 0;
+    }
+    for (size_t i = 0; i < m_artwork_attempted.size(); ++i) m_artwork_attempted[i] = false;
+}
+
+void Apps::CompleteArtworkAction()
+{
+    if (!m_pending_app || !MoonlightApp::Instance()->Applications().IsArtworkIdle()) return;
+    int pending = m_pending_app;
+    m_pending_app = 0;
+    m_transitioning = false;
+    ClearArtwork();
+    if (Base::GetCurrent() != this) return;
+    if (pending == -1) { StartNavigation(true); return; }
+    root->SetActivate(true);
+    for (int i = 0; i < m_app_count; ++i) {
+        if (m_apps[i].id == pending) { StartSelectedApp(i); return; }
+    }
+}
+
+void Apps::ArtworkTask(void *userdata)
+{
+    Apps *apps = static_cast<Apps *>(userdata);
+    ApplicationService &service = MoonlightApp::Instance()->Applications();
+    int id = 0, width = 0, height = 0;
+    paf::intrusive_ptr<paf::graph::Surface> surface;
+    bool received = service.TakeArtwork(&id, &surface, &width, &height);
+    if (apps->m_pending_app) {
+        apps->CompleteArtworkAction();
+        return;
+    }
+    if (!apps->m_apps_ready || !apps->m_list || apps->m_transitioning || apps->m_launching ||
+        Base::GetCurrent() != apps || MoonlightApp::Instance()->Connection().IsBusy()) {
+        service.CancelArtwork();
+        return;
+    }
+    if (received && id > 0) {
+        int index = -1;
+        for (int i = 0; i < apps->m_app_count; ++i)
+            if (apps->m_apps[i].id == id) { index = i; break; }
+        if (index >= 0) {
+            apps->m_artwork_attempted[index] = true;
+            if (surface.get()) {
+                int slot = -1;
+                /* Retain at most twelve thumbnails; evict only rows PAF no longer generates. */
+                for (int j = 0; j < ArtworkCacheSize; ++j) {
+                    if (!apps->m_artwork[j].application_id) { slot = j; break; }
+                }
+                for (int j = 0; j < ArtworkCacheSize && slot < 0; ++j) {
+                    bool generated = false;
+                    for (int k = 0; k < apps->m_app_count; ++k) {
+                        if (apps->m_apps[k].id == apps->m_artwork[j].application_id &&
+                            apps->m_list->GetListItem(0, k)) { generated = true; break; }
+                    }
+                    if (!generated) slot = j;
+                }
+                if (slot >= 0) {
+                    int evicted = apps->m_artwork[slot].application_id;
+                    for (int k = 0; k < apps->m_app_count; ++k)
+                        if (apps->m_apps[k].id == evicted) apps->m_artwork_attempted[k] = false;
+                    apps->m_artwork[slot].application_id = id;
+                    apps->m_artwork[slot].surface = surface;
+                    apps->m_artwork[slot].width = width;
+                    apps->m_artwork[slot].height = height;
+                    apps->UpdateArtwork(apps->m_list->GetListItem(0, index), index);
+                }
+            }
+        }
+    }
+    if (!service.IsArtworkIdle()) return;
+    for (int i = 0; i < apps->m_app_count; ++i) {
+        if (!apps->m_artwork_attempted[i] && apps->m_list->GetListItem(0, i)) {
+            if (!service.RequestArtwork(apps->m_apps[i].id)) apps->m_artwork_attempted[i] = true;
+            return;
+        }
+    }
 }
 
 void Apps::OnMoonlightEvent(
@@ -401,6 +542,13 @@ void Apps::OnMoonlightEvent(
 
     case MOONLIGHT_EVENT_CONNECTION_FAILED:
     case MOONLIGHT_EVENT_CONNECTION_CLOSED:
+        apps->ClearArtwork();
+        apps->m_apps_ready = false;
+        if (apps->m_pending_app) {
+            apps->m_transitioning = false;
+            apps->root->SetActivate(Base::GetCurrent() == apps);
+        }
+        apps->m_pending_app = 0;
         apps->m_livearea_application_id = 0;
         break;
 

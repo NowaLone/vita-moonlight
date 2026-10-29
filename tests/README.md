@@ -1,6 +1,6 @@
 # Focused checks
 
-Latest recorded source gate: **291 checks including normal decoder cleanup (2026-10-29)**.
+Latest recorded source gate: **299 checks including Music-style application artwork (2026-10-30)**.
 See [the repeat Ponytail audit](../docs/PONYTAIL_REAUDIT_2026-10-23.md) for the latest
 baseline, per-change checks and native gates; [the earlier refactor audit](../docs/REFACTOR_AUDIT.md)
 records the preceding pass. Counts in the
@@ -11,6 +11,14 @@ cases are in the API audit and `runtime/README.md`; source checks do not replace
 Non-build checks (Python 3 and pycparser):
 
     PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -p 'test_*.py'
+
+`test_app_artwork.py` interprets actual PNG/aspect helpers, overflow-safe HTTP
+writes/response bounds, session/app-ID admission, late cancellation and image-job
+result ownership. `test_page_navigation.py` also exercises launch/Back while artwork
+cleanup is pending. Resource checks cover the Music-style 90 px row/cover geometry,
+native focus and fallback. These use serial mocks; no decoder, TLS, thread, ABI or
+Vita rendering is executed. See [UI §5.7](../docs/UI.md#57-music-style-application-artwork--2026-10-30)
+for measured reference provenance and maintainer acceptance cases.
 
 `test_video_cleanup.py` interprets both actual profile branches with mocked allocator/decoder
 calls. Its normal-profile case fails before freeing the app-owned decoder control structure;

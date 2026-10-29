@@ -1,6 +1,7 @@
 #ifndef VITA_MOONLIGHT_BACKEND_H
 #define VITA_MOONLIGHT_BACKEND_H
 
+#include <stddef.h>
 #include "moonlight/types.h"
 #include "moonlight/cancellation.h"
 #include "moonlight/stream_stats.h"
@@ -35,6 +36,10 @@ public:
     virtual int PairCurrentHost(const char pin[5], const MoonlightCancellation *cancel) = 0;
 
     virtual int GetApplications(MoonlightApplication *out, int capacity) = 0;
+    /* Worker only; optional image uses the current paired session. Caller frees body. */
+    virtual int GetApplicationArtwork(int application_id, const MoonlightCancellation *cancel,
+                                      char **body, size_t *length) = 0;
+
     /* Nonzero quit ID is supplied only after explicit remote-quit confirmation. */
     virtual int StartApplication(int application_id, int quit_application_id = 0) = 0;
     virtual int StopApplication() = 0;

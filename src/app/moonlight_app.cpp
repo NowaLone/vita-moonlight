@@ -238,6 +238,7 @@ void MoonlightApp::Shutdown()
     m_discovery.Stop();
     m_pairing.Cancel();
     m_hosts.Shutdown();
+    m_applications.Shutdown();
     m_connection.Shutdown();
     m_livearea.Shutdown();
     moonlight_log_memory_budget("app-shutdown");

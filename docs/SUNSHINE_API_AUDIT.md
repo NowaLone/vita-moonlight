@@ -1012,16 +1012,20 @@ local and referenced upstream branches were read, not that the scenario ran. Tes
   PIN-submission response is compared with that exact release source above. This does not
   establish support for every configuration or silently identify versions of earlier runs.
 
-### A24 — App artwork / administrative API — intentionally unsupported / not applicable
+### A24 — App artwork / administrative API — source implemented / not applicable
 
 - **Endpoint / purpose / auth:** paired GameStream HTTPS `/appasset?appid=...` provides image data;
   separate admin HTTPS `/api/*` manages Sunshine configuration/clients/operator approval.
-- **Semantics:** artwork is optional for the current text-only app list. Admin authentication is
+- **Semantics:** artwork is optional for Music-style app rows. Admin authentication is
   distinct from the GameStream client certificate/PIN handshake.
-- **Current:** no artwork request is intentionally supported; no admin client requirement exists.
+- **Current (2026-10-30):** a cancellable worker fetches `/appasset` with `appid`,
+  `AssetType=2`, `AssetIdx=0`, using the existing pinned HTTPS/client identity path.
+  Response/PNG bounds and page-scoped thumbnail caching keep failures optional;
+  Back/launch wait for local image cleanup without blocking the UI thread.
 - **Upstream / Sunshine:** S registers `/appasset`; QH has app-asset retrieval; SA owns admin routes.
-- **Verified / runtime:** source. Artwork is **intentionally unsupported**; admin integration is
-  **not applicable** to this audit. No runtime test is required for absent features in the current flow.
+- **Verified / runtime:** non-build source checks only. Native decode, networking,
+  build and Vita appearance remain pending; see [UI §5.7](UI.md#57-music-style-application-artwork--2026-10-30).
+  Administrative integration remains **not applicable**.
 
 ## 4. Concrete findings and minimal separate fixes
 
@@ -2548,7 +2552,7 @@ pairing/Apps and scoped playback evidence are recorded separately above and in �
   Sunshine's endpoint ends sessions/process and restores display configuration; ordinary local
   stop/cancel/disconnect retains its existing meaning. Basic Vita acceptance is user-reported
   on 2026-10-23; fault/race coverage remains open (A20).
-- **App artwork (A24): intentionally unsupported** for the current text list. **Sunshine admin
+- **App artwork (A24): source implemented**, with non-build checks; build/Vita validation pending. **Sunshine admin
   API: not applicable** to the agreed client scope. HEVC/AV1/HDR/surround/multi-controller/IPv6
   are outside current media/address scope; they are not missing ordinary client HTTP calls.
 

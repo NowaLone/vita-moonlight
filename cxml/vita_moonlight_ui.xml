@@ -219,11 +219,9 @@
     <style_list_view color="0, 0, 0, 0" id="style_list_view_generic" sbar_v_margin="6, 80, 9" />
     <style_list_item color="1, 1, 1, 0" id="style_list_view_item_generic" />
 
-    <style_image_button layout_type_x="1" layout_type_y="0" color="1, 1, 1, 1" glow_obj="plane_obj1" label_obj="text_obj1" bg_obj="plane_obj2" image_obj="plane_obj3" image_margin="10" id="style_image_button_list_button">
-      <planeobj texture0="_common_texture_list_70px" id="plane_obj2" />
-      <textobj font_size="28" bold="1" max_line_count="2" enlarge_line_pitch="1" line_pitch="28" word_wrap="1" ellipsis="1" align_y="1" id="text_obj1" />
-      <planeobj scale_mode_y="3" scale_mode_x="3" size="102, 70" id="plane_obj3" />
-      <planeobj texture0="_common_texture_list_glow_70px" blend="2" id="plane_obj1" />
+    <style_image_button layout_type_x="0" layout_type_y="0" left_margin="137" right_margin="16" color="1, 1, 1, 1" glow_obj="app_row_glow_obj" label_obj="app_title_obj" id="style_image_button_app">
+      <textobj font_size="32" bold="0" max_line_count="1" word_wrap="0" ellipsis="1" align_x="0" align_y="1" id="app_title_obj" />
+      <planeobj texture0="tex_music_row_glow" scale_mode_x="2" scale_mode_y="2" scale_value="730, 90" blend="2" id="app_row_glow_obj" />
     </style_image_button>
 
     <style_image_button layout_type_x="0" layout_type_y="0" color="1, 1, 1, 1" glow_obj="plane_obj1" bg_obj="plane_obj2" id="style_image_button_host">
@@ -246,6 +244,9 @@
   </styletable>
 
   <texturetable>
+    <texture src="../sce_sys/icon0.png" id="tex_application" type="texture/png" />
+    <texture src="texture/music_row.png" id="tex_music_row" type="texture/png" />
+    <texture src="texture/music_row_glow.png" id="tex_music_row_glow" type="texture/png" />
     <texture src="texture/bg.png" id="_bg_texture" type="texture/png" />
     <texture src="texture/host_available.png" id="tex_host_available" type="texture/png" />
     <texture src="texture/host_unconfirmed.png" id="tex_host_unconfirmed" type="texture/png" />
@@ -281,12 +282,22 @@
         </list_view>
       </template>
 
-      <template fast_open="1" id="template_list_item_generic">
-        <list_item style="style_list_view_item_generic" id="list_item_generic">
-          <layout_hint size="730, 80" />
-          <image_button sound="_common_sound_image_button" enable_long_press_text_auto_scroll="1" style="style_image_button_list_button" id="image_button_list_item">
-            <focus_hint focus_shape="3" />
-            <layout_hint size="730, 80" />
+      <!-- Music album row: 90 px cover, 15 px title gap, full-row native focus. -->
+      <template fast_open="1" id="template_app_list_item">
+        <list_item style="style_list_view_item_generic" text_auto_scroll_target="image_button_app" id="list_item_app">
+          <layout_hint size="730, 90" />
+          <plane texture="tex_music_row" id="plane_app_row">
+            <layout_hint size="730, 90" alpha="0.6" />
+          </plane>
+          <image_button sound="_common_sound_image_button" enable_long_press_text_auto_scroll="1" style="style_image_button_app" id="image_button_app">
+            <focus_hint focus_shape="3" focus_size="730, 90" />
+            <layout_hint size="730, 90" />
+            <plane texture="tex_application" id="plane_app_fallback">
+              <layout_hint anchor="1, 0" align="0, 0" size="64, 64" pos="77, 0" />
+            </plane>
+            <plane id="plane_app_cover">
+              <layout_hint anchor="1, 0" align="0, 0" size="90, 90" pos="77, 0" />
+            </plane>
           </image_button>
         </list_item>
       </template>

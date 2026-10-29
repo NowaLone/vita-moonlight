@@ -31,6 +31,7 @@ class LiveAreaLaunch(unittest.TestCase):
         admission = admission.replace('current->IsTransitioning()', 'is_transitioning(current)')
         admission = admission.replace('Base::Find', 'find_page').replace('app->Connection().IsBusy', 'is_busy')
         admission = admission.replace('app->Connection().State', 'connection_state')
+        admission = admission.replace('app->Applications().IsArtworkIdle', 'artwork_idle')
         resolve = function((ROOT / 'src/services/host_service.cpp').read_text(), 'HostService::Resolve')
         resolve = resolve.replace('const MoonlightHost &identity', 'const MoonlightHost *identity')
         resolve = resolve.replace('paf::vector<MoonlightHost> hosts;', 'int hosts = host_vector();')
@@ -59,6 +60,7 @@ class LiveAreaLaunch(unittest.TestCase):
                           MOONLIGHT_CONNECTION_STREAMING=3, MOONLIGHT_CONNECTION_PAUSED=4,
                           current_page=lambda: 1, find_page=lambda name: 2,
                           is_busy=lambda: False, is_transitioning=lambda page: False, connection_state=lambda: 2,
+                          artwork_idle=lambda: True,
                           vita_debug_log=lambda *args: None,
                           show_error=lambda *args: self.calls.append('error'))
 
@@ -103,6 +105,9 @@ class LiveAreaLaunch(unittest.TestCase):
         self.scope['is_busy'] = lambda: True
         self.assertFalse(self.execute('CanConnectFromLiveArea'))
         self.scope['is_busy'] = lambda: False
+        self.scope['artwork_idle'] = lambda: False
+        self.assertFalse(self.execute('CanConnectFromLiveArea'))
+        self.scope['artwork_idle'] = lambda: True
         for state in (3, 4):
             self.scope['connection_state'] = lambda: state
             self.assertFalse(self.execute('CanConnectFromLiveArea'))
