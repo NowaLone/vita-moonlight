@@ -158,4 +158,104 @@
   <string src=" (%.0f s without frames)" id="msg_stats_age" />
   <string src="This PC is no longer saved. Select or add the PC again." id="msg_pc_no_longer_saved" />
   <string src="PC" id="msg_pc" />
+
+  <!-- Offline LiveArea manual: authored by tools/generate_manual.py. -->
+  <string src="USER GUIDE" id="msg_manual_guide" />
+  <string src="Swipe to turn pages · Double-tap to zoom" id="msg_manual_navigation" />
+  <string src="PC games on your Vita" id="msg_manual_01_title" />
+  <string src="Video, audio and controls" id="msg_manual_01_head1" />
+  <string src="Play PC games or use the desktop through Sunshine. Moonlight sends Vita controls back to your PC." id="msg_manual_01_body1" />
+  <string src="Prepare Sunshine" id="msg_manual_01_head2" />
+  <string src="Install Sunshine on the PC. Finish capture, audio and gamepad setup; add your games in Applications." id="msg_manual_01_body2" />
+  <string src="Use the same home network" id="msg_manual_01_head3" />
+  <string src="Allow Sunshine through the PC firewall. Guest Wi-Fi or client isolation can prevent PCs from appearing." id="msg_manual_01_body3" />
+  <string src="Games run on the PC. Moonlight receives H.264 video and stereo audio. The PC must stay on." id="msg_manual_01_note" />
+  <string src="Connect and pair" id="msg_manual_02_title" />
+  <string src="Select your PC" id="msg_manual_02_head1" />
+  <string src="Open Moonlight. PCs appear automatically while the main screen is idle. Select the PC you want to use." id="msg_manual_02_body1" />
+  <string src="Add an address if needed" id="msg_manual_02_head2" />
+  <string src="Tap the PC-plus icon at the top left. Enter a hostname or IPv4 address, optionally followed by :47989." id="msg_manual_02_body2" />
+  <string src="Enter the Vita PIN on the PC" id="msg_manual_02_head3" />
+  <string src="Keep the PIN screen open. In Sunshine on the PC, select PIN, enter the Vita number and confirm." id="msg_manual_02_body3" />
+  <string src="The PC web UI is usually https://localhost:47990. On Vita, enter the PC address, not that web-UI URL." id="msg_manual_02_note" />
+  <string src="Manage saved PCs" id="msg_manual_03_title" />
+  <string src="Pairing saves the PC" id="msg_manual_03_head1" />
+  <string src="A new PC is saved after successful pairing. Cancelling the PIN or a failed attempt leaves it temporary." id="msg_manual_03_body1" />
+  <string src="Delete through the corner menu" id="msg_manual_03_head2" />
+  <string src="Open the bottom-right menu &gt; Delete. Select PCs, then Delete &gt; OK. Cancel in the confirmation keeps selection." id="msg_manual_03_body2" />
+  <string src="Understand the status indicator" id="msg_manual_03_head3" />
+  <string src="The dot on a saved PC checks reachability. It does not guarantee pairing or that streaming is ready." id="msg_manual_03_body3" />
+  <string src="Delete removes the local record and server pin. To revoke the Vita on the PC, remove it in Sunshine too." id="msg_manual_03_note" />
+  <string src="Apps and LiveArea" id="msg_manual_04_title" />
+  <string src="Start a game or the desktop" id="msg_manual_04_head1" />
+  <string src="Select a paired PC, wait for its application list, then select an app. Use Back to return to your PCs." id="msg_manual_04_body1" />
+  <string src="Switch a running host app" id="msg_manual_04_head2" />
+  <string src="If another app is running on the PC, Moonlight asks to quit it. Yes switches apps; No keeps it running." id="msg_manual_04_body2" />
+  <string src="Launch from LiveArea" id="msg_manual_04_head3" />
+  <string src="After loading Apps, LiveArea shows the last PC and up to six apps. Tap the PC card or an app shortcut." id="msg_manual_04_body3" />
+  <string src="LiveArea shows the last successful list. It does not refresh PCs or apps in the background after Moonlight closes." id="msg_manual_04_note" />
+  <string src="Gamepad controls" id="msg_manual_05_title" />
+  <string src="Front buttons and sticks" id="msg_manual_05_head1" />
+  <string src="The sticks, directional pad, face buttons, L/R, Start and Select act as the PC gamepad controls." id="msg_manual_05_body1" />
+  <string src="Rear panel: upper half" id="msg_manual_05_head2" />
+  <string src="By default, touch the upper-left rear area for L2 and the upper-right rear area for R2." id="msg_manual_05_body2" />
+  <string src="Rear panel: lower half" id="msg_manual_05_head3" />
+  <string src="Touch the lower-left rear area for L3 and the lower-right rear area for R3 (stick clicks)." id="msg_manual_05_body3" />
+  <string src="Input settings can swap L1/R1 with L2/R2. Advanced settings can add margins to the rear touch areas." id="msg_manual_05_note" />
+  <string src="PS button and stopping" id="msg_manual_06_title" />
+  <string src="Double-press PS to stop" id="msg_manual_06_head1" />
+  <string src="With PS button capture enabled, press PS twice quickly to stop streaming and return to the app list." id="msg_manual_06_body1" />
+  <string src="Single press and hold" id="msg_manual_06_head2" />
+  <string src="A short single press sends the home button to the PC. Hold PS for the Vita Quick Actions menu." id="msg_manual_06_body2" />
+  <string src="Stopping keeps the PC app open" id="msg_manual_06_head3" />
+  <string src="An ordinary stream stop does not quit the PC game. Select the app again to reconnect or resume." id="msg_manual_06_body3" />
+  <string src="Without PS capture: enable touchscreen special keys with Touchscreen mode Off. Tap the top-right corner to stop." id="msg_manual_06_note" />
+  <string src="Touch and keyboard" id="msg_manual_07_title" />
+  <string src="Choose a touchscreen mode" id="msg_manual_07_head1" />
+  <string src="Input settings offer Off, DS4 touchpad, absolute mouse and Sunshine tablet. Host support varies by mode." id="msg_manual_07_body1" />
+  <string src="Use the corner shortcuts" id="msg_manual_07_head2" />
+  <string src="With special keys enabled and touchscreen mode Off: top left opens the keyboard; top right stops streaming." id="msg_manual_07_body2" />
+  <string src="Switch keyboard languages" id="msg_manual_07_head3" />
+  <string src="Enable languages in Vita Settings &gt; Language &gt; Input Languages. Switch on the native stream keyboard." id="msg_manual_07_body3" />
+  <string src="Special keys also map the bottom-left and bottom-right corners to L3/R3. PC address entry keeps its URL keyboard." id="msg_manual_07_note" />
+  <string src="Picture and sound" id="msg_manual_08_title" />
+  <string src="Start with the defaults" id="msg_manual_08_head1" />
+  <string src="Open the corner menu &gt; Settings &gt; Stream. Fresh defaults are 1280x720, 60 FPS and 5 Mbps." id="msg_manual_08_body1" />
+  <string src="Balance quality and smoothness" id="msg_manual_08_head2" />
+  <string src="Higher resolution and bitrate need more bandwidth and decoding work. Reduce FPS or bitrate if playback stutters." id="msg_manual_08_body2" />
+  <string src="Fit the image or fill the screen" id="msg_manual_08_head3" />
+  <string src="System &gt; Fill screen crops the edges when shapes differ. Turn it off to see the complete image." id="msg_manual_08_body3" />
+  <string src="Stream &gt; Play audio on PC also keeps sound on the host. Stop and restart the stream after changing settings." id="msg_manual_08_note" />
+  <string src="Personalize input" id="msg_manual_09_title" />
+  <string src="Motion input" id="msg_manual_09_head1" />
+  <string src="Enable motion sensors in Input to send Vita gyro and accelerometer data. The host and game must support them." id="msg_manual_09_body1" />
+  <string src="Controller identity and light" id="msg_manual_09_head2" />
+  <string src="Choose the host controller type. The optional DS4/DualSense-style light overlay displays host RGB feedback." id="msg_manual_09_body2" />
+  <string src="Face-button mapping" id="msg_manual_09_head3" />
+  <string src="Advanced &gt; Use custom face-button mapping reads ux0:data/moonlight/vita.conf. Example: cross=b sends B from Cross." id="msg_manual_09_body3" />
+  <string src="Keys: cross/circle/square/triangle. Values: a/b/x/y. One key=value per line, without spaces; overrides X/O swap." id="msg_manual_09_note" />
+  <string src="Connection help" id="msg_manual_10_title" />
+  <string src="PC not found" id="msg_manual_10_head1" />
+  <string src="Check Sunshine, the PC LAN address, Wi-Fi isolation and firewall. Try manual IPv4 entry on the Vita." id="msg_manual_10_body1" />
+  <string src="PIN rejected or pairing busy" id="msg_manual_10_head2" />
+  <string src="Read the error. Finish or cancel the old PIN attempt before retrying; Sunshine may still have a pending attempt." id="msg_manual_10_body2" />
+  <string src="Server certificate changed" id="msg_manual_10_head3" />
+  <string src="Confirm the change on your PC. If expected, delete that saved PC locally, add it again and pair again." id="msg_manual_10_body3" />
+  <string src="Do not disable certificate checks. Cancelling or failing a new pairing attempt does not create a saved PC." id="msg_manual_10_note" />
+  <string src="Playback and diagnostics" id="msg_manual_11_title" />
+  <string src="Video stutters or stops" id="msg_manual_11_head1" />
+  <string src="Try lower FPS, bitrate or resolution. Check PC capture and network quality; an FPS setting is not a speed guarantee." id="msg_manual_11_body1" />
+  <string src="Input or touch does not work" id="msg_manual_11_head2" />
+  <string src="Check Sunshine gamepad support and the selected Input mode. Corner shortcuts require touchscreen mode Off." id="msg_manual_11_body2" />
+  <string src="Show statistics or collect logs" id="msg_manual_11_head3" />
+  <string src="System settings offer stream statistics and Debug log. Logs go to the psp2shell console, not a file." id="msg_manual_11_body3" />
+  <string src="For a report, include app version, Vita firmware, Sunshine version and stream settings. Keep pairing files private." id="msg_manual_11_note" />
+  <string src="Updates and saved data" id="msg_manual_12_title" />
+  <string src="Install the complete package" id="msg_manual_12_head1" />
+  <string src="Close Moonlight, then install the full system VPK with VitaShell. Allow UNSAFE homebrew in your Vita setup." id="msg_manual_12_body1" />
+  <string src="Back up before an update" id="msg_manual_12_head2" />
+  <string src="Keep a private copy of the whole ux0:data/moonlight/ folder. It holds your pairing identity, PCs and server pins." id="msg_manual_12_body2" />
+  <string src="Keep track of your Settings" id="msg_manual_12_head3" />
+  <string src="AppSettings stores preferences separately from the PC folder. Note them before reinstalling or switching profiles." id="msg_manual_12_body3" />
+  <string src="Settings &gt; About shows build information. Licenses and credits lists the components. The manual is available offline." id="msg_manual_12_note" />
 </stringset>

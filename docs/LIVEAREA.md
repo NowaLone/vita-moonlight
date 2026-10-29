@@ -267,7 +267,71 @@ no build, packaging, deployment or Vita calls.
    Check PIN cancellation and Apps/connection failures for no delayed autolaunch,
    plus the existing remote-Quit Yes/No flow with another host app running.
 
+## Offline manual replacement (2026-10-29)
+
+The maintainer accepts the completed manual on 2026-10-29 (“всё ок”), following
+`67dd887`. This confirms acceptance of the delivered result. No installed package,
+device run or individual language/navigation results were specified; it does not
+independently close the native viewer checks below.
+
+The previous placeholder artwork is replaced with a complete offline guide:
+12 English pages at `sce_sys/manual/001.png`–`012.png` and a matching Russian
+sequence under `sce_sys/manual/08/`. CMake explicitly packages all 24 PNGs.
+English is the default sequence; Russian uses the native system-language
+directory rather than application runtime callbacks or another translation store.
+Actual Shell language selection/fallback on the installed VPK remains unverified.
+
+Chapter order: PC/Sunshine/network setup; connection and PIN; saved-PC management;
+Apps and LiveArea; gamepad/rear-panel controls; PS/stop/resume; touchscreen and
+native keyboard; picture/sound; motion/controller light/custom mapping;
+connection errors/trust; playback/diagnostics; updates/backups/settings.
+Instructions follow current source, including save-after-pairing, the top-right
+stop shortcut and the restricted face-button `vita.conf` parser. The old painted
+menu and obsolete hex-keycode table are removed.
+
+All text lives in the existing `cxml/locale/en.xml` and `ru.xml` dictionaries as
+`msg_manual_*` IDs. `tools/generate_manual.py` is the editable layout source;
+it authors 960×544, 8-bit indexed PNGs with original plain geometry and Open Sans
+Regular/Semibold. It uses no screenshots, existing backdrop, extracted Sony
+artwork or AI-generated text images. Screenshot assets are not required for this
+text guide. Font files are external authoring dependencies and are not packaged.
+The installed font names record Google copyright and Apache-2.0 licensing;
+see [artwork provenance](LICENSING.md#packaged-artwork-inventory).
+
+Author artwork with Python 3, Pillow and Open Sans installed:
+
+```sh
+python3 tools/generate_manual.py
+python3 tools/generate_manual.py --check
+```
+
+The default font directory is `/usr/share/fonts/open-sans`; override it with
+`--font-dir /path/to/fonts` containing `OpenSans-Regular.ttf` and
+`OpenSans-Semibold.ttf`. These commands author/compare PNG assets only; they
+do not compile CXML or the application, package a VPK or deploy anything.
+The renderer rejects overlong headings/words, more than two body/note lines
+and extra obsolete PNG pages. Regenerate both locales after text/layout edits.
+The PNG `SourceTextSHA256` metadata binds each page to its dictionary strings.
+
+`test_manual.py` checks dictionary coverage, native paths, complete explicit
+packaging, PNG headers/chunk CRCs/decompressed scanlines and source-text digests.
+It also exercises Unicode wrapping and overflow errors without Pillow/fonts,
+so ordinary CI source checks need no new dependency. `--check` additionally
+compares the exact rendered files using the installed Pillow/font versions.
+The authored pages were inspected at their native size on the host; no Vita
+appearance or native viewer behavior is claimed by that inspection.
+
+Maintainer validation pending: build/install the full VPK; open Help before
+launching Moonlight; inspect every English/Russian page, zoom and page navigation;
+check Russian selection and English fallback for an untranslated system language;
+return to idle suspended Moonlight. The existing app's basic LiveArea acceptance
+does not close these new manual checks. No agent build/RCO/package/device run.
+
 ## Manual research (2026-10-26)
+
+Historical investigation: the three-page artwork described below has been
+replaced by the 2026-10-29 implementation above. Its Shell/API observations
+remain relevant; the online-manual alternative is not enabled.
 
 Research against `master` at `d696bc8`; no application/resource changes, build,
 package, deployment or Vita execution. The existing upper Help action and a

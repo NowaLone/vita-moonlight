@@ -373,5 +373,26 @@ vita_create_vpk(vita_moonlight_paf.vpk "VLMP00001" ${PROJECT_NAME}.self
   FILE ${CMAKE_CURRENT_SOURCE_DIR}/sce_sys/manual/001.png sce_sys/manual/001.png
   FILE ${CMAKE_CURRENT_SOURCE_DIR}/sce_sys/manual/002.png sce_sys/manual/002.png
   FILE ${CMAKE_CURRENT_SOURCE_DIR}/sce_sys/manual/003.png sce_sys/manual/003.png
+  FILE ${CMAKE_CURRENT_SOURCE_DIR}/sce_sys/manual/004.png sce_sys/manual/004.png
+  FILE ${CMAKE_CURRENT_SOURCE_DIR}/sce_sys/manual/005.png sce_sys/manual/005.png
+  FILE ${CMAKE_CURRENT_SOURCE_DIR}/sce_sys/manual/006.png sce_sys/manual/006.png
+  FILE ${CMAKE_CURRENT_SOURCE_DIR}/sce_sys/manual/007.png sce_sys/manual/007.png
+  FILE ${CMAKE_CURRENT_SOURCE_DIR}/sce_sys/manual/008.png sce_sys/manual/008.png
+  FILE ${CMAKE_CURRENT_SOURCE_DIR}/sce_sys/manual/009.png sce_sys/manual/009.png
+  FILE ${CMAKE_CURRENT_SOURCE_DIR}/sce_sys/manual/010.png sce_sys/manual/010.png
+  FILE ${CMAKE_CURRENT_SOURCE_DIR}/sce_sys/manual/011.png sce_sys/manual/011.png
+  FILE ${CMAKE_CURRENT_SOURCE_DIR}/sce_sys/manual/012.png sce_sys/manual/012.png
+  FILE ${CMAKE_CURRENT_SOURCE_DIR}/sce_sys/manual/08/001.png sce_sys/manual/08/001.png
+  FILE ${CMAKE_CURRENT_SOURCE_DIR}/sce_sys/manual/08/002.png sce_sys/manual/08/002.png
+  FILE ${CMAKE_CURRENT_SOURCE_DIR}/sce_sys/manual/08/003.png sce_sys/manual/08/003.png
+  FILE ${CMAKE_CURRENT_SOURCE_DIR}/sce_sys/manual/08/004.png sce_sys/manual/08/004.png
+  FILE ${CMAKE_CURRENT_SOURCE_DIR}/sce_sys/manual/08/005.png sce_sys/manual/08/005.png
+  FILE ${CMAKE_CURRENT_SOURCE_DIR}/sce_sys/manual/08/006.png sce_sys/manual/08/006.png
+  FILE ${CMAKE_CURRENT_SOURCE_DIR}/sce_sys/manual/08/007.png sce_sys/manual/08/007.png
+  FILE ${CMAKE_CURRENT_SOURCE_DIR}/sce_sys/manual/08/008.png sce_sys/manual/08/008.png
+  FILE ${CMAKE_CURRENT_SOURCE_DIR}/sce_sys/manual/08/009.png sce_sys/manual/08/009.png
+  FILE ${CMAKE_CURRENT_SOURCE_DIR}/sce_sys/manual/08/010.png sce_sys/manual/08/010.png
+  FILE ${CMAKE_CURRENT_SOURCE_DIR}/sce_sys/manual/08/011.png sce_sys/manual/08/011.png
+  FILE ${CMAKE_CURRENT_SOURCE_DIR}/sce_sys/manual/08/012.png sce_sys/manual/08/012.png
 )
 vita_create_stubs(stubs_${PROJECT_NAME} ${PROJECT_NAME} exports.yml)

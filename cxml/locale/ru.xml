@@ -149,4 +149,104 @@
   <string src=" (%.0f с без кадров)" id="msg_stats_age" />
   <string src="Этот компьютер больше не сохранён. Выберите или добавьте его ещё раз." id="msg_pc_no_longer_saved" />
   <string src="ПК" id="msg_pc" />
+
+  <!-- Offline LiveArea manual: authored by tools/generate_manual.py. -->
+  <string src="РУКОВОДСТВО" id="msg_manual_guide" />
+  <string src="Листайте свайпом · Двойное касание — масштаб" id="msg_manual_navigation" />
+  <string src="Игры с ПК на экране Vita" id="msg_manual_01_title" />
+  <string src="Видео, звук и управление" id="msg_manual_01_head1" />
+  <string src="Играйте в игры с ПК или работайте с его рабочим столом через Sunshine. Vita передаёт на ПК команды управления." id="msg_manual_01_body1" />
+  <string src="Подготовьте Sunshine" id="msg_manual_01_head2" />
+  <string src="Установите Sunshine на ПК. Настройте захват, звук и геймпад; добавьте игры в разделе Applications." id="msg_manual_01_body2" />
+  <string src="Подключитесь к одной сети" id="msg_manual_01_head3" />
+  <string src="Разрешите Sunshine в брандмауэре ПК. Гостевой Wi-Fi и изоляция клиентов могут мешать обнаружению." id="msg_manual_01_body3" />
+  <string src="Игры работают на ПК. Moonlight получает видео H.264 и стереозвук. ПК должен оставаться включённым." id="msg_manual_01_note" />
+  <string src="Подключение и сопряжение" id="msg_manual_02_title" />
+  <string src="Выберите компьютер" id="msg_manual_02_head1" />
+  <string src="Откройте Moonlight. ПК появляются автоматически, пока главный экран свободен. Выберите нужный компьютер." id="msg_manual_02_body1" />
+  <string src="При необходимости введите адрес" id="msg_manual_02_head2" />
+  <string src="Нажмите значок ПК с плюсом слева сверху. Введите имя ПК или IPv4-адрес; при необходимости добавьте :47989." id="msg_manual_02_body2" />
+  <string src="Введите PIN с Vita на компьютере" id="msg_manual_02_head3" />
+  <string src="Оставьте экран PIN открытым. В Sunshine на ПК выберите PIN, введите число с Vita и подтвердите." id="msg_manual_02_body3" />
+  <string src="Веб-интерфейс на ПК обычно: https://localhost:47990. На Vita нужен адрес ПК, а не URL веб-интерфейса." id="msg_manual_02_note" />
+  <string src="Сохранённые компьютеры" id="msg_manual_03_title" />
+  <string src="ПК сохраняется после сопряжения" id="msg_manual_03_head1" />
+  <string src="Новый ПК сохраняется после успешного сопряжения. Отмена PIN или ошибка оставляют его временным." id="msg_manual_03_body1" />
+  <string src="Удаление через меню в углу" id="msg_manual_03_head2" />
+  <string src="Меню справа снизу &gt; Удалить. Отметьте ПК, затем Удалить &gt; OK. Отмена в диалоге сохраняет выделение." id="msg_manual_03_body2" />
+  <string src="Что означает индикатор" id="msg_manual_03_head3" />
+  <string src="Точка у сохранённого ПК проверяет доступность. Она не гарантирует сопряжение или готовность трансляции." id="msg_manual_03_body3" />
+  <string src="Удаление убирает локальную запись и сертификат сервера. Для отзыва доступа удалите Vita и в Sunshine." id="msg_manual_03_note" />
+  <string src="Приложения и LiveArea" id="msg_manual_04_title" />
+  <string src="Запустите игру или рабочий стол" id="msg_manual_04_head1" />
+  <string src="Выберите сопряжённый ПК, дождитесь списка и откройте приложение. Кнопка «Назад» возвращает к компьютерам." id="msg_manual_04_body1" />
+  <string src="Смена приложения на ПК" id="msg_manual_04_head2" />
+  <string src="Если на ПК работает другое приложение, Moonlight предложит закрыть его. Да — сменить; Нет — оставить." id="msg_manual_04_body2" />
+  <string src="Запуск из LiveArea" id="msg_manual_04_head3" />
+  <string src="После загрузки списка LiveArea показывает последний ПК и до шести приложений. Нажмите карточку ПК или игры." id="msg_manual_04_body3" />
+  <string src="LiveArea хранит последний полученный список. После закрытия Moonlight фонового обновления ПК и игр нет." id="msg_manual_04_note" />
+  <string src="Управление геймпадом" id="msg_manual_05_title" />
+  <string src="Передние кнопки и стики" id="msg_manual_05_head1" />
+  <string src="Стики, крестовина, лицевые кнопки, L/R, Start и Select передаются на ПК как команды геймпада." id="msg_manual_05_body1" />
+  <string src="Задняя панель: верхняя половина" id="msg_manual_05_head2" />
+  <string src="По умолчанию верхняя левая область задней панели — L2, верхняя правая — R2." id="msg_manual_05_body2" />
+  <string src="Задняя панель: нижняя половина" id="msg_manual_05_head3" />
+  <string src="Нижняя левая область задней панели — L3, нижняя правая — R3 (нажатия стиков)." id="msg_manual_05_body3" />
+  <string src="В разделе «Управление» можно обменять L1/R1 и L2/R2. В «Дополнительно» задаются отступы задних зон." id="msg_manual_05_note" />
+  <string src="Кнопка PS и остановка" id="msg_manual_06_title" />
+  <string src="Двойное нажатие PS — остановка" id="msg_manual_06_head1" />
+  <string src="При включённом перехвате PS дважды быстро нажмите PS, чтобы завершить трансляцию и вернуться к списку." id="msg_manual_06_body1" />
+  <string src="Короткое нажатие и удержание" id="msg_manual_06_head2" />
+  <string src="Одно короткое нажатие отправляет на ПК кнопку Home. Удерживайте PS для быстрого меню Vita." id="msg_manual_06_body2" />
+  <string src="Игра на ПК остаётся открытой" id="msg_manual_06_head3" />
+  <string src="Обычная остановка трансляции не закрывает игру на ПК. Выберите приложение снова для продолжения." id="msg_manual_06_body3" />
+  <string src="Без перехвата PS: включите специальные зоны при выключенном режиме сенсора. Справа сверху — остановка." id="msg_manual_06_note" />
+  <string src="Сенсор и клавиатура" id="msg_manual_07_title" />
+  <string src="Выберите режим сенсорного экрана" id="msg_manual_07_head1" />
+  <string src="В «Управлении»: выключен, тачпад DS4, мышь и планшет Sunshine. Поддержка зависит от ПК и приложения." id="msg_manual_07_body1" />
+  <string src="Используйте углы экрана" id="msg_manual_07_head2" />
+  <string src="При включённых специальных зонах и выключенном режиме сенсора: слева сверху — клавиатура, справа — остановка." id="msg_manual_07_body2" />
+  <string src="Переключайте язык клавиатуры" id="msg_manual_07_head3" />
+  <string src="Добавьте языки в настройках Vita: Язык &gt; Языки ввода. Переключайте их на системной клавиатуре трансляции." id="msg_manual_07_body3" />
+  <string src="Нижние углы специальных зон — L3 слева и R3 справа. Ввод адреса ПК использует отдельную URL-клавиатуру." id="msg_manual_07_note" />
+  <string src="Изображение и звук" id="msg_manual_08_title" />
+  <string src="Начните с обычных настроек" id="msg_manual_08_head1" />
+  <string src="Меню в углу &gt; Настройки &gt; Трансляция. Начальные значения: 1280x720, 60 кадров/с и 5 Мбит/с." id="msg_manual_08_body1" />
+  <string src="Подберите качество и плавность" id="msg_manual_08_head2" />
+  <string src="Высокое разрешение и битрейт увеличивают нагрузку. При рывках уменьшите частоту кадров или битрейт." id="msg_manual_08_body2" />
+  <string src="Всё изображение или весь экран" id="msg_manual_08_head3" />
+  <string src="Система &gt; Заполнять экран обрезает края при разных пропорциях. Выключите, чтобы видеть весь кадр." id="msg_manual_08_body3" />
+  <string src="«Воспроизводить звук на ПК» оставляет звук и на компьютере. После смены настроек перезапустите трансляцию." id="msg_manual_08_note" />
+  <string src="Настройте управление" id="msg_manual_09_title" />
+  <string src="Датчики движения" id="msg_manual_09_head1" />
+  <string src="Включите датчики в «Управлении» для передачи гироскопа и акселерометра Vita. Нужна поддержка ПК и игры." id="msg_manual_09_body1" />
+  <string src="Тип контроллера и подсветка" id="msg_manual_09_head2" />
+  <string src="Выберите тип геймпада на ПК. Подсветка в стиле DS4/DualSense показывает полученный от игры цвет RGB." id="msg_manual_09_body2" />
+  <string src="Свои назначения лицевых кнопок" id="msg_manual_09_head3" />
+  <string src="В «Дополнительно» включите своё назначение кнопок. Файл: ux0:data/moonlight/vita.conf. Пример: cross=b." id="msg_manual_09_body3" />
+  <string src="Ключи: cross/circle/square/triangle. Значения: a/b/x/y. По строке key=value без пробелов. Важнее обмена X/O." id="msg_manual_09_note" />
+  <string src="Помощь с подключением" id="msg_manual_10_title" />
+  <string src="Компьютер не найден" id="msg_manual_10_head1" />
+  <string src="Проверьте Sunshine, адрес ПК, изоляцию Wi-Fi и брандмауэр. Попробуйте вручную ввести IPv4-адрес на Vita." id="msg_manual_10_body1" />
+  <string src="Неверный PIN или занятое сопряжение" id="msg_manual_10_head2" />
+  <string src="Прочтите ошибку. Завершите или отмените прежнюю попытку перед новой: Sunshine может ещё ожидать PIN." id="msg_manual_10_body2" />
+  <string src="Изменился сертификат сервера" id="msg_manual_10_head3" />
+  <string src="Проверьте причину на ПК. Если замена ожидаема, удалите сохранённый ПК, добавьте и сопрягите его снова." id="msg_manual_10_body3" />
+  <string src="Не отключайте проверку сертификата. Отмена или ошибка нового сопряжения не создаёт сохранённый ПК." id="msg_manual_10_note" />
+  <string src="Плавность и диагностика" id="msg_manual_11_title" />
+  <string src="Видео дёргается или замирает" id="msg_manual_11_head1" />
+  <string src="Снизьте частоту кадров, битрейт или разрешение. Проверьте захват и сеть. Выбранная частота не гарантирует скорость." id="msg_manual_11_body1" />
+  <string src="Не работает управление или сенсор" id="msg_manual_11_head2" />
+  <string src="Проверьте геймпад Sunshine и режим в «Управлении». Специальные углы работают при выключенном режиме сенсора." id="msg_manual_11_body2" />
+  <string src="Статистика и журнал" id="msg_manual_11_head3" />
+  <string src="В «Системе» доступны статистика и журнал отладки. Журнал выводится в консоль psp2shell, а не в файл." id="msg_manual_11_body3" />
+  <string src="Для отчёта укажите версию приложения, прошивку Vita, версию Sunshine и параметры трансляции. Не публикуйте ключи." id="msg_manual_11_note" />
+  <string src="Обновления и данные" id="msg_manual_12_title" />
+  <string src="Устанавливайте полный пакет" id="msg_manual_12_head1" />
+  <string src="Закройте Moonlight и установите полный системный VPK через VitaShell. Разрешите UNSAFE homebrew на Vita." id="msg_manual_12_body1" />
+  <string src="Сделайте копию перед обновлением" id="msg_manual_12_head2" />
+  <string src="Сохраните в тайне копию всей папки ux0:data/moonlight/. В ней находятся ключи клиента, ПК и сертификаты серверов." id="msg_manual_12_body2" />
+  <string src="Запишите свои настройки" id="msg_manual_12_head3" />
+  <string src="AppSettings хранит настройки отдельно от папки ПК. Запишите их перед переустановкой или сменой профиля." id="msg_manual_12_body3" />
+  <string src="Раздел «О программе» показывает сборку, «Лицензии и авторы» — компоненты. Руководство доступно без интернета." id="msg_manual_12_note" />
 </stringset>

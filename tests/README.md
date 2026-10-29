@@ -1,6 +1,6 @@
 # Focused checks
 
-Latest recorded source gate: **272 checks including system IME languages (2026-10-29)**.
+Latest recorded source gate: **275 checks including the localized offline manual (2026-10-29)**.
 See [the repeat Ponytail audit](../docs/PONYTAIL_REAUDIT_2026-10-23.md) for the latest
 baseline, per-change checks and native gates; [the earlier refactor audit](../docs/REFACTOR_AUDIT.md)
 records the preceding pass. Counts in the
@@ -11,6 +11,14 @@ cases are in the API audit and `runtime/README.md`; source checks do not replace
 Non-build checks (Python 3 and pycparser):
 
     PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -p 'test_*.py'
+
+`test_manual.py` checks the complete EN/RU manual, root/Russian `08` paths,
+explicit VPK file list, PNG format/chunk CRCs/image streams and per-page source
+text digests. Unicode wrapping and overflow rejection run without Pillow/fonts.
+For asset authoring QA, `python3 tools/generate_manual.py --check` additionally
+compares all 24 rendered PNGs with Pillow/Open Sans; neither command compiles
+resources or packages the app. Native viewer selection, readability and install
+remain maintainer checks in [LIVEAREA.md](../docs/LIVEAREA.md#offline-manual-replacement-2026-10-29).
 
 `test_localization.py` checks complete EN/RU keys and references, printf argument
 contracts and fixed-dialog UTF-8 sizes. It interprets the actual locale-selection,

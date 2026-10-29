@@ -121,7 +121,17 @@ checks live in [the LiveArea guide](LIVEAREA.md); the
 [Browser resource comparison](LIVEAREA.md#browser-resource-comparison-2026-10-25)
 records the copied artwork and limits of the empty Browser template.
 
-Three-page manual packaging follow-up (2026-10-21): the maintainer's `529c3c5` asset update
+Offline manual replacement (2026-10-29) **[code]**: the three placeholder images are
+replaced with 12 English and 12 Russian 960×544 indexed PNG pages. All prose comes
+from `msg_manual_*` IDs in the existing EN/RU dictionaries. Root pages are English;
+`sce_sys/manual/08/` holds the complete Russian sequence for the native viewer.
+The layout uses 48 px side margins, 36 px headings, 23 px body text and 21 px notes;
+the authoring tool rejects overflow instead of clipping or shrinking translations.
+No fake buttons, supplied screenshots or extracted Sony artwork are used. The
+[LiveArea guide](LIVEAREA.md#offline-manual-replacement-2026-10-29) records authoring,
+chapter order and remaining viewer/language/install checks **[open]**. No agent build.
+
+Historical three-page manual packaging follow-up (2026-10-21): the maintainer's `529c3c5` asset update
 removed `sce_sys/manual/004.png`, retaining `001.png`–`003.png`. Its stale explicit CMake entry
 caused the reported VPK packaging failure after SELF creation. That entry is now removed
 **[code]**; all 15 source-file entries in the VPK manifest exist and its manual list matches

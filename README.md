@@ -88,7 +88,8 @@ Pages, native Settings content, dialogs, IME titles, stream statistics and LiveA
 welcome text use these resources. The stream keyboard uses Vita's configured
 input languages and native language switcher;
 PC/app names and server messages retain their original text. Third-party notices
-retain their original wording, and the existing PNG manual is unchanged.
+retain their original wording. The offline LiveArea manual has 12 pages in English
+and Russian, authored from the same dictionaries; see [manual authoring](docs/LIVEAREA.md#offline-manual-replacement-2026-10-29).
 Build, language selection and translated layout on Vita remain unverified.
 
 The current list/title resources intentionally follow the real patterns used by `GrapheneCt/NetStream`, including:
@@ -411,9 +412,10 @@ in older notes is absent. Deployment tooling is therefore a separate local setup
 LiveArea images under `sce_sys/` must be 8-bit indexed PNG (color type 3). A 24-bit or 32-bit PNG installs as far as 99% and then fails with `0x8010113D`. `icon0.png` is 128×128 with no alpha. `pic0.png` is 960×544. `livearea/contents/bg0.png` is 840×500. `startup.png` is 280×158. Startup and frame icons can use palette transparency (`tRNS`); local SDK LiveArea samples include transparent frame icons. Re-exporting these from a normal editor without quantizing them will break installation again.
 
 `vita_create_vpk()` explicitly includes the LiveArea background, startup image/template
-and three current manual pages (`001.png`–`003.png`); adding/removing files under `sce_sys/` also
-requires updating this explicit packaging list. The deleted `004.png` and obsolete
-`frame1.png`–`frame7.png` are no longer dependencies. Dynamic frames use explicitly
+and manual pages `001.png`–`012.png`: English in `sce_sys/manual/`, Russian in
+`sce_sys/manual/08/`. Adding/removing files under `sce_sys/` also requires updating
+this explicit packaging list. The obsolete `frame1.png`–`frame7.png` are no longer
+dependencies. Dynamic frames use explicitly
 packaged indexed PNGs: `app_row.png` (472×48), `app.png` (128×128, displayed
 at 32×32), `pc_card.png` (280×158), and the transparent `pc.png` (80×80).
 `app_row.png` is a lossless indexed copy of Browser's `LA_window.png`. CMake

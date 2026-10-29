@@ -59,6 +59,12 @@ not automatically a validated release. Future releases belong on the
 5. Check the icon/startup image, then open the bottom-right corner menu →
    **Settings** and return to Main. The app's settings use the native system UI.
 
+The upper LiveArea **Help** action opens the packaged offline manual. It contains
+12 pages covering setup, pairing, controls, settings and troubleshooting, with an
+English default and a Russian system-language variant. The replacement artwork
+is source-checked; installed viewer language selection and appearance still need
+maintainer validation. See [manual details](LIVEAREA.md#offline-manual-replacement-2026-10-29).
+
 ## Prepare Sunshine and pair
 
 1. Start Sunshine on the PC and finish its OS-specific capture/encoder/input
@@ -79,9 +85,9 @@ not automatically a validated release. Future releases belong on the
    the PC choose **PIN**, enter the Vita's number, and submit pairing. Cancel on
    the Vita if you want to abandon the attempt. The Sunshine administrator
    password is not entered into Moonlight.
-5. After pairing, select an application from Apps to start streaming. A discovered
-   PC is saved before connecting; a manually entered address is saved only after
-   successful connection. A failed manual address should not create a saved PC.
+5. After pairing, select an application from Apps to start streaming. New discovered
+   and manually entered PCs are saved only after successful PIN/HTTPS pairing;
+   cancelling or failing the attempt leaves no new saved PC.
 
 The web UI/PIN steps follow
 [Sunshine's pairing procedure](https://docs.lizardbyte.dev/projects/sunshine/latest/md_docs_2getting__started.html#configuration);

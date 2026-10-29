@@ -4,6 +4,14 @@ This roadmap captures the agreed next steps for Vita Moonlight PAF. It is ordere
 
 ## Active remaining work (reconciled 2026-10-27)
 
+- [x] Replace the placeholder LiveArea manual with 12 English and 12 Russian
+  pages (2026-10-29), using the existing locale dictionaries and an editable
+  PNG authoring tool. All 275 non-build checks pass; exact render comparison
+  and host visual inspection pass. The maintainer accepts the completed manual
+  on 2026-10-29 (“всё ок”), following `67dd887`. The reply does not itemize Vita
+  installation, viewer navigation or language/fallback results; their procedure remains
+  in [LIVEAREA.md](docs/LIVEAREA.md#offline-manual-replacement-2026-10-29).
+
 - [x] Preliminary Photos-style Main ↔ Apps animation/title-return acceptance
   (2026-10-28): after `2b36285`, the maintainer replies “вроде всё ок” to the
   title-overlap correction. This is tentative user-reported Vita evidence for
