@@ -4,6 +4,15 @@ This roadmap captures the agreed next steps for Vita Moonlight PAF. It is ordere
 
 ## Active remaining work (reconciled 2026-10-27)
 
+- [x] Per-PC disk artwork cache (2026-10-30): read/write original bounded PNGs
+  as `app_<ID>.png` inside the exact saved host UUID's storage directory; 24-hour
+  freshness, chunk/CRC validation, checked temporary-file writes and optional
+  cache failures. Preserve authenticated/app-ID admission, cancellation and
+  existing host-folder deletion. All 310 non-build checks pass.
+- [ ] Maintainer application rebuild/Vita gate for disk caching: initial save,
+  reopen/restart hits, separate hosts, expiry/corruption/storage errors and
+  host deletion. Source mocks do not establish native filesystem behavior.
+
 - [x] P8 artwork source correction (2026-10-30): supplied log proves two
   528×704 PNGs load as P8_ABGR (`0x95000000`, stride 528) and were rejected by
   the RGBA/BGRA-only reducer, while two direct-color PNGs bind successfully.

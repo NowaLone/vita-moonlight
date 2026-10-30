@@ -260,6 +260,9 @@ class Artwork(unittest.TestCase):
                               disconnect_pending=lambda: failure == 'disconnect',
                               moonlight_stream_is_running=lambda: failure == 'stream',
                               moonlight_is_cancelled=lambda token: cancelled[0],
+                              s_current_host=1,
+                              legacy_device_store_read_artwork=lambda *args: -1,
+                              legacy_device_store_write_artwork=lambda *args: -1,
                               legacy_gamestream_get_artwork=fetch)
                 result = h.run(body, values)
                 self.assertEqual(result, 0 if failure == 'none' else -1)

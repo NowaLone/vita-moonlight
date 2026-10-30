@@ -19,6 +19,12 @@ int legacy_device_store_get_client_unique_id_path(
 int legacy_device_store_get_server_certificate_path(
     const MoonlightHost *host, char *out, size_t size);
 
+/* Host-control worker only. Optional bounded PNG cache; never creates a host. */
+int legacy_device_store_read_artwork(const MoonlightHost *host, int application_id,
+    char **body, size_t *length);
+int legacy_device_store_write_artwork(const MoonlightHost *host, int application_id,
+    const char *body, size_t length);
+
 int legacy_device_store_set_host_id(
     const MoonlightHost *host,
     const char *host_id);

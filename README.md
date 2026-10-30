@@ -48,8 +48,8 @@ The current application supports:
 - Native delete confirmation and persistent host removal.
 - Moonlight PIN pairing.
 - Retrieving the application list from a paired PC.
-- Music-style application rows with optional PC-provided covers, native focus and
-  non-blocking image loading (source implemented; maintainer build/Vita validation pending).
+- Music-style application rows with optional PC-provided covers, native focus,
+  a per-PC PNG disk cache (24-hour freshness), and non-blocking image loading (source implemented; maintainer build/Vita validation pending).
 - Confirmed remote Quit when another application blocks launch, followed by the selected app
   (maintainer reports successful Vita testing, 2026-10-23; fault/race cases remain open).
 - H.264 video streaming and Vita AVC presentation.
@@ -187,6 +187,7 @@ ux0:data/moonlight/
     <storage name>/
         device.ini
         server.pem
+        app_<id>.png       # Optional artwork cache; refresh after 24 hours
 ```
 
 The `client/` directory contains the single global GameStream client identity. Every PC uses the same client `uniqueid.dat` and RSA certificate/key.

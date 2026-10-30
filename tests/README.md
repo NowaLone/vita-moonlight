@@ -1,6 +1,6 @@
 # Focused checks
 
-Latest recorded source gate: **305 checks including native image ABI and P8 artwork regression cases (2026-10-30)**.
+Latest recorded source gate: **310 checks including native image ABI, P8 artwork and per-PC disk cache cases (2026-10-30)**.
 See [the repeat Ponytail audit](../docs/PONYTAIL_REAUDIT_2026-10-23.md) for the latest
 baseline, per-change checks and native gates; [the earlier refactor audit](../docs/REFACTOR_AUDIT.md)
 records the preceding pass. Counts in the
@@ -11,6 +11,14 @@ cases are in the API audit and `runtime/README.md`; source checks do not replace
 Non-build checks (Python 3 and pycparser):
 
     PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -p 'test_*.py'
+
+`test_artwork_disk_cache.py` interprets the actual host-store path, PNG chunk/CRC,
+bounded file read/write and cache-first API logic with mocked stdio/time/zlib.
+It covers exact UUID/paired lookup and storage-name validation, renamed PCs,
+fresh/stale/corrupt/oversized/truncated files, clock rollback, allocation and
+open/read/write/flush/close/rename failures, plus hit/miss/cancellation delivery.
+The existing admission check still covers unknown/unpaired/busy session rejection.
+No native filesystem, storage durability, threads or PAF decoder are executed.
 
 `test_app_artwork.py` guards the ApplicationService-only -fno-short-enums source
 flag and compile-time LoadOption size/offset/ImageMode/ImageOrder assertions,

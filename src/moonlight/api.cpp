@@ -607,7 +607,10 @@ int moonlight_api_get_application_artwork(int application_id,
         if (s_applications[i].id == application_id) { found = true; break; }
     }
     if (!found) return -1;
-    int result = legacy_gamestream_get_artwork(&s_server, application_id, cancel, body, length);
+    bool cached = legacy_device_store_read_artwork(&s_current_host, application_id, body, length) == 0;
+    int result = cached ? 0 : legacy_gamestream_get_artwork(&s_server, application_id, cancel, body, length);
+    if (result == 0 && !cached && !moonlight_is_cancelled(cancel) && !disconnect_pending())
+        legacy_device_store_write_artwork(&s_current_host, application_id, *body, *length);
     if (result != 0 || moonlight_is_cancelled(cancel) || disconnect_pending()) {
         free(*body);
         *body = NULL;

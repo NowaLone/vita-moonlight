@@ -36,7 +36,7 @@ public:
     virtual int PairCurrentHost(const char pin[5], const MoonlightCancellation *cancel) = 0;
 
     virtual int GetApplications(MoonlightApplication *out, int capacity) = 0;
-    /* Worker only; optional image uses the current paired session. Caller frees body. */
+    /* Worker only; optional image uses the host cache/current paired session. Caller frees body. */
     virtual int GetApplicationArtwork(int application_id, const MoonlightCancellation *cancel,
                                       char **body, size_t *length) = 0;
 

@@ -1700,7 +1700,46 @@ missing, oversized or failed images leave the app launchable with its icon;
 failures are console-only and are not retried every frame. The page caches at
 most six thumbnails (nominal RGBA pixels under 190 KiB, excluding native
 alignment/decoder overhead), evicting only ungenerated rows. Cache identity is
-scoped to this Apps page/current host; nothing is persisted to disk.
+scoped to this Apps page/current host. Compressed PNG files now have an independent
+per-PC disk cache; native surfaces/thumbnail pixels are not persisted.
+
+Disk artwork cache (2026-10-30), **[code; Vita storage gate open]**:
+
+- The host-control worker first checks `<key_dir>/<storage name>/app_<ID>.png`,
+  normally `ux0:data/moonlight/<storage name>/app_<ID>.png`. It uses the configured
+  root and an exact saved/paired host UUID lookup; display-name/address fallbacks
+  cannot select another PC's cache. Storage names retain the existing traversal /
+  reserved-name validation. No host directory/record or credential is created by
+  artwork access. Rename of a PC's display name preserves its storage folder.
+- Hits require age below 24 hours, a working/non-rolled-back wall clock, size
+  33…512 KiB, the existing PNG dimensions bound (maximum 1024×1024), complete
+  chunks ending at IEND, and matching chunk CRCs using the already linked zlib.
+  Invalid, missing, stale, oversized, truncated or unreadable entries fall back
+  to the existing pinned HTTPS `/appasset` request. Full image decoding still
+  belongs to PAF; chunk validation is not a replacement PNG decoder.
+- Authenticated session / current application-ID admission precedes disk access.
+  A miss writes the original bounded PNG only after network success and before
+  native decode, while cancellation/disconnect are checked before save and again
+  before delivery. Cached bytes still pass through the same P8/RGBA/BGRA decoder,
+  reduction and six-entry native thumbnail cache. Disk hits do not bypass pairing
+  or expand the surface pool. No blocking I/O moves to the PAF main thread.
+- Save uses `app_<ID>.png.tmp`, checks write/flush/close, then removes the old
+  cache and renames the complete temporary file. This deliberately permits a
+  replacement gap on Vita rather than relying on overwrite-rename semantics:
+  interruption can leave a miss, never a published partial write. Failures are
+  console-only and do not turn a successful artwork fetch into an error. This
+  is not fsync/power-loss durability. Debug logs distinguish disk hit/save/failure.
+- The existing host removal deletes all files directly in that host folder,
+  including PNGs and leftover temporary files. No subdirectory cleanup path is
+  needed. There is one file per fetched app ID; removed-app files remain until
+  PC deletion (no disk LRU/pruning). Manually removing a cache PNG forces a fetch
+  on a later disk miss, after any current RAM entry is released.
+- All 310 non-build checks pass. Five new source-interpreted cases exercise
+  actual path/PNG/read/write/API logic with mocked files, clock and CRC calls;
+  they do not execute Vita stdio/stat/rename or PAF. Maintainer gate: rebuild the
+  application, open/close/restart Apps and observe disk hits, compare two PCs
+  with identical app IDs, corrupt/expire a PNG, exercise storage failure and
+  verify PC deletion removes its cache. No new UI strings or locale keys.
 
 Back and launch disable page input, mark the existing page transition guard,
 cancel artwork and poll completion before starting navigation/control. LiveArea

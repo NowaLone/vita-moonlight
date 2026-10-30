@@ -1,6 +1,11 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
+#include <sys/stat.h>
+#include <time.h>
+#include <zlib.h>
+#include "moonlight/app_artwork.h"
 
 #include <psp2/io/fcntl.h>
 #include <psp2/io/stat.h>
@@ -87,6 +92,45 @@ static device_info_t *find_stored_host(const MoonlightHost *host)
     return NULL;
 }
 
+/* ponytail: one file per app ID until host deletion; add pruning if disk usage warrants it. */
+static int artwork_path(const MoonlightHost *host, int application_id, char *out, size_t size)
+{
+    if (!s_initialized || !host || !out || !size || application_id <= 0 || !host->host_id[0]) return -1;
+    out[0] = '\0';
+    /* A cache must never fall back to a same-name/different-UUID PC. */
+    device_info_t *stored = find_device_by_host_id(host->host_id);
+    if (!stored || !stored->paired) return -1;
+    const char *directory = stored->storage_name[0] ? stored->storage_name : stored->name;
+    if (!device_storage_name_valid(directory)) return -1;
+    int n = snprintf(out, size, "%s%s/app_%d.png", config.key_dir, directory, application_id);
+    if (n < 0 || (size_t)n >= size) { out[0] = '\0'; return -1; }
+    return 0;
+}
+
+static uint32_t artwork_u32(const unsigned char *data)
+{
+    return ((uint32_t)data[0] << 24) | ((uint32_t)data[1] << 16) |
+           ((uint32_t)data[2] << 8) | data[3];
+}
+
+/* Check complete chunk framing/CRCs before a local file reaches the native decoder. */
+static int artwork_png_valid(const unsigned char *data, size_t size)
+{
+    int w = 0, h = 0;
+    if (!moonlight_artwork_extent(data, size, &w, &h)) return 0;
+    size_t offset = 8;
+    while (size - offset >= 12) {
+        uint32_t count = artwork_u32(data + offset);
+        if (count > size - offset - 12) return 0;
+        uint32_t crc = artwork_u32(data + offset + 8 + count);
+        if (crc32(0, data + offset + 4, count + 4) != crc) return 0;
+        if (memcmp(data + offset + 4, "IEND", 4) == 0)
+            return count == 0 && offset + 12 == size;
+        offset = offset + count + 12;
+    }
+    return 0;
+}
+
 static void fill_host(const device_info_t *device, int id, MoonlightHost *host)
 {
     *host = MoonlightHost();
@@ -144,6 +188,64 @@ static int save_host(device_info_t *stored)
     return save_device_info(stored);
 }
 
+}
+
+int legacy_device_store_read_artwork(const MoonlightHost *host, int application_id,
+    char **body, size_t *length)
+{
+    if (!body || !length) return -1;
+    *body = NULL;
+    *length = 0;
+    char path[512];
+    if (artwork_path(host, application_id, path, sizeof(path)) != 0) return -1;
+    struct stat info;
+    time_t now = time(NULL);
+    /* No stale hit after clock rollback; failure simply uses the paired HTTPS path. */
+    if (stat(path, &info) != 0 || info.st_size < 33 || info.st_size > MOONLIGHT_ARTWORK_MAX_BYTES ||
+        now == (time_t)-1 || info.st_mtime > now || now - info.st_mtime >= 24 * 60 * 60) return -1;
+    FILE *file = fopen(path, "rb");
+    if (!file) return -1;
+    size_t size = (size_t)info.st_size;
+    char *data = (char *)malloc(size);
+    int valid = data && fread(data, 1, size, file) == size && fgetc(file) == EOF && !ferror(file);
+    if (fclose(file) != 0) valid = 0;
+    if (!valid || !artwork_png_valid((const unsigned char *)data, size)) {
+        free(data);
+        return -1;
+    }
+    *body = data;
+    *length = size;
+    vita_debug_log("[Artwork] disk cache hit app=%d bytes=%u", application_id, (unsigned int)size);
+    return 0;
+}
+
+int legacy_device_store_write_artwork(const MoonlightHost *host, int application_id,
+    const char *body, size_t length)
+{
+    char path[512], temporary[520];
+    if (artwork_path(host, application_id, path, sizeof(path)) != 0 ||
+        !artwork_png_valid((const unsigned char *)body, length)) return -1;
+    int n = snprintf(temporary, sizeof(temporary), "%s.tmp", path);
+    if (n < 0 || (size_t)n >= sizeof(temporary)) return -1;
+    FILE *file = fopen(temporary, "wb");
+    int valid = 0;
+    if (file) {
+        valid = fwrite(body, 1, length, file) == length && fflush(file) == 0;
+        if (fclose(file) != 0) valid = 0;
+    }
+    if (valid) {
+        /* Vita rename may reject replacement. Only remove an old cache after the
+         * complete temporary file closes; interruption leaves a miss, never a partial PNG. */
+        remove(path);
+        valid = rename(temporary, path) == 0;
+    }
+    if (!valid) {
+        remove(temporary);
+        vita_debug_log("[Artwork] disk cache write failed app=%d", application_id);
+        return -1;
+    }
+    vita_debug_log("[Artwork] disk cache saved app=%d bytes=%u", application_id, (unsigned int)length);
+    return 0;
 }
 
 int legacy_device_store_init(void)
