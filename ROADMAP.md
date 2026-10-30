@@ -4,6 +4,15 @@ This roadmap captures the agreed next steps for Vita Moonlight PAF. It is ordere
 
 ## Active remaining work (reconciled 2026-10-27)
 
+- [x] Music layout correction (2026-10-30): recover runtime label typography
+  (28 bold / secondary 20 regular), use independent 840 px row backdrops and
+  900 px focus, move Main's PC icon to Music's left column, preserve selection
+  and use native top-row textures. Account for resident textures with a six-entry
+  artwork cache within the existing 8 MiB pool. All 305 non-build checks pass.
+- [ ] Maintainer RCO/application rebuild and Vita appearance/memory gate for
+  Main normal/Delete and Apps: widths, focus, long EN/RU text, folded parent,
+  scrollbar, scrolling beyond cache, covers and stream return. See UI §5.7.
+
 - [x] Artwork native ABI source correction (2026-10-30): full core identifies
   abort during an approximately 1 GiB Surface allocation for a 528×704 PNG.
   Compare caller short-enum packing with Music's 32-bit LoadOption enum fields;

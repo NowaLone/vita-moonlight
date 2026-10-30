@@ -320,8 +320,8 @@ class PageNavigation(unittest.TestCase):
         content = apps.find("plane[@id='plane_apps_content']")
         self.assertIsNotNone(content.find("template_ref[@id='apps_title_ref']"))
         self.assertIsNone(apps.find("template_ref[@id='apps_title_ref']"))
-        for template, size in (('template_list_view_generic', '730, 448'),
-                               ('template_app_list_item', '730, 90')):
+        for template, size in (('template_list_view_generic', '960, 448'),
+                               ('template_app_list_item', '960, 90')):
             hint = resource.find(f"./templatetable/template[@id='{template}']/*/layout_hint")
             self.assertEqual(hint.get('size'), size)
         self.assertIn('m_list->SetGenerateMargin(paf::math::v2());', SOURCE)

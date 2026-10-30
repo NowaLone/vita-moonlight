@@ -176,6 +176,9 @@ clearance. Resource provenance evidence is in [UI.md](UI.md).
   Sony Music texture IDs `5b971d4f` and `c0176b51`, from the maintainer-supplied
   `musicbrowser_plugin.rco` (2026-10-30). Source identity and geometry are in
   [UI §5.7](UI.md#57-music-style-application-artwork--2026-10-30).
+- `cxml/texture/music_top_row.png` and `music_top_row_glow.png`: lossless RGBA
+  exports of Sony Music texture IDs `6b5a7f8a` and `be12fb16` (680×72), from
+  the same maintainer-supplied RCO. Main scales them to the native 840×80.
 - `cxml/texture/host_available.png` and `host_unconfirmed.png`: Sony Wi-Fi settings
   `wifi_settings_plugin.rco`, texture IDs `fbd879ae` and `9718c305`.
 - `cxml/texture/tx_man.png`: maintainer-supplied finished Add PC artwork,

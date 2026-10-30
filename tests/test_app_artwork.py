@@ -46,7 +46,15 @@ class Artwork(unittest.TestCase):
         # Padding is a conservative arithmetic allowance, not native allocation proof.
         ui_used = 4 * 1024 * 1024 - 1223672
         cache_bytes = cache_count * 128 * 128 * 4  # 90px slots padded to 64px blocks.
-        free_with_cache = capacity - ui_used - cache_bytes
+        # New Main textures are resident while the retained Main is behind Apps.
+        top_bytes = 0
+        for name in ('music_top_row', 'music_top_row_glow'):
+            data = (ROOT / f'cxml/texture/{name}.png').read_bytes()
+            width, height = struct.unpack('>II', data[16:24])
+            self.assertEqual((width, height), (680, 72))
+            top_bytes += ((width + 63) // 64 * 64) * ((height + 63) // 64 * 64) * 4
+        self.assertGreaterEqual(cache_count, 6)  # ceil(448/90) plus one partially clipped row.
+        free_with_cache = capacity - ui_used - cache_bytes - top_bytes
         for w, h, required in ((528, 704, 1687552), (600, 800, 2195456),
                                 (1024, 1024, 4259840)):
             with self.subTest(source=(w, h)):
@@ -405,22 +413,30 @@ class Artwork(unittest.TestCase):
     def test_music_row_geometry_and_fallback_use_native_list_controls(self):
         root = ET.parse(ROOT / 'cxml/vita_moonlight_ui.xml').getroot()
         row = root.find("./templatetable/template[@id='template_app_list_item']/list_item")
-        self.assertEqual(row.find('layout_hint').get('size'), '730, 90')
+        self.assertEqual(row.find('layout_hint').get('size'), '960, 90')
         button = row.find('image_button')
         self.assertEqual(button.find('focus_hint').get('focus_shape'), '3')
-        self.assertEqual(button.find('focus_hint').get('focus_size'), '730, 90')
+        self.assertEqual(button.find('focus_hint').get('focus_size'), '900, 90')
         self.assertEqual(button.get('enable_long_press_text_auto_scroll'), '1')
         plane = row.find("plane[@id='plane_app_cover']")
         self.assertIsNotNone(plane)
         self.assertEqual(plane.get('texture'), 'tex_application')
         self.assertIsNone(button.find("plane[@id='plane_app_cover']"))
         cover = plane.find('layout_hint')
-        self.assertEqual((cover.get('size'), cover.get('pos')), ('90, 90', '77, 0'))
+        self.assertEqual((cover.get('size'), cover.get('pos')), ('90, 90', '185, 0'))
         self.assertIsNotNone(row.find("plane[@id='plane_app_fallback']"))
         self.assertIsNone(button.find("plane[@id='plane_app_fallback']"))
         style = root.find("./styletable/style_image_button[@id='style_image_button_app']")
-        self.assertEqual(style.get('left_margin'), '137')  # x=115+137=252, 15 after the cover.
-        self.assertEqual(style.find('textobj').get('font_size'), '32')
+        self.assertEqual(style.get('left_margin'), '245')
+        self.assertEqual(style.find('textobj').get('font_size'), '28')
+        self.assertEqual(style.find('textobj').get('bold'), '1')
+        self.assertEqual(row.find("plane[@id='plane_app_row']/layout_hint").get('size'), '840, 90')
+        self.assertEqual(style.find('planeobj').get('scale_value'), '840, 90')
+        viewport = root.find(".//list_view[@id='list_view_generic']/layout_hint")
+        viewport_x = 480 - 960 / 2 + float(viewport.get('pos').split(',')[0])
+        self.assertEqual(viewport_x + float(cover.get('pos').split(',')[0]) - 45, 147)
+        self.assertEqual(viewport_x + float(style.get('left_margin')), 252)
+        self.assertIn('SetCellSizeDefault(0, { 960.0f, 90.0f })', (ROOT / 'src/pages/page_apps.cpp').read_text())
         for name in ('music_row', 'music_row_glow', 'application'):
             texture = root.find(f"./texturetable/texture[@id='tex_{name}']")
             self.assertEqual(texture.get('type'), 'texture/png')

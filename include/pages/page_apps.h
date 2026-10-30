@@ -44,7 +44,8 @@ private:
     void SelectApp(int index);
     void LaunchRequestedApplication();
 
-    enum { ArtworkCacheSize = 12 };
+    /* Six generated rows fit the 448px viewport; leave pool room for Music's top textures. */
+    enum { ArtworkCacheSize = 6 };
     struct ArtworkEntry {
         ArtworkEntry() : application_id(0), width(0), height(0) {}
         int application_id;

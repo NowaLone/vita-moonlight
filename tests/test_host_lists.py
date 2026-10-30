@@ -401,6 +401,19 @@ class HostLists(unittest.TestCase):
         for ident in ('text_host_title', 'text_host_desc', 'plane_host_pc'):
             self.assertEqual(saved.find(f".//*[@id='{ident}']/layout_hint").attrib,
                              temporary.find(f".//*[@id='{ident}']/layout_hint").attrib)
+        selected = xml.find(".//template[@id='template_host_list_item_select']")
+        for template, suffix in ((saved, ''), (temporary, ''), (selected, '_select')):
+            row = template.find('list_item')
+            button = row.find('image_button')
+            self.assertEqual(button.find('focus_hint').get('focus_size'), '900, 80')
+            self.assertEqual(button.find('layout_hint').get('size'), '960, 80')
+            icon = row.find(f"plane[@id='plane_host{suffix}_pc']/layout_hint")
+            self.assertEqual((icon.get('anchor'), icon.get('pos')), ('1, 0', '180, 0'))
+            self.assertEqual(row.find(f"text[@id='text_host{suffix}_title']/layout_hint").get('pos'), '245, -9')
+        checkbox = selected.find(".//check_box/layout_hint")
+        self.assertLessEqual(float(checkbox.get('pos').split(',')[0]) + 58, 180 - 40)
+        self.assertEqual(xml.find(".//textobj[@id='row_title_obj']").get('bold'), '1')
+        self.assertEqual(xml.find(".//textobj[@id='row_desc_obj']").get('font_size'), '20')
         self.assertIsNone(xml.find(".//page[@id='page_search_pcs']"))
         self.assertIsNone(xml.find(".//button[@id='btn_search_pcs']"))
 

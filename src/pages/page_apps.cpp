@@ -86,7 +86,7 @@ Apps::Apps(int application_id)
     if (m_list) {
         m_list->SetItemFactory(new ListViewFactory(this));
         m_list->InsertSegment(0, 1);
-        m_list->SetCellSizeDefault(0, { 730.0f, 90.0f });
+        m_list->SetCellSizeDefault(0, { 960.0f, 90.0f });
         m_list->SetGenerateMargin(paf::math::v2());
         m_list->SetSegmentLayoutType(0, paf::ui::ListView::LAYOUT_TYPE_LIST);
     }
@@ -517,7 +517,7 @@ void Apps::ArtworkTask(void *userdata)
             apps->m_artwork_attempted[index] = true;
             if (surface.get()) {
                 int slot = -1;
-                /* Retain at most twelve thumbnails; evict only rows PAF no longer generates. */
+                /* Keep the bounded cache; evict only rows PAF no longer generates. */
                 for (int j = 0; j < ArtworkCacheSize; ++j) {
                     if (!apps->m_artwork[j].application_id) { slot = j; break; }
                 }

@@ -841,9 +841,9 @@ ownership remains in ConnectionService.
 | Template | Child ids | Used by | Purpose |
 |---|---|---|---|
 | `template_top_title_bar` | `plane_top`, `box_top_title`, `text_top`, `plane_top_separator` | Main, Apps | Settings-style plane/box/text header, centred 32 px bold title over the system ruled-line separator |
-| `template_list_view_generic` | `list_view_generic` (730 x 448) | Apps | list that runs to the bottom of the screen |
+| `template_list_view_generic` | `list_view_generic` (960 x 448) | Apps | list that runs to the bottom of the screen |
 | `template_list_view_main` | `list_view_main` (960 x 384) | Main | list that ends where the bar starts (y = 480) |
-| `template_app_list_item` | `list_item_app`, `image_button_app`, `plane_app_cover`, `plane_app_fallback` | Apps | Music-style 730 x 90 cover/title row |
+| `template_app_list_item` | `list_item_app`, `image_button_app`, `plane_app_cover`, `plane_app_fallback` | Apps | Music-style 960 x 90 cell; 840 px backdrop / 900 px focus |
 | `template_host_list_item` | `list_item_host`, `image_button_host`, `plane_host_pc`, `text_host_title`, `text_host_desc` | Main | saved PC row: availability dot, PC icon, title and description |
 | `template_host_list_item_discovered` | same scoped ids as the normal host row, without `plane_host_availability` | Main | temporary PC; same columns, no dot |
 | `template_host_list_item_select` | `list_item_host_select`, `image_button_host_select`, `plane_host_select_pc`, `text_host_select_title`, `text_host_select_desc`, `checkbox_host_select` | Main (selection mode) | same row with a checkbox |
@@ -1273,6 +1273,11 @@ behavior **[hw, user-reported, 2026-10-27]**. No agent build or hardware test.
 
 ### 5.2 List rows (PS4 Link "Which feature...") **[shot]**
 
+**Historical PS4 Link layout below:** Main now follows the Music top-row geometry
+and typography in §5.7 (2026-10-30); the right-side PC icon/text/dot coordinates
+below describe the earlier implementation, not current Main. The selection bar
+and native selection actions retain their existing behavior.
+
 Title 28 px regular, cap centre 25 px below the row top; description 22 px at 85% white, cap centre 58.5 px below the
 row top. PS4 Link text starts at x = 220 because of its icon column. Main/Search PC rows
 use the Music `tex_pc` icon in an 80 x 80 sibling `plane` at the right of both
@@ -1424,11 +1429,10 @@ log was supplied, and the separate cases below were not individually reported.
   to the CXML foreground transform. Geometry uses 500 ms `FUNC_CIRQ_OUT` timers;
   alpha uses 400 ms linear timers. These targets follow Photos' recovered
   defaults; perspective and actual strip width remain **[open]**.
-- Apps' list/cell/button are 730 px wide (the initial 80 px rows are replaced by
-  the 90 px Music-style rows in §5.7). Their intended
-  bounds x=115…845 match the supplied Photos grid's horizontal reference
-  **[shot-derived layout, native appearance open]**. Main's 960 px list/rows,
-  generic title bar, selection geometry and row identity logic are unchanged.
+- The initial prototype made Apps' list/cell/button 730 px wide to follow
+  the Photos grid x=115…845 reference. This was superseded by Music's independent
+  840 px backdrop / 900 px focus in §5.7. Current cells are 960×90; Main cells
+  remain 960×80. The retained-parent navigation/row identity logic is unchanged.
 - Apps owns both animations and uses two native completion callbacks. A PAF
   main-thread task reopens input only after both complete; Back animates the
   reverse targets and deletes Apps from that task, outside the native callback.
@@ -1470,7 +1474,7 @@ resource dimensions from screenshot measurements and unresolved screen mappings.
 **[code; build and Vita appearance open]** Apps uses a dedicated native ListView
 row based on the maintainer's official Music application reference. The existing
 Moonlight background, title, Back corner and Photos-style folded-parent navigation
-remain. An application has one vertically centred 32 px regular title, with native
+remain. An application has one vertically centred 28 px bold title, with native
 ellipsis/long-press text scrolling; no artist or synthetic second-line metadata is
 invented. Application names remain server text; existing EN/RU application/empty/error
 strings are reused without adding dictionary keys.
@@ -1483,7 +1487,8 @@ Reference evidence, inspected read-only without compilation:
   has a 90 px row, a 90×90 child cover at `0x1248`, and focus shape 3
   with 900×90 focus bounds **[code]**. The image-button style `eb731fb1`
   uses 92×92 image geometry; the visible square slot is 90×90. Its row backdrop
-  has meta-alpha 0.6. Shared text object `01f875b1` uses 32 px text.
+  has meta-alpha 0.6. The generic 32 px text style is not the runtime row
+  label; see the ELF typography recovery below.
 - ELF `SceMusicBrowser`, SHA256
   `618aa1b0d828cd620f922debb979512cc7175dde639e5b9f08cf09061bb56392`.
   Import NIDs resolve through the installed PAF database. Calls at `0x81098308`
@@ -1494,14 +1499,55 @@ Reference evidence, inspected read-only without compilation:
 - Screenshot `2026-10-29-220904.jpg`, SHA256
   `2b20049e3f9f9b6f5bcd9cc2eeac666496678fc51e661cfb43f55c4efc0b7187`:
   cover strip approximately x=147…237, row boundaries y=96,186,276,366,456,
-  title starts around x=252 **[shot]**. Geometry is adapted to Apps' existing
-  730 px width: square centre x=192, title offset 137 from list x=115,
-  giving a 15 px cover/title gap. Main's rows/selection geometry do not change.
+  title starts around x=252 **[shot]**. The initial 730 px adaptation is now
+  replaced: a 960 px viewport/cell at x=7 gives row centre x=487. The native
+  cover offset −295 gives centre x=192; button left margin 245 gives text x=252
+  and a nominal 15 px gap. The 7 px viewport offset is screenshot-derived,
+  not a recovered native viewport constant; clipping/scrollbar need Vita review.
 - `texture/music_row.png` and `music_row_glow.png` are lossless RGBA exports
   of Music texture IDs `5b971d4f` and `c0176b51`: 680×92 pixels each **[code]**.
-  CXML scales them to 730×90, preserving the original backdrop alpha and
-  native additive-focus treatment. The existing packaged app icon is reused
+  CXML scales them to the native 840×90, with 900×90 focus bounds,
+  preserving the original backdrop alpha and additive-focus treatment. The existing packaged app icon is reused
   as a 64×64 fallback. See [asset provenance](LICENSING.md).
+
+Music layout correction (2026-10-30), **[code; native appearance open]**:
+
+- Main uses `filelist_template_music_top` (`a2bf3870`, RCO node `0x19d8`)
+  as its row reference: 80 px height, 840 px backdrop, 900 px focus and
+  80 px icon at −300 relative to row centre. Hashing the embedded ELF strings
+  at `0x810da1a8` / `0x810db0c8` identifies that template; the 90 px group and
+  track templates are `adcafa27` / `ac52b58e` (`0x810d94b8` / `0x810d96dc`).
+- The ELF label helper `0x8107671e` loads Point 28 at `0x8107676c` and marks
+  primary modes 1/2/3/5/7/8 bold (`0x810767ae`, `0x810767d0`, final Bold
+  attribute 7 call at `0x8107708a`). Secondary modes 4/6/9 use Point 20 and
+  do not set bold (`0x810767c0`, `0x810767f2`). `default_label` is passed mode 1
+  at `0x8107f678…0x8107f690`; two-line filelist labels use upper/lower modes
+  8/9 at `0x81067a86…0x81067b22`. Text construction receives the selected point
+  value at `0x810768b8` / `0x81076e34`. These are code facts from the supplied
+  binary, not claims of a device run. Main/Apps now use 28 bold; Main's address
+  uses 20 regular at its existing 85% white. Header text stays 32 bold.
+- Main's PC icon is now on the left: x=147…227, with title/address at x=252…900.
+  The existing two-line host content is an adaptation, not a new claim that Music
+  top categories contain addresses. Saved and discovered rows share columns;
+  availability is a 27 px badge centred at x=159, 25 px below the row centre.
+  Selection keeps those columns, with the 58 px checkbox at x=64…122; it does
+  not overlap the icon. Row tokens, selection callbacks and the bottom bar remain.
+- Main backdrop/glow use native Music IDs `6b5a7f8a` / `be12fb16`, losslessly
+  exported to `music_top_row{,_glow}.png` (680×72) and scaled to 840×80.
+  The GIM decoder was checked byte-for-byte against the existing album PNG.
+  Apps retains its separate native album textures, square 90 px slot and
+  aspect-preserving portrait thumbnails; portrait art still has extra side space.
+- The two new resident Main textures are included in the conservative pool
+  model (704×128×4 bytes each). Artwork cache capacity is now six, sufficient
+  for the zero-margin 448 px viewport's generated rows, so the 8 MiB pool still
+  covers the bounded 1024×1024 source preflight. A full six-entry padded cache
+  plus the added texture allowance leaves 4,303,864 bytes in that arithmetic
+  model versus 4,259,840 required. Native fragmentation and actual allocation
+  remain unverified; larger lists may refetch evicted off-screen covers.
+- No user-facing strings change; all EN/RU IDs and existing service boundaries
+  remain. Resource/localization checks and the 305 Python checks pass. Maintainer
+  gate: rebuild RCO/application; check Main normal/Delete and Apps, Russian/English
+  names, long names, scrollbar/folded strip, and artwork/stream memory on Vita.
 
 ApplicationService owns a single-worker 256 KiB PAF queue and one cancellable
 image job. The maintainer's first artwork build stopped at direct access to
@@ -1557,7 +1603,7 @@ it no longer independently opens/resizes Image or calls DecodeImage. Linear RGBA
 BGRA pixels are validated against native dimensions, stride and page size, reduced
 by bounded rectangle averaging into at most 90×90 pixels, then copied through
 PAF into a small native surface. This avoids passing a lazy resize operation into
-the internal decoder and keeps the twelve-entry thumbnail budget. The temporary
+the internal decoder. Its initial twelve-entry cache was reduced to six by the Music layout correction above. The temporary
 full-size native surface is released before thumbnail allocation; no full-size
 surface enters the cache. Pool admission requires conservatively padded source
 storage plus 64 KiB overhead. This is a free-space preflight, not an atomic pool
@@ -1573,7 +1619,7 @@ but every job still stops at phase 0, **before Surface::Load**. The log reports
 native decoder. The system surface pool is now 8 MiB instead of 4 MiB; the
 1 MiB text pool, 10 MiB PAF global heap, 6 MiB newlib capacity and default 64 MiB
 SELF budget remain. At the captured UI occupancy, the additional 4 MiB covers the
-preflight for a maximum 1024×1024 source even with twelve conservatively padded
+preflight for a maximum 1024×1024 source even with the then-twelve conservatively padded
 thumbnails. A non-build regression calculation fails for the old capacity and
 passes for the new one. This is capacity arithmetic, not native allocator or
 fragmentation validation; source/thumbnail allocation errors still preserve the
@@ -1624,7 +1670,7 @@ native decoding, resized to fit the 90×90 slot without cropping/stretching, and
 published through an acquire/release completion flag. Unsupported/malformed,
 missing, oversized or failed images leave the app launchable with its icon;
 failures are console-only and are not retried every frame. The page caches at
-most twelve thumbnails (nominal RGBA pixels under 380 KiB, excluding native
+most six thumbnails (nominal RGBA pixels under 190 KiB, excluding native
 alignment/decoder overhead), evicting only ungenerated rows. Cache identity is
 scoped to this Apps page/current host; nothing is persisted to disk.
 
@@ -1644,7 +1690,7 @@ interpret PNG/aspect/transfer bounds, paired-session/app-ID
 admission, late cancellation, job-result ownership and launch/Back ordering, and
 validate resource references/localization. They do not execute PAF, native decode,
 TLS, threads or the Vita ABI. Maintainer gate: rebuild RCO/application, compare
-row/highlight/title placement and long names, scroll more than twelve apps, try
+row/highlight/title placement and long names, scroll beyond the six-entry cache, try
 portrait/square/missing covers, Back/launch during downloading, stream stop/return,
 repeated page entry, and shutdown with a pending request. Appearance, focus,
 real memory/latency and server compatibility remain **[open]**.
