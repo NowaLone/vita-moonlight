@@ -1463,6 +1463,10 @@ these cases were not individually reported. No agent build or hardware run.
 
 ### 5.7 Music-style application artwork — 2026-10-30
 
+For measured differences from Music/Photos, see the
+[screen comparison](MUSIC_PHOTOS_UI_COMPARISON.md). That report separates
+resource dimensions from screenshot measurements and unresolved screen mappings.
+
 **[code; build and Vita appearance open]** Apps uses a dedicated native ListView
 row based on the maintainer's official Music application reference. The existing
 Moonlight background, title, Back corner and Photos-style folded-parent navigation
