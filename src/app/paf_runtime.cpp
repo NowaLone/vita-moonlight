@@ -38,10 +38,10 @@ int paf_runtime_main(void)
     fwParam.mode = paf::Framework::Mode_Normal;
     paf::Framework::SampleInit(&fwParam);
 #ifdef MOONLIGHT_SYSTEM_APP
-    // Keep Moonlight's separate newlib heap inside the small system budget.
-    // BHBB's 8/4 MiB pools do not account for that additional allocator.
+    // Apps needs one full-size source while producing bounded cover thumbnails.
+    // Keep the text pool small to retain room for Moonlight's separate newlib heap.
     fwParam.mode = paf::Framework::Mode_Application;
-    fwParam.surface_pool_size = 4 * 1024 * 1024;
+    fwParam.surface_pool_size = 8 * 1024 * 1024;
     fwParam.text_surface_pool_size = 1 * 1024 * 1024;
 #endif
     fwParam.graphics_option = 7;

@@ -23,6 +23,22 @@ class Artwork(unittest.TestCase):
         self.assertNotIn('image::Image::Open(', source)
         self.assertNotRegex(source, r'Framework::Instance\(\)->(?:surface_pool|decode_heap)')
 
+    def test_system_pool_has_headroom_for_reported_sources_and_full_thumbnail_cache(self):
+        runtime_source = (ROOT / 'src/app/paf_runtime.cpp').read_text()
+        capacity = int(re.search(r'fwParam.surface_pool_size = (\d+) \* 1024 \* 1024;',
+                                 runtime_source).group(1)) * 1024 * 1024
+        header = (ROOT / 'include/pages/page_apps.h').read_text()
+        cache_count = int(re.search(r'ArtworkCacheSize = (\d+)', header).group(1))
+        # Captured UI occupancy with the old 4 MiB pool, before any cover loaded.
+        # Padding is a conservative arithmetic allowance, not native allocation proof.
+        ui_used = 4 * 1024 * 1024 - 1223672
+        cache_bytes = cache_count * 128 * 128 * 4  # 90px slots padded to 64px blocks.
+        free_with_cache = capacity - ui_used - cache_bytes
+        for w, h, required in ((528, 704, 1687552), (600, 800, 2195456),
+                                (1024, 1024, 4259840)):
+            with self.subTest(source=(w, h)):
+                self.assertGreaterEqual(free_with_cache, required)
+
     def test_bounded_thumbnail_pixels_padding_upscale_and_invalid_storage(self):
         code = function((ROOT / 'include/moonlight/app_artwork.h').read_text().replace('static inline ', ''),
                         'moonlight_artwork_reduce')

@@ -1,6 +1,6 @@
 # Focused checks
 
-Latest recorded source gate: **303 checks including artwork loading failures/pixel reduction (2026-10-30)**.
+Latest recorded source gate: **304 checks including artwork pool headroom (2026-10-30)**.
 See [the repeat Ponytail audit](../docs/PONYTAIL_REAUDIT_2026-10-23.md) for the latest
 baseline, per-change checks and native gates; [the earlier refactor audit](../docs/REFACTOR_AUDIT.md)
 records the preceding pass. Counts in the
@@ -11,6 +11,12 @@ cases are in the API audit and `runtime/README.md`; source checks do not replace
 Non-build checks (Python 3 and pycparser):
 
     PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -p 'test_*.py'
+
+`test_app_artwork.py` compares the configured system surface capacity against the
+maintainer's captured UI occupancy, reported source requirements and a padded
+full-thumbnail-cache/max-source allowance. This regression calculation fails with
+the old 4 MiB pool. It does not establish native allocation, fragmentation or
+startup/streaming compatibility of the larger reservation.
 
 `test_app_artwork.py` interprets actual native-binding admission with mocked
 widgets: a failed SetTexture must retain the fallback, while success sizes/shows

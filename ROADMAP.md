@@ -4,6 +4,15 @@ This roadmap captures the agreed next steps for Vita Moonlight PAF. It is ordere
 
 ## Active remaining work (reconciled 2026-10-27)
 
+- [x] Artwork pool headroom source correction (2026-10-30): all four valid PNG
+  responses stopped before native loading because 1,223,672 free pool bytes did
+  not cover the 1.7–2.2 MB source requests. Raise the system surface pool from
+  4 to 8 MiB, retain the 1 MiB text pool and existing heap/SELF budgets, and add
+  a regression calculation for observed sources and the bounded cache/max source.
+- [ ] Maintainer rebuild/Vita gate for the larger pool: actual covers/native
+  loading, startup with a retained Vita game, stream launch/stop/return and memory.
+  The reported absence of a crash at phase 0 does not validate Surface::Load.
+
 - [x] Artwork crash source correction (2026-10-30): the supplied truncated core
   locates the worker failure in PAF during direct Surface::DecodeImage. Replace
   independent Image open/resize/internal decode with public Surface::Load defaults,

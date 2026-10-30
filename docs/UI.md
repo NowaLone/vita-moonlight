@@ -44,6 +44,9 @@ The opt-in `MOONLIGHT_SYSTEM_APP` prototype switches the PAF runtime to
 `Mode_Application` after `SampleInit()`, initially following BHBB **[code]**. After
 the user's startup allocation failure, its surface/text-surface pools are reduced
 from 8/4 MiB to 4/1 MiB to leave room for Moonlight's separate newlib heap **[code]**.
+The artwork follow-up now raises only the surface pool to 8 MiB under the current
+64 MiB default system budget; text stays at 1 MiB. The reason, limits and pending
+Vita gate are in [§5.7](#57-music-style-application-artwork--2026-10-30).
 The original log does not identify the failed allocation's caller. On `7e20e94`,
 the user confirms startup no longer crashes and Main/Settings work; Settings
 open/close logs return USER_RW free space to its earlier value **[hw, user-reported]**.
@@ -1558,6 +1561,22 @@ reservation or a guarantee against fragmentation; loader/allocator errors retain
 the fallback. Insufficient memory or unsupported native pixel layouts also retain
 it. Transient decoder allocation/latency and this crash correction require the
 maintainer's application rebuild/Vita retest; the agent did not build or run PAF.
+
+Pool headroom correction (2026-10-30): the maintainer reports no further crash,
+but every job still stops at phase 0, **before Surface::Load**. The log reports
+1,223,672 free bytes against 1,687,552 required for 528×704 and 2,195,456 for
+600×800; the PNG requests succeeded. This does not yet exercise the replacement
+native decoder. The system surface pool is now 8 MiB instead of 4 MiB; the
+1 MiB text pool, 10 MiB PAF global heap, 6 MiB newlib capacity and default 64 MiB
+SELF budget remain. At the captured UI occupancy, the additional 4 MiB covers the
+preflight for a maximum 1024×1024 source even with twelve conservatively padded
+thumbnails. A non-build regression calculation fails for the old capacity and
+passes for the new one. This is capacity arithmetic, not native allocator or
+fragmentation validation; source/thumbnail allocation errors still preserve the
+fallback. The larger surface reservation persists while the framework runs.
+Maintainer gate: rebuild the application, open the same Apps and check actual
+`loaded/complete/bind` results, then verify startup with a retained Vita game and
+stream start/stop/return under the larger pool. Those native paths remain **[open]**.
 
 Only generated rows request images. The zero generation margin is passed as a
 value-initialized `paf::math::v2()`: the installed SDK exposes private x/y fields
