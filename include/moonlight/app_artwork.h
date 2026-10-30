@@ -35,15 +35,18 @@ static inline void moonlight_artwork_fit(int width, int height, int *w, int *h)
     if (*h < 1) *h = 1;
 }
 
-/* Average source rectangles into a tightly packed thumbnail. Channel order is preserved
- * (RGBA/BGRA); native Surface::Load/Copy own decoding, texture layout and cache flushing. */
+/* Average source rectangles into a tightly packed thumbnail. A non-NULL palette
+ * supplies the native P8 table (256 four-byte entries); expand indices before averaging.
+ * RGBA/BGRA channel order is preserved. Surface::Load/Copy own decode/layout/flushing. */
 static inline int moonlight_artwork_reduce(const unsigned char *src, size_t size,
-    int sw, int sh, int stride, unsigned char *dst, int dw, int dh)
+    int sw, int sh, int stride, const unsigned char *palette,
+    unsigned char *dst, int dw, int dh)
 {
+    int pixel_bytes = palette ? 1 : 4;
     if (!src || !dst || sw < 1 || sh < 1 || sw > 1024 || sh > 1024 ||
         dw < 1 || dh < 1 || dw > MOONLIGHT_ARTWORK_THUMB_SIZE ||
-        dh > MOONLIGHT_ARTWORK_THUMB_SIZE || stride < sw * 4 || stride > 4096 ||
-        size < (size_t)(sh - 1) * stride + sw * 4) return 0;
+        dh > MOONLIGHT_ARTWORK_THUMB_SIZE || stride < sw * pixel_bytes || stride > 4096 ||
+        size < (size_t)(sh - 1) * stride + sw * pixel_bytes) return 0;
     for (int y = 0; y < dh; ++y) {
         int y0 = y * sh / dh, y1 = (y + 1) * sh / dh;
         if (y1 <= y0) y1 = y0 + 1;
@@ -54,8 +57,10 @@ static inline int moonlight_artwork_reduce(const unsigned char *src, size_t size
             unsigned int count = (x1 - x0) * (y1 - y0);
             for (int sy = y0; sy < y1; ++sy) {
                 for (int sx = x0; sx < x1; ++sx) {
+                    size_t offset = (size_t)sy * stride + sx * pixel_bytes;
+                    size_t color = palette ? (size_t)src[offset] * 4 : offset;
                     for (int c = 0; c < 4; ++c)
-                        sum[c] = sum[c] + src[(size_t)sy * stride + sx * 4 + c];
+                        sum[c] = sum[c] + (palette ? palette[color + c] : src[color + c]);
                 }
             }
             for (int c = 0; c < 4; ++c)

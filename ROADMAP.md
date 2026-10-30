@@ -4,6 +4,16 @@ This roadmap captures the agreed next steps for Vita Moonlight PAF. It is ordere
 
 ## Active remaining work (reconciled 2026-10-27)
 
+- [x] P8 artwork source correction (2026-10-30): supplied log proves two
+  528×704 PNGs load as P8_ABGR (`0x95000000`, stride 528) and were rejected by
+  the RGBA/BGRA-only reducer, while two direct-color PNGs bind successfully.
+  Resolve native P8 palette entries during bounded reduction, preserve alpha /
+  channel order, reject missing palettes and keep release/cancellation ordering.
+  No full-size RGBA buffer or decoder/pool change. All 305 source checks pass.
+- [ ] Maintainer application rebuild/Vita gate for P8: all four covers, color /
+  transparency, Back/launch/stream-return. Successful direct-color binds in the
+  supplied log do not validate the new paletted path. See UI §5.7.
+
 - [x] Music layout correction (2026-10-30): recover runtime label typography
   (28 bold / secondary 20 regular), use independent 840 px row backdrops and
   900 px focus, move Main's PC icon to Music's left column, preserve selection

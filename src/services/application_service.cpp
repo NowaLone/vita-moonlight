@@ -120,15 +120,23 @@ public:
                      sceGxmTextureGetType(source->GetRawTexture()) == SCE_GXM_TEXTURE_LINEAR_STRIDED)) {
                     phase = 2;
                     uint32_t format = sceGxmTextureGetFormat(source->GetRawTexture());
-                    if (format == SCE_GXM_TEXTURE_FORMAT_A8B8G8R8 ||
-                        format == SCE_GXM_TEXTURE_FORMAT_A8R8G8B8) {
-                        mode = format == SCE_GXM_TEXTURE_FORMAT_A8B8G8R8 ?
+                    bool indexed = format == SCE_GXM_TEXTURE_FORMAT_P8_ABGR ||
+                                   format == SCE_GXM_TEXTURE_FORMAT_P8_ARGB;
+                    const unsigned char *palette = indexed ?
+                        (const unsigned char *)sceGxmTextureGetPalette(source->GetRawTexture()) : NULL;
+                    if (indexed && !palette)
+                        vita_debug_log("[Artwork] missing palette app=%d format=0x%08X", id, (unsigned int)format);
+                    if ((format == SCE_GXM_TEXTURE_FORMAT_A8B8G8R8 ||
+                         format == SCE_GXM_TEXTURE_FORMAT_A8R8G8B8 || indexed) &&
+                        (!indexed || palette)) {
+                        mode = (format == SCE_GXM_TEXTURE_FORMAT_A8B8G8R8 ||
+                                format == SCE_GXM_TEXTURE_FORMAT_P8_ABGR) ?
                                ImageMode_RGBA8888 : ImageMode_BGRA8888;
                         pixels = (unsigned char *)malloc((size_t)width * height * 4);
                         if (pixels) {
                             const unsigned char *data = (const unsigned char *)source->Lock();
                             int reduced = moonlight_artwork_reduce(data, source->GetPageSize(),
-                                w, h, source->GetStride(), pixels, width, height);
+                                w, h, source->GetStride(), palette, pixels, width, height);
                             if (data) source->Unlock();
                             if (!reduced) { free(pixels); pixels = NULL; }
                             else phase = 3;

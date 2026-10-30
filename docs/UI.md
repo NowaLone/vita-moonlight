@@ -1660,6 +1660,34 @@ assertions, but does not compile them. Maintainer rebuild and actual cover decod
 startup, Back/launch/stream-return checks remain **[open]**. Raw core memory is not
 committed. Earlier source-only loader fixes did not resolve this ABI mismatch.
 
+Paletted PNG correction (2026-10-30), **[code; P8 Vita gate open]**: the
+maintainer's log now records successful Load/reduction/binding for apps `881448767`
+and `1093255277` (600×800, stride 2400, GXM `0x0c000000`). Apps `1631604947`
+and `717411297` also load successfully (528×704, stride 528, `0x95000000`) but
+stop at phase 2 with no thumbnail. This is the native GXM `P8_ABGR` format,
+not a decoder error or insufficient pool capacity: reported free bytes are over
+5,000,000 versus 1,687,552 required. The reducer previously admitted only
+32-bit RGBA/BGRA and therefore deliberately discarded those valid P8 surfaces.
+
+The service now also admits `P8_ABGR` / `P8_ARGB`, obtains their 256-entry
+native palette through public `sceGxmTextureGetPalette`, and rejects a missing
+palette before locking/reducing. The existing bounded rectangle reducer reads
+one index byte per source pixel, resolves its four color/alpha bytes before
+averaging, and produces the same RGBA/BGRA thumbnail. Source stride/page bounds
+use one byte for P8 and four for direct-color input. No full-size expanded image,
+palette cache, decoder replacement or new pool reservation is introduced. The
+source owns the palette until reduction/unlock completes and is still released
+before thumbnail allocation. Unsupported formats retain the fallback; a missing
+palette has a console-only diagnostic. User-facing strings/layout are unchanged.
+
+Existing non-build checks now cover palette color/alpha averaging, index 255,
+padded/truncated rows, enlargement, both P8 channel orders and missing-palette
+rejection together with cancellation/failure/release ordering. The pixel case
+failed against the previous reducer and passes after this correction; all 305
+source checks pass. These checks interpret C/C++ source with mocks and do not
+execute PAF/GXM. Maintainer gate: rebuild the application and verify the same
+four covers, colors/transparency, Back/launch and stream return on Vita.
+
 Only generated rows request images. The zero generation margin is passed as a
 value-initialized `paf::math::v2()`: the installed SDK exposes private x/y fields
 and no two-float constructor, so `{0.0f, 0.0f}` is not a valid argument. The

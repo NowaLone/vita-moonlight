@@ -1,6 +1,6 @@
 # Focused checks
 
-Latest recorded source gate: **305 checks including the scoped native image ABI guard (2026-10-30)**.
+Latest recorded source gate: **305 checks including native image ABI and P8 artwork regression cases (2026-10-30)**.
 See [the repeat Ponytail audit](../docs/PONYTAIL_REAUDIT_2026-10-23.md) for the latest
 baseline, per-change checks and native gates; [the earlier refactor audit](../docs/REFACTOR_AUDIT.md)
 records the preceding pass. Counts in the
@@ -28,6 +28,12 @@ widgets: a failed SetTexture must retain the fallback, while success sizes/shows
 the cover before hiding the fallback. The resource gate requires both image
 planes as ListItem siblings, with an initialized cover texture. These do not
 establish Vita clipping, draw-object creation, decoding or final visibility.
+
+`test_app_artwork.py` covers native P8 admission with mocked GXM format/palette
+calls and interprets palette expansion before rectangle averaging (including
+alpha, index 255, byte-stride padding/truncation and missing-palette rejection).
+Both P8_ABGR/RGBA and P8_ARGB/BGRA mappings retain source channel order. No native
+GXM palette access, PAF decode or rendering is executed by these checks.
 
 `test_app_artwork.py` also interprets the actual bounded rectangle-reduction helper
 (averaging, channel order, stride padding, enlargement and invalid storage) and

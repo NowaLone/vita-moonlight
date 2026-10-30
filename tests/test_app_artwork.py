@@ -85,10 +85,10 @@ class Artwork(unittest.TestCase):
                 expression(node.lvalue.name, values)[expression(node.lvalue.subscript, values)] = expression(node.rvalue, values)
             else: original_execute(node, values)
 
-        def invoke(src, sw, sh, stride, dw, dh, size=None):
+        def invoke(src, sw, sh, stride, dw, dh, size=None, palette=None):
             dst = [222] * (max(1, dw * dh) * 4)
             values = dict(src=src, size=len(src) if size is None else size, sw=sw, sh=sh,
-                          stride=stride, dst=dst, dw=dw, dh=dh)
+                          stride=stride, palette=palette, dst=dst, dw=dw, dh=dh)
             with patch.object(runtime, 'expression', expression), patch.object(runtime, 'execute', execute):
                 try: runtime.execute(node.body, values)
                 except runtime.Returned as result: return result.value, dst
@@ -109,6 +109,22 @@ class Artwork(unittest.TestCase):
             self.assertEqual(result, 0)
             self.assertTrue(all(value == 222 for value in dst))
 
+        # P8 indices must be expanded before averaging, including index 255 and alpha.
+        palette = [0] * 1024
+        palette[:4] = [10, 20, 30, 0]
+        palette[4:8] = [100, 110, 120, 128]
+        palette[1020:] = [200, 210, 220, 255]
+        indexed = [0, 255, 99, 1, 255, 88]  # Two 2px rows with byte padding.
+        self.assertEqual(invoke(indexed, 2, 2, 3, 1, 1, palette=palette),
+                         (1, [127, 137, 147, 159]))
+        self.assertEqual(invoke(indexed, 2, 2, 3, 2, 2, palette=palette),
+                         (1, palette[:4] + palette[1020:] + palette[4:8] + palette[1020:]))
+        self.assertEqual(invoke([255], 1, 1, 1, 3, 2, palette=palette),
+                         (1, palette[1020:] * 6))
+        for stride, size in ((1, 6), (3, 4), (4097, 10000)):
+            result, dst = invoke(indexed, 2, 2, stride, 1, 1, size=size, palette=palette)
+            self.assertEqual((result, dst), (0, [222] * 4))
+
     def test_loader_failures_cancellation_and_release_before_thumbnail_copy(self):
         source = (ROOT / 'src/services/application_service.cpp').read_text()
         source = source[source.index('class ApplicationService::ArtworkJob'):]
@@ -127,6 +143,7 @@ class Artwork(unittest.TestCase):
             'source->GetRawTexture()': 'source',
             'sceGxmTextureGetFormat(source)': 'format',
             'source->Lock()': 'lock_source()',
+            'sceGxmTextureGetPalette(source)': 'get_palette()',
             'source->GetPageSize()': 'page_size', 'source->GetStride()': 'stride',
             'source->Unlock()': 'unlock_source()',
             'surface->GetPagePtr(0)': 'texture_data',
@@ -148,28 +165,34 @@ class Artwork(unittest.TestCase):
                 return a * b if node.op == '*' else a & b
             return original(node, values)
 
-        for failure in ('none', 'bgra', 'strided', 'fetch', 'cancel_before', 'pool', 'load', 'cancel_load',
+        for failure in ('none', 'bgra', 'strided', 'p8', 'p8_bgra', 'palette', 'fetch', 'cancel_before', 'pool', 'load', 'cancel_load',
                         'dimensions', 'layout', 'format', 'malloc', 'lock', 'reduce',
                         'cancel_reduce', 'new', 'texture', 'copy'):
             with self.subTest(failure=failure):
                 calls, cancelled = [], [failure == 'cancel_before']
+                indexed = failure in ('p8', 'p8_bgra', 'palette')
                 def load(*args):
                     calls.append('load')
                     if failure == 'cancel_load': cancelled[0] = True
                     return 0 if failure == 'load' else 1
                 def reduce(*args):
                     calls.append('reduce')
+                    self.assertEqual(args[5], 3 if indexed else 0)
                     if failure == 'cancel_reduce': cancelled[0] = True
                     return failure not in ('lock', 'reduce')
                 values = dict(NULL=0, false=0, cancel=0, id=7, pool=1,
                     surface=0, width=67, height=90, sw=0 if failure == 'dimensions' else 528,
-                    sh=704, page_size=528 * 704 * 4, stride=528 * 4,
-                    format=9 if failure == 'format' else 2 if failure == 'bgra' else 1,
+                    sh=704, page_size=528 * 704 * (1 if indexed else 4), stride=528 * (1 if indexed else 4),
+                    format=(0x95001000 if failure == 'p8_bgra' else 0x95000000) if indexed else
+                           9 if failure == 'format' else 2 if failure == 'bgra' else 1,
                     texture_data=failure != 'texture',
                     ImageMode_RGBA8888=1, ImageMode_BGRA8888=2, ImageOrder_Linear=1,
                     SCE_GXM_TEXTURE_LINEAR=1, SCE_GXM_TEXTURE_LINEAR_STRIDED=3,
                     SCE_GXM_TEXTURE_FORMAT_A8B8G8R8=1,
                     SCE_GXM_TEXTURE_FORMAT_A8R8G8B8=2,
+                    SCE_GXM_TEXTURE_FORMAT_P8_ABGR=0x95000000,
+                    SCE_GXM_TEXTURE_FORMAT_P8_ARGB=0x95001000,
+                    get_palette=lambda: 0 if failure == 'palette' else 3,
                     fetch=lambda *args: -1 if failure == 'fetch' else 0,
                     moonlight_artwork_extent=lambda *args: 1,
                     moonlight_artwork_fit=lambda *args: None,
@@ -194,12 +217,15 @@ class Artwork(unittest.TestCase):
                 original_execute = runtime.execute
                 with patch.object(runtime, 'expression', expression), patch.object(runtime, 'execute', execute):
                     runtime.execute(node.body, values)
-                self.assertEqual(bool(values['surface']), failure in ('none', 'bgra', 'strided'))
+                self.assertEqual(bool(values['surface']), failure in ('none', 'bgra', 'strided', 'p8', 'p8_bgra'))
+                if failure in ('bgra', 'p8_bgra'): self.assertEqual(values['mode'], 2)
+                if failure in ('p8', 'p8_bgra'): self.assertIn('unlock', calls)
+                if failure == 'palette': self.assertNotIn('lock', calls)
                 if 'new' in calls: self.assertLess(calls.index('release'), calls.index('new'))
                 if 'load' in calls: self.assertIn('release', calls)
                 if 'lock' in calls and failure != 'lock': self.assertIn('unlock', calls)
                 if failure in ('cancel_before', 'pool', 'fetch'): self.assertNotIn('load', calls)
-                if failure not in ('none', 'bgra', 'strided', 'copy'): self.assertNotIn('copy', calls)
+                if failure not in ('none', 'bgra', 'strided', 'p8', 'p8_bgra', 'copy'): self.assertNotIn('copy', calls)
 
     def test_session_admission_app_identity_and_late_cancellation_fail_closed(self):
         source = function((ROOT / 'src/moonlight/api.cpp').read_text(),
