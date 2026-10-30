@@ -1578,6 +1578,38 @@ Maintainer gate: rebuild the application, open the same Apps and check actual
 `loaded/complete/bind` results, then verify startup with a retained Vita game and
 stream start/stop/return under the larger pool. Those native paths remain **[open]**.
 
+Native image ABI correction (2026-10-30): after increasing the pool, the full core
+`psp2core-1793318590-0x00007231bb-eboot.bin.psp2dmp` (SHA256
+`09ceeff5734abd57d62d496a8639812cfdfd5ac3cdd00b2946d91874f0122121`)
+records `Application artwork` at PAF `abort+0x12` (`0xe0259632`). Its exported
+LIBRARY_INFO NID/address pairs identify HeapAllocator::sce_paf_memalign,
+SurfacePool::Allocate, Surface::Initialize/constructor and DecodeImage/Load in the
+stack. The allocation request is `0x4075c580` bytes (about 1 GiB), with invalid
+surface dimensions despite the 528×704 PNG header. Application return
+`0x81010b99` maps to ELF `0x81009b98`, directly after Surface::Load.
+
+The caller ELF has `Tag_ABI_enum_size: small`; its constructor stores the option
+resize enum one byte after flag 0x68, instead of at 0x6c. The supplied Music ELF's
+constructor at `0x8108cf4a…0x8108cfc8` places the option at object +0x48 and writes
+32-bit resize_type at +0xb4 (option +0x6c), image_order at +0xcc (+0x84), and the
+last flag at +0xdc (+0x94); its copy at `0x8108cff6` copies 0x95 payload bytes.
+Thus the native option occupies 0x98 bytes with alignment, while the current SDK
+header compiled with short enums occupies 0x90 and shifts fields after 0x68.
+This mismatch also shifts inline Surface stride/page-size fields and the size
+used by client `new Surface`. More pool memory cannot correct that ABI.
+
+Only `src/services/application_service.cpp` now compiles with `-fno-short-enums`.
+Its native LoadOption, inline Surface access and allocation use 32-bit enums;
+compile-time assertions require the observed option size/offsets and ImageMode/
+ImageOrder widths. Its cross-file service boundary uses pointers/references,
+integer application IDs/sizes and enum-free MoonlightApplication/cancellation
+records; ConnectionService calls are out of line. Compiler flags for UI pages,
+streaming and the rest of the target are unchanged. The bounded loader/cancellation
+path and 8/1 MiB pool sizes remain. A source check guards the scoped flag and ABI
+assertions, but does not compile them. Maintainer rebuild and actual cover decode,
+startup, Back/launch/stream-return checks remain **[open]**. Raw core memory is not
+committed. Earlier source-only loader fixes did not resolve this ABI mismatch.
+
 Only generated rows request images. The zero generation margin is passed as a
 value-initialized `paf::math::v2()`: the installed SDK exposes private x/y fields
 and no two-float constructor, so `{0.0f, 0.0f}` is not a valid argument. The

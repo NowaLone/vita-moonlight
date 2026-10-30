@@ -1,6 +1,6 @@
 # Focused checks
 
-Latest recorded source gate: **304 checks including artwork pool headroom (2026-10-30)**.
+Latest recorded source gate: **305 checks including the scoped native image ABI guard (2026-10-30)**.
 See [the repeat Ponytail audit](../docs/PONYTAIL_REAUDIT_2026-10-23.md) for the latest
 baseline, per-change checks and native gates; [the earlier refactor audit](../docs/REFACTOR_AUDIT.md)
 records the preceding pass. Counts in the
@@ -11,6 +11,11 @@ cases are in the API audit and `runtime/README.md`; source checks do not replace
 Non-build checks (Python 3 and pycparser):
 
     PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -p 'test_*.py'
+
+`test_app_artwork.py` guards the ApplicationService-only -fno-short-enums source
+flag and compile-time LoadOption size/offset/ImageMode/ImageOrder assertions,
+following the full-core/Music ELF ABI comparison. It does not execute the compiler
+or validate PAF; the assertions run when the maintainer builds.
 
 `test_app_artwork.py` compares the configured system surface capacity against the
 maintainer's captured UI occupancy, reported source requirements and a padded

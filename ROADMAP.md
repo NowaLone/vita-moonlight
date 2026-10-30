@@ -4,6 +4,17 @@ This roadmap captures the agreed next steps for Vita Moonlight PAF. It is ordere
 
 ## Active remaining work (reconciled 2026-10-27)
 
+- [x] Artwork native ABI source correction (2026-10-30): full core identifies
+  abort during an approximately 1 GiB Surface allocation for a 528×704 PNG.
+  Compare caller short-enum packing with Music's 32-bit LoadOption enum fields;
+  compile only ApplicationService with -fno-short-enums and assert option
+  size/offsets plus image enum widths. This also fixes service-side inline
+  Surface geometry and client allocation size. Previous loader changes alone
+  did not resolve the native crash. See UI §5.7 for addresses/provenance.
+- [ ] Maintainer rebuild/Vita gate for the ABI correction: successful
+  loaded/complete/bind and visible covers, Back/launch/stream-return, repeated
+  entry and startup with a retained Vita game. No native run by the agent.
+
 - [x] Artwork pool headroom source correction (2026-10-30): all four valid PNG
   responses stopped before native loading because 1,223,672 free pool bytes did
   not cover the 1.7–2.2 MB source requests. Raise the system surface pool from

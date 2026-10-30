@@ -262,6 +262,11 @@ if(MOONLIGHT_SYSTEM_APP)
     APPEND_STRING PROPERTY COMPILE_FLAGS " -include moonlight/vita_transport_threads.h")
 endif()
 
+# PAF image/surface structs use 32-bit enums (Music LoadOption: 0x98 bytes).
+# Vita GCC defaults to short enums; isolate the native image ABI to this service.
+set_property(SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/src/services/application_service.cpp
+  APPEND_STRING PROPERTY COMPILE_FLAGS " -fno-short-enums")
+
 # The system renderer owns a CodecEngine pool for explicit decoder contexts.
 if(MOONLIGHT_SYSTEM_APP)
   target_link_libraries(${PROJECT_NAME} SceCodecEngine_stub)

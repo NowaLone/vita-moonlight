@@ -2,6 +2,7 @@
 #include <paf/graphics/graphics.h>
 #include <psp2/gxm.h>
 #include <stdlib.h>
+#include <stddef.h>
 
 #include "moonlight/app_artwork.h"
 #include "debug.h"
@@ -10,6 +11,16 @@
 #include "services/connection_service.h"
 
 namespace {
+
+/* Native Music's option constructor stores resize_type at 0x6c and image_order
+ * at 0x84. Small enums also break inline Surface geometry/sizeof(new Surface). */
+static_assert(sizeof(paf::graph::Surface::LoadOption) == 0x98, "Native PAF LoadOption size");
+static_assert(sizeof(ImageMode) == 4, "Native PAF ImageMode width");
+static_assert(sizeof(ImageOrder) == 4, "Native PAF ImageOrder width");
+static_assert(offsetof(paf::graph::Surface::LoadOption, resize_type) == 0x6c,
+              "Native PAF resize_type offset");
+static_assert(offsetof(paf::graph::Surface::LoadOption, image_order) == 0x84,
+              "Native PAF image_order offset");
 
 class RefreshAppsJob : public paf::job::JobItem {
 public:

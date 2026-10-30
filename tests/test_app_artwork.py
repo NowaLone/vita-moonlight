@@ -23,6 +23,19 @@ class Artwork(unittest.TestCase):
         self.assertNotIn('image::Image::Open(', source)
         self.assertNotRegex(source, r'Framework::Instance\(\)->(?:surface_pool|decode_heap)')
 
+    def test_native_decoder_enum_layout_is_explicit_and_scoped_to_the_service(self):
+        cmake = (ROOT / 'CMakeLists.txt').read_text()
+        self.assertRegex(cmake, r'set_property\(SOURCE \$\{CMAKE_CURRENT_SOURCE_DIR\}/src/services/application_service\.cpp\s+APPEND_STRING PROPERTY COMPILE_FLAGS " -fno-short-enums"\)')
+        source = (ROOT / 'src/services/application_service.cpp').read_text()
+        # Native Music constructs options at +0x48: resize +0xb4, order +0xcc,
+        # last flag +0xdc, and copies 0x95 bytes. Native allocation includes padding.
+        for contract in ('sizeof(paf::graph::Surface::LoadOption) == 0x98',
+                         'sizeof(ImageMode) == 4', 'sizeof(ImageOrder) == 4',
+                         'offsetof(paf::graph::Surface::LoadOption, resize_type) == 0x6c',
+                         'offsetof(paf::graph::Surface::LoadOption, image_order) == 0x84'):
+            self.assertIn(contract, source)
+        self.assertNotRegex(cmake, r'set\(CMAKE_C(?:XX)?_FLAGS[^\n]*-fno-short-enums')
+
     def test_system_pool_has_headroom_for_reported_sources_and_full_thumbnail_cache(self):
         runtime_source = (ROOT / 'src/app/paf_runtime.cpp').read_text()
         capacity = int(re.search(r'fwParam.surface_pool_size = (\d+) \* 1024 \* 1024;',
